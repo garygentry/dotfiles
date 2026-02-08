@@ -1,0 +1,30 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# Packer
+packer_cache/
+*.box
+output-*/
+
+# Secrets & API Tokens
+*.secret
+*_secret*
+secrets.yml
+secrets.yaml
+
+# OS/Editor
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+reference/
