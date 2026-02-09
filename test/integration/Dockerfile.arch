@@ -1,6 +1,7 @@
 FROM archlinux:latest
-RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
-    curl git sudo bash go
+RUN pacman-key --init && pacman-key --populate archlinux
+RUN pacman -Syu --noconfirm \
+    curl git sudo bash go openssh unzip git-delta inetutils
 # Create test user with sudo
 RUN useradd -m -s /bin/bash testuser && \
     echo "testuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -10,8 +11,8 @@ RUN chown -R testuser:testuser /home/testuser/.dotfiles
 USER testuser
 WORKDIR /home/testuser/.dotfiles
 ENV DOTFILES_DIR=/home/testuser/.dotfiles
+ENV DOTFILES_PROFILE=test
+ENV USER=testuser
 # Build
 RUN go build -o bin/dotfiles .
-# Copy test script
-COPY test/integration/test_install.sh /home/testuser/test_install.sh
-CMD ["bash", "/home/testuser/test_install.sh"]
+CMD ["bash", "test/integration/test_install.sh"]

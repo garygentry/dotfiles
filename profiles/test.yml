@@ -1,0 +1,5 @@
+modules:
+  - ssh
+  - git
+  - zsh
+  - neovim

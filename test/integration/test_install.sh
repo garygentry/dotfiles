@@ -61,6 +61,72 @@ assert_order() {
     fi
 }
 
+assert_file_exists() {
+    local desc="$1"
+    local filepath="$2"
+    if [[ -f "$filepath" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (file not found: $filepath)"
+    fi
+}
+
+assert_dir_exists() {
+    local desc="$1"
+    local dirpath="$2"
+    if [[ -d "$dirpath" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (directory not found: $dirpath)"
+    fi
+}
+
+assert_symlink() {
+    local desc="$1"
+    local filepath="$2"
+    if [[ -L "$filepath" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (not a symlink: $filepath)"
+    fi
+}
+
+assert_command_exists() {
+    local desc="$1"
+    local cmd="$2"
+    if command -v "$cmd" &>/dev/null; then
+        pass "$desc"
+    else
+        fail "$desc (command not found: $cmd)"
+    fi
+}
+
+assert_dir_perms() {
+    local desc="$1"
+    local dirpath="$2"
+    local expected="$3"
+    local actual
+    actual="$(stat -c '%a' "$dirpath" 2>/dev/null || stat -f '%Lp' "$dirpath" 2>/dev/null)"
+    if [[ "$actual" == "$expected" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (expected perms $expected, got $actual for $dirpath)"
+    fi
+}
+
+assert_git_config() {
+    local desc="$1"
+    local key="$2"
+    local expected="$3"
+    local actual
+    actual="$(git config --global --get "$key" 2>/dev/null || true)"
+    if [[ "$actual" == "$expected" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (expected '$expected', got '$actual' for git config $key)"
+    fi
+}
+
 # ==============================================================================
 echo "=== Integration Tests ==="
 echo ""
@@ -113,6 +179,56 @@ fi
 assert_output_contains "--help shows 'install' command" "install" "$HELP_OUTPUT"
 assert_output_contains "--help shows 'list' command" "list" "$HELP_OUTPUT"
 assert_output_contains "--help shows 'Available Commands' or command info" "dotfiles" "$HELP_OUTPUT"
+
+# --- Test 4: Full installation ---
+echo ""
+echo "--- Test: dotfiles install --unattended (full install) ---"
+FULL_OUTPUT=$("$DOTFILES_BIN" install --unattended -v 2>&1) || true
+FULL_EXIT=$?
+
+if [ "$FULL_EXIT" -eq 0 ]; then
+    pass "install --unattended exits with code 0"
+else
+    fail "install --unattended exits with code 0 (got: $FULL_EXIT)"
+    echo ""
+    echo "--- Full install output (on failure) ---"
+    echo "$FULL_OUTPUT"
+    echo "--- End output ---"
+fi
+
+# --- Test 5: SSH module verification ---
+echo ""
+echo "--- Test: SSH module verification ---"
+assert_dir_exists "~/.ssh directory exists" "$HOME/.ssh"
+assert_dir_perms "~/.ssh has permissions 700" "$HOME/.ssh" "700"
+assert_file_exists "~/.ssh/id_ed25519 exists" "$HOME/.ssh/id_ed25519"
+assert_file_exists "~/.ssh/id_ed25519.pub exists" "$HOME/.ssh/id_ed25519.pub"
+assert_file_exists "~/.ssh/config exists" "$HOME/.ssh/config"
+
+# --- Test 6: Git module verification ---
+echo ""
+echo "--- Test: Git module verification ---"
+assert_git_config "git init.defaultBranch = main" "init.defaultBranch" "main"
+assert_git_config "git push.autoSetupRemote = true" "push.autoSetupRemote" "true"
+assert_git_config "git pull.rebase = true" "pull.rebase" "true"
+assert_symlink "~/.gitignore_global is symlink" "$HOME/.gitignore_global"
+assert_symlink "~/.gitmessage is symlink" "$HOME/.gitmessage"
+
+# --- Test 7: Zsh module verification ---
+echo ""
+echo "--- Test: Zsh module verification ---"
+assert_command_exists "zsh is installed" "zsh"
+assert_symlink "~/.zshrc is symlink" "$HOME/.zshrc"
+assert_dir_exists "zinit directory exists" "$HOME/.local/share/zinit/zinit.git"
+assert_symlink "~/.config/zsh/aliases.zsh is symlink" "$HOME/.config/zsh/aliases.zsh"
+assert_symlink "~/.config/zsh/functions.zsh is symlink" "$HOME/.config/zsh/functions.zsh"
+
+# --- Test 8: Neovim module verification ---
+echo ""
+echo "--- Test: Neovim module verification ---"
+assert_command_exists "nvim is installed" "nvim"
+assert_dir_exists "~/.config/nvim directory exists" "$HOME/.config/nvim"
+assert_symlink "~/.config/nvim/init.lua is symlink" "$HOME/.config/nvim/init.lua"
 
 # ==============================================================================
 echo ""

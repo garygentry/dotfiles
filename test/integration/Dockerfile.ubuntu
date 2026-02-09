@@ -2,7 +2,11 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     curl git sudo bash ca-certificates \
+    software-properties-common gpg \
     && rm -rf /var/lib/apt/lists/*
+# Install git-delta (not in Ubuntu repos, download from GitHub releases)
+RUN curl -fsSL https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_amd64.deb \
+    -o /tmp/git-delta.deb && dpkg -i /tmp/git-delta.deb && rm /tmp/git-delta.deb
 # Create test user with sudo
 RUN useradd -m -s /bin/bash testuser && \
     echo "testuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -15,8 +19,8 @@ RUN chown -R testuser:testuser /home/testuser/.dotfiles
 USER testuser
 WORKDIR /home/testuser/.dotfiles
 ENV DOTFILES_DIR=/home/testuser/.dotfiles
+ENV DOTFILES_PROFILE=test
+ENV USER=testuser
 # Build
 RUN go build -o bin/dotfiles .
-# Copy test script
-COPY test/integration/test_install.sh /home/testuser/test_install.sh
-CMD ["bash", "/home/testuser/test_install.sh"]
+CMD ["bash", "test/integration/test_install.sh"]
