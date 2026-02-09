@@ -1,0 +1,20 @@
+profile: developer
+
+secrets:
+  provider: 1password
+  account: my.1password.com
+
+user:
+  name: ""
+  email: ""
+  github_user: ""
+
+modules:
+  ssh:
+    key_type: ed25519
+  git:
+    default_branch: main
+  zsh:
+    theme: powerlevel10k
+  neovim:
+    colorscheme: catppuccin

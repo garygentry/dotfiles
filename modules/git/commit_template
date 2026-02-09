@@ -1,0 +1,18 @@
+
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+#
+# Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
+#
+# Rules:
+# - Subject line: max 50 chars, imperative mood, no period
+# - Body: wrap at 72 chars, explain what and why (not how)
+# - Footer: reference issues, breaking changes
+#
+# Examples:
+#   feat(auth): add SSH key-based signing
+#   fix(ssh): correct permissions on config file
+#   docs(readme): update installation instructions

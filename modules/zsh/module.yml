@@ -1,0 +1,25 @@
+name: zsh
+description: "Install and configure Zsh with Zinit plugin manager"
+version: "1.0.0"
+priority: 40
+dependencies:
+  - git
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files:
+  - source: zshrc
+    dest: "~/.zshrc"
+    type: symlink
+  - source: aliases.zsh
+    dest: "~/.config/zsh/aliases.zsh"
+    type: symlink
+  - source: functions.zsh
+    dest: "~/.config/zsh/functions.zsh"
+    type: symlink
+prompts: []
+tags:
+  - shell
+  - cli

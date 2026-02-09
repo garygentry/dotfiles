@@ -1,0 +1,19 @@
+name: neovim
+description: "Install Neovim and symlink configuration"
+version: "1.0.0"
+priority: 50
+dependencies:
+  - git
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files:
+  - source: init.lua
+    dest: "~/.config/nvim/init.lua"
+    type: symlink
+prompts: []
+tags:
+  - editor
+  - development

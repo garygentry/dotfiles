@@ -1,0 +1,15 @@
+name: 1password
+description: "Install and configure 1Password CLI"
+version: "1.0.0"
+priority: 10
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files: []
+prompts: []
+tags:
+  - security
+  - secrets

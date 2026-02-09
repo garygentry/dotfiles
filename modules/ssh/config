@@ -1,0 +1,38 @@
+# SSH Configuration
+# Managed by dotfiles - {{ .OS }}/{{ .Arch }}
+
+Host *
+    # Add keys to the SSH agent automatically
+    AddKeysToAgent yes
+
+    # Use the macOS Keychain on macOS
+{{- if eq .OS "darwin" }}
+    UseKeychain yes
+{{- end }}
+
+    # Default identity file
+{{- if eq (index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE") "rsa" }}
+    IdentityFile ~/.ssh/id_rsa
+{{- else }}
+    IdentityFile ~/.ssh/id_ed25519
+{{- end }}
+
+    # Connection settings
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    ConnectTimeout 10
+
+    # Security settings
+    HashKnownHosts yes
+    VisualHostKey no
+
+# GitHub
+Host github.com
+    HostName github.com
+    User git
+{{- if eq (index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE") "rsa" }}
+    IdentityFile ~/.ssh/id_rsa
+{{- else }}
+    IdentityFile ~/.ssh/id_ed25519
+{{- end }}
+    IdentitiesOnly yes

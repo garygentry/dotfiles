@@ -1,0 +1,26 @@
+name: ssh
+description: "Configure SSH keys and settings"
+version: "1.0.0"
+priority: 20
+dependencies:
+  - 1password
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files:
+  - source: config
+    dest: "~/.ssh/config"
+    type: template
+prompts:
+  - key: ssh_key_type
+    message: "SSH key type"
+    default: "ed25519"
+    type: choice
+    options:
+      - ed25519
+      - rsa
+tags:
+  - security
+  - ssh

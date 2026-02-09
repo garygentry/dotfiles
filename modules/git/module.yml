@@ -1,0 +1,23 @@
+name: git
+description: "Configure git with SSH signing and useful defaults"
+version: "1.0.0"
+priority: 30
+dependencies:
+  - ssh
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - git
+files:
+  - source: gitignore_global
+    dest: "~/.gitignore_global"
+    type: symlink
+  - source: commit_template
+    dest: "~/.gitmessage"
+    type: symlink
+prompts: []
+tags:
+  - development
+  - git
