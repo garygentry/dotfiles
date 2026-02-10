@@ -7,6 +7,7 @@ import (
 var (
 	verbose bool
 	dryRun  bool
+	logJSON bool
 )
 
 var rootCmd = &cobra.Command{
@@ -21,6 +22,7 @@ and shell-based modules for install logic. Supports macOS, Ubuntu, and Arch Linu
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
+	rootCmd.PersistentFlags().BoolVar(&logJSON, "log-json", false, "Output logs in JSON format")
 }
 
 func Execute() error {
