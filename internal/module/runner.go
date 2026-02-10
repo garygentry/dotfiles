@@ -139,8 +139,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		})
 		if err := runScript(cfg, mod, osScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: os script error: %v", mod.Name, err))
-			recordStateWithOps(cfg, modState, "failed", err)
-			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+			return handleInstallFailure(cfg, modState, mod, err, start)
 		}
 	}
 
@@ -154,8 +153,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		})
 		if err := runScript(cfg, mod, installScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: install script error: %v", mod.Name, err))
-			recordStateWithOps(cfg, modState, "failed", err)
-			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+			return handleInstallFailure(cfg, modState, mod, err, start)
 		}
 	}
 
@@ -163,8 +161,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	spinner := cfg.UI.StartSpinner(fmt.Sprintf("Deploying %s files...", mod.Name))
 	if err := deployFiles(cfg, mod, tmplCtx, modState); err != nil {
 		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: file deployment error: %v", mod.Name, err))
-		recordStateWithOps(cfg, modState, "failed", err)
-		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+		return handleInstallFailure(cfg, modState, mod, err, start)
 	}
 	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Deployed %s files", mod.Name))
 
@@ -178,8 +175,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		})
 		if err := runScript(cfg, mod, verifyScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: verify script error: %v", mod.Name, err))
-			recordStateWithOps(cfg, modState, "failed", err)
-			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+			return handleInstallFailure(cfg, modState, mod, err, start)
 		}
 	}
 
@@ -586,4 +582,142 @@ func boolToStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// handleInstallFailure handles installation failures by offering rollback options.
+// In interactive mode, prompts the user to [S]kip or [U]ndo.
+// In unattended mode, records failure and continues.
+func handleInstallFailure(cfg *RunConfig, modState *state.ModuleState, mod *Module, installErr error, start time.Time) RunResult {
+	// Record failure
+	recordStateWithOps(cfg, modState, "failed", installErr)
+
+	// In unattended mode, just return the error
+	if cfg.Unattended {
+		return RunResult{Module: mod, Error: installErr, Duration: time.Since(start)}
+	}
+
+	// Check if rollback is possible
+	if !modState.CanRollback() {
+		cfg.UI.Warn("No operations to rollback")
+		return RunResult{Module: mod, Error: installErr, Duration: time.Since(start)}
+	}
+
+	// Show rollback options
+	cfg.UI.Info("")
+	cfg.UI.Warn(fmt.Sprintf("Installation of %s failed with %d recorded operations", mod.Name, len(modState.Operations)))
+	cfg.UI.Info("Options:")
+	cfg.UI.Info("  [S]kip - Leave partial installation as-is")
+	cfg.UI.Info("  [U]ndo - Rollback changes and clean up")
+
+	// Prompt for action
+	choice, promptErr := cfg.UI.PromptChoice("What would you like to do?", []string{"skip", "undo"})
+	if promptErr != nil {
+		cfg.UI.Warn("Failed to read input, skipping rollback")
+		return RunResult{Module: mod, Error: installErr, Duration: time.Since(start)}
+	}
+
+	if choice == "undo" {
+		cfg.UI.Info("Rolling back changes...")
+
+		// Execute rollback operations
+		rollbackCount := 0
+		rollbackErrors := 0
+
+		for i := len(modState.Operations) - 1; i >= 0; i-- {
+			op := modState.Operations[i]
+			if err := executeRollbackOp(cfg, op); err != nil {
+				cfg.UI.Warn(fmt.Sprintf("Rollback operation %d failed: %v", i, err))
+				rollbackErrors++
+			} else {
+				rollbackCount++
+			}
+		}
+
+		// Remove state after rollback
+		if err := cfg.State.Remove(mod.Name); err != nil {
+			cfg.UI.Warn(fmt.Sprintf("Failed to remove state: %v", err))
+		}
+
+		if rollbackErrors > 0 {
+			cfg.UI.Warn(fmt.Sprintf("Rolled back %d/%d operations (%d errors)", 
+				rollbackCount, len(modState.Operations), rollbackErrors))
+		} else {
+			cfg.UI.Success(fmt.Sprintf("Successfully rolled back %d operations", rollbackCount))
+		}
+	} else {
+		cfg.UI.Info("Skipping rollback, partial installation preserved")
+	}
+
+	return RunResult{Module: mod, Error: installErr, Duration: time.Since(start)}
+}
+
+// executeRollbackOp executes a single rollback operation.
+func executeRollbackOp(cfg *RunConfig, op state.Operation) error {
+	cfg.UI.Debug(fmt.Sprintf("Rolling back: %s %s %s", op.Type, op.Action, op.Path))
+
+	switch op.Type {
+	case "file_deploy":
+		return rollbackFileOp(op)
+	case "dir_create":
+		return rollbackDirOp(op)
+	case "script_run":
+		// Scripts cannot be automatically rolled back
+		cfg.UI.Debug(fmt.Sprintf("Script rollback not supported: %s", op.Path))
+		return nil
+	case "package_install":
+		// Packages are not automatically removed
+		cfg.UI.Debug(fmt.Sprintf("Package rollback not supported: %s", op.Path))
+		return nil
+	default:
+		return fmt.Errorf("unknown operation type: %s", op.Type)
+	}
+}
+
+// rollbackFileOp rolls back a file deployment operation.
+func rollbackFileOp(op state.Operation) error {
+	switch op.Action {
+	case "created", "symlinked":
+		// Remove the file/symlink
+		if err := os.Remove(op.Path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing %s: %w", op.Path, err)
+		}
+		return nil
+
+	case "modified":
+		// Restore from backup if available
+		if backup := op.Metadata["backup_path"]; backup != "" {
+			data, err := os.ReadFile(backup)
+			if err != nil {
+				return fmt.Errorf("reading backup %s: %w", backup, err)
+			}
+			if err := os.WriteFile(op.Path, data, 0o644); err != nil {
+				return fmt.Errorf("restoring %s: %w", op.Path, err)
+			}
+			os.Remove(backup)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown file action: %s", op.Action)
+	}
+}
+
+// rollbackDirOp rolls back a directory creation operation.
+func rollbackDirOp(op state.Operation) error {
+	// Only remove if empty
+	entries, err := os.ReadDir(op.Path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Already gone
+		}
+		return fmt.Errorf("reading directory %s: %w", op.Path, err)
+	}
+
+	if len(entries) == 0 {
+		if err := os.Remove(op.Path); err != nil {
+			return fmt.Errorf("removing directory %s: %w", op.Path, err)
+		}
+	}
+
+	return nil
 }
