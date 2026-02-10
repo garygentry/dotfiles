@@ -10,6 +10,7 @@ These flags are available for all commands:
 --help, -h       Show help for command
 --verbose, -v    Enable verbose output
 --dry-run        Show what would be done without making changes
+--log-json       Output logs in JSON format (for log aggregation)
 ```
 
 ## Commands
@@ -135,6 +136,197 @@ neovim       Install Neovim and symlink config     all          failed
 - `installed` - Module is currently installed
 - `not installed` - Module has not been installed
 - `failed` - Last installation attempt failed
+
+### dotfiles status
+
+Show status of installed modules with detailed information.
+
+```bash
+dotfiles status [flags]
+```
+
+**Flags:**
+```
+-v, --verbose        Show operation history and full details
+```
+
+**Examples:**
+
+```bash
+# Show installed modules
+dotfiles status
+
+# Show detailed information including operation history
+dotfiles status -v
+```
+
+**Output:**
+
+```
+Installed Modules:
+
+Name         Version    Status      Installed             OS
+──────────── ────────── ─────────── ───────────────────── ──────────
+git          1.0.0      installed   2026-02-10 10:30:00   ubuntu
+zsh          1.0.0      installed   2026-02-10 10:31:15   ubuntu
+neovim       1.0.0      failed      2026-02-10 10:32:00   ubuntu
+
+3 modules installed (1 failed)
+```
+
+**Verbose Output:**
+Shows operation history for rollback tracking:
+- Files deployed (created, modified, symlinked)
+- Directories created
+- Scripts executed
+- Packages installed
+
+### dotfiles uninstall
+
+Uninstall modules and rollback their changes.
+
+```bash
+dotfiles uninstall <modules...> [flags]
+```
+
+**Arguments:**
+- `modules` - One or more modules to uninstall (required)
+
+**Flags:**
+```
+--force              Skip confirmation prompts and continue on errors
+--dry-run            Preview rollback plan without executing
+-v, --verbose        Show detailed rollback information
+```
+
+**Examples:**
+
+```bash
+# Uninstall a module
+dotfiles uninstall git
+
+# Uninstall multiple modules
+dotfiles uninstall git zsh neovim
+
+# Preview what would be uninstalled
+dotfiles uninstall git --dry-run
+
+# Force uninstall (no prompts)
+dotfiles uninstall git --force
+
+# Verbose uninstall with detailed output
+dotfiles uninstall git -v
+```
+
+**Output:**
+
+```
+Uninstalling git...
+
+Rollback plan (5 operations):
+  1. Remove: /home/user/.gitconfig
+  2. Restore /home/user/.bashrc from /home/user/.bashrc.backup
+  3. Remove directory: /home/user/.config/git
+  4. Package was installed: git (manual removal may be needed)
+  5. Script was executed: install.sh (manual cleanup may be needed)
+
+? Proceed with uninstall of git? [y/N]: y
+
+✓ Removed /home/user/.gitconfig
+✓ Restored /home/user/.bashrc
+✓ Removed directory /home/user/.config/git
+ℹ Package git installed (manual removal may be needed)
+ℹ Script install.sh executed (manual cleanup may be needed)
+
+✓ Uninstalled git successfully
+```
+
+**Rollback Operations:**
+- **Created files/symlinks**: Removed
+- **Modified files**: Restored from backup (if available)
+- **Created directories**: Removed if empty
+- **Scripts**: Informational only, not automatically reversed
+- **Packages**: Informational only, manual removal needed
+
+**Exit Codes:**
+- `0` - All modules uninstalled successfully
+- `1` - One or more modules failed to uninstall (unless `--force` used)
+
+### dotfiles new
+
+Generate a new module skeleton with standard structure.
+
+```bash
+dotfiles new <module-name> [flags]
+```
+
+**Arguments:**
+- `module-name` - Name of the module to create (lowercase alphanumeric with hyphens)
+
+**Flags:**
+```
+--priority int           Module priority (1-100, default: 50)
+--depends strings        Comma-separated list of dependencies
+--os strings             Comma-separated list of supported OSes (default: all)
+--description string     Module description
+```
+
+**Examples:**
+
+```bash
+# Create a basic module
+dotfiles new tmux
+
+# Create with priority and dependencies
+dotfiles new my-module --priority 35 --depends git,zsh
+
+# Create with OS restrictions
+dotfiles new mac-only --os darwin
+
+# Create with full metadata
+dotfiles new advanced \
+  --priority 40 \
+  --depends git \
+  --os ubuntu,arch \
+  --description "Advanced configuration module"
+```
+
+**Generated Structure:**
+
+```
+modules/my-module/
+├── module.yml          # Module configuration
+├── install.sh          # Installation script
+├── verify.sh           # Verification script (optional)
+├── os/                 # OS-specific scripts (optional)
+│   ├── ubuntu.sh
+│   ├── macos.sh
+│   └── arch.sh
+├── files/              # Template/config files (placeholder)
+└── README.md           # Module documentation
+```
+
+**Generated module.yml:**
+```yaml
+name: my-module
+version: 1.0.0
+description: TODO: Add description
+priority: 50
+os:
+  - all
+dependencies: []
+requires: []
+files: []
+prompts: []
+tags: []
+```
+
+**Next Steps After Generation:**
+1. Edit `module.yml` to configure module
+2. Implement `install.sh` with installation logic
+3. Add configuration files to `files/` directory
+4. Update README.md with documentation
+5. Test with `dotfiles install my-module --dry-run`
 
 ### dotfiles get-secret
 
@@ -322,12 +514,39 @@ Module state tracked in `~/.dotfiles/.state/*.json`:
   "name": "git",
   "version": "1.0.0",
   "status": "installed",
-  "installed_at": "2024-02-09T10:30:00Z",
-  "updated_at": "2024-02-09T10:30:00Z",
+  "installed_at": "2026-02-09T10:30:00Z",
+  "updated_at": "2026-02-09T10:30:05Z",
   "os": "ubuntu",
-  "error": ""
+  "checksum": "",
+  "operations": [
+    {
+      "type": "script_run",
+      "action": "executed",
+      "path": "/home/user/.dotfiles/modules/git/install.sh",
+      "timestamp": "2026-02-09T10:30:01Z"
+    },
+    {
+      "type": "file_deploy",
+      "action": "symlinked",
+      "path": "/home/user/.gitconfig",
+      "timestamp": "2026-02-09T10:30:02Z",
+      "metadata": {
+        "source": "/home/user/.dotfiles/modules/git/gitconfig",
+        "type": "symlink"
+      }
+    },
+    {
+      "type": "dir_create",
+      "action": "created",
+      "path": "/home/user/.config/git",
+      "timestamp": "2026-02-09T10:30:03Z"
+    }
+  ]
 }
 ```
+
+**Operations Field** (added in v1.1.0):
+Tracks all operations for rollback capability. See [Rollback Guide](rollback-guide.md) for details.
 
 ## Debugging
 

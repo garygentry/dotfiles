@@ -63,7 +63,10 @@ The command-line interface built with [Cobra](https://github.com/spf13/cobra).
 
 **Commands:**
 - `install` - Install modules with dependency resolution
-- `list` - Show available modules and their status
+- `uninstall` - Uninstall modules and rollback changes
+- `status` - Show installed modules and their state
+- `list` - Show available modules
+- `new` - Generate new module skeleton
 - `get-secret` - Retrieve secrets (internal, called by shell scripts)
 - `render-template` - Render Go templates (internal, called by shell scripts)
 
@@ -169,15 +172,17 @@ type Module struct {
 
 #### Runner (`runner.go`)
 - Module execution orchestration
+- Operation recording for rollback capability
 - 8-phase lifecycle per module:
   1. Prompts (if interactive)
   2. Environment variable setup
   3. Template context preparation
   4. OS-specific script execution
-  5. Install script execution
-  6. File deployment (symlink/copy/template)
+  5. Install script execution (with operation tracking)
+  6. File deployment (symlink/copy/template, with operation tracking)
   7. Verification script execution
-  8. State recording
+  8. State recording (including operation history)
+- Automatic rollback on failure with interactive prompt
 
 **Interface Pattern:**
 ```go
@@ -250,7 +255,7 @@ type Context struct {
 
 **Location**: `internal/state/`
 
-Persistent module state tracking.
+Persistent module state tracking with operation history for rollback.
 
 **Storage:**
 - Location: `~/.dotfiles/.state/`
@@ -262,14 +267,37 @@ Persistent module state tracking.
 type ModuleState struct {
     Name        string
     Version     string
-    Status      string    // "installed", "failed", "removed"
+    Status      string      // "installed", "failed", "removed"
     InstalledAt time.Time
     UpdatedAt   time.Time
     OS          string
     Error       string
     Checksum    string
+    Operations  []Operation // Operation history for rollback
 }
 ```
+
+**Operation:**
+```go
+type Operation struct {
+    Type      string            // "file_deploy", "dir_create", "script_run", "package_install"
+    Action    string            // "created", "modified", "backed_up", "symlinked", "executed"
+    Path      string            // File path or package name
+    Timestamp time.Time
+    Metadata  map[string]string // Additional context (backup_path, source, type, etc.)
+}
+```
+
+**Rollback Capability:**
+- `CanRollback()` - Check if operations can be reversed
+- `RollbackInstructions()` - Generate human-readable rollback plan
+- `RecordOperation()` - Add operation to history with timestamp
+
+**Operation Types:**
+- **file_deploy**: File or symlink creation/modification
+- **dir_create**: Directory creation
+- **script_run**: Shell script execution (informational, not rolled back)
+- **package_install**: Package manager installation (informational, not rolled back)
 
 ### 8. UI Package
 
@@ -294,6 +322,53 @@ const (
     ColorGray   = "\033[38;5;245m"
     ColorReset  = "\033[0m"
 )
+```
+
+### 9. Logging Package
+
+**Location**: `internal/logging/`
+
+Structured logging built on Go's `log/slog` (Go 1.21+).
+
+**Logger Interface:**
+```go
+type Logger interface {
+    Info(msg string, args ...any)
+    Warn(msg string, args ...any)
+    Error(msg string, args ...any)
+    Debug(msg string, args ...any)
+    Success(msg string, args ...any)
+    With(args ...any) Logger
+    WithGroup(name string) Logger
+}
+```
+
+**Handlers:**
+- **PrettyHandler**: Colorized human-readable output for terminals
+  - `[INFO]`, `[WARN]`, `[ERROR]`, `[DEBUG]`, `[OK]` level prefixes
+  - ANSI color coding (cyan, yellow, red, magenta, green)
+  - Compact key=value attribute formatting
+- **JSONHandler**: Machine-readable structured output
+  - Standard `log/slog` JSON format
+  - Useful for log aggregation and analysis
+
+**Configuration:**
+```go
+type Config struct {
+    Level     string    // "debug", "info", "warn", "error"
+    Format    string    // "pretty", "json"
+    Output    io.Writer // Defaults to os.Stderr
+    AddSource bool      // Include source file/line
+}
+```
+
+**Usage:**
+```bash
+# Enable JSON logging
+dotfiles install git --log-json
+
+# Enable debug logging
+dotfiles install git --verbose
 ```
 
 ## Data Flow
