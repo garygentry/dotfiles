@@ -1,0 +1,15 @@
+name: homebrew
+description: Homebrew package manager for macOS and Linux
+version: 1.0.0
+priority: 5
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+  - git
+tags:
+  - package-manager
+  - foundation

@@ -1,0 +1,9 @@
+name: tmux
+description: Terminal multiplexer with TPM plugin manager
+version: 1.0.0
+priority: 35
+dependencies: []
+os: []
+tags:
+  - terminal
+  - productivity

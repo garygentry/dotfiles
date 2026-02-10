@@ -1,0 +1,12 @@
+name: docker
+description: Container platform with non-root user setup
+version: 1.0.0
+priority: 55
+dependencies: []
+os:
+  - ubuntu
+  - arch
+tags:
+  - containers
+  - docker
+timeout: 10m

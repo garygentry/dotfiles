@@ -1,0 +1,9 @@
+name: golang
+description: Go language with GOPATH setup
+version: 1.0.0
+priority: 50
+dependencies: []
+os: []
+tags:
+  - programming
+  - golang

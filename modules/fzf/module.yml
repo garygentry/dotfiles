@@ -1,0 +1,10 @@
+name: fzf
+description: Fuzzy finder with shell integration
+version: 1.0.0
+priority: 25
+dependencies:
+  - ripgrep
+os: []
+tags:
+  - shell
+  - productivity

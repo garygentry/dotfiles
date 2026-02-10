@@ -1,0 +1,9 @@
+name: nodejs
+description: Node.js with npm package manager
+version: 1.0.0
+priority: 50
+dependencies: []
+os: []
+tags:
+  - programming
+  - nodejs

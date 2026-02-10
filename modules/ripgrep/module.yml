@@ -1,0 +1,10 @@
+name: ripgrep
+description: Fast grep alternative for code search
+version: 1.0.0
+priority: 15
+dependencies: []
+os: []
+requires: []
+tags:
+  - development
+  - tools

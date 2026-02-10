@@ -1,0 +1,9 @@
+name: fonts
+description: Nerd Fonts for terminal icons support
+version: 1.0.0
+priority: 10
+dependencies: []
+os: []
+tags:
+  - fonts
+  - terminal

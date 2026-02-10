@@ -1,0 +1,10 @@
+name: lazygit
+description: TUI for git with interactive interface
+version: 1.0.0
+priority: 35
+dependencies:
+  - git
+os: []
+tags:
+  - git
+  - tui
