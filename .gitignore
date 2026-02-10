@@ -28,3 +28,6 @@ secrets.yaml
 *.log
 
 reference/
+
+# Build output
+bin/

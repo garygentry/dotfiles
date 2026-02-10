@@ -3,4 +3,5 @@ modules:
   - ssh
   - git
   - zsh
+  - starship
   - neovim

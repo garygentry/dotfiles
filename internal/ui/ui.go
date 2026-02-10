@@ -183,7 +183,7 @@ func (u *UI) StartSpinner(msg string) any {
 func (u *UI) StopSpinnerSuccess(s any, msg string) {
 	u.stopSpinner(s)
 	if u.IsTTY {
-		fmt.Fprintf(u.writer, "\r%s%s %s%s\n", colorGreen, iconSuccess, msg, colorReset)
+		fmt.Fprintf(u.writer, "\r\033[K%s%s %s%s\n", colorGreen, iconSuccess, msg, colorReset)
 	} else {
 		fmt.Fprintf(u.writer, "[OK] %s\n", msg)
 	}
@@ -193,7 +193,7 @@ func (u *UI) StopSpinnerSuccess(s any, msg string) {
 func (u *UI) StopSpinnerFail(s any, msg string) {
 	u.stopSpinner(s)
 	if u.IsTTY {
-		fmt.Fprintf(u.writer, "\r%s%s %s%s\n", colorRed, iconError, msg, colorReset)
+		fmt.Fprintf(u.writer, "\r\033[K%s%s %s%s\n", colorRed, iconError, msg, colorReset)
 	} else {
 		fmt.Fprintf(u.writer, "[ERROR] %s\n", msg)
 	}
@@ -203,7 +203,7 @@ func (u *UI) StopSpinnerFail(s any, msg string) {
 func (u *UI) StopSpinnerSkip(s any, msg string) {
 	u.stopSpinner(s)
 	if u.IsTTY {
-		fmt.Fprintf(u.writer, "\r%s%s %s%s\n", colorYellow, iconWarn, msg, colorReset)
+		fmt.Fprintf(u.writer, "\r\033[K%s%s %s%s\n", colorYellow, iconWarn, msg, colorReset)
 	} else {
 		fmt.Fprintf(u.writer, "[SKIP] %s\n", msg)
 	}

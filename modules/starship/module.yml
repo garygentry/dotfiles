@@ -1,0 +1,20 @@
+name: starship
+description: "Install Starship cross-shell prompt with custom configuration"
+version: "1.0.0"
+priority: 45
+dependencies:
+  - zsh
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+files:
+  - source: starship.toml
+    dest: "~/.config/starship.toml"
+    type: symlink
+prompts: []
+tags:
+  - shell
+  - prompt

@@ -88,6 +88,12 @@ resolution, module execution, and summary output.`,
 			return nil
 		}
 
+		// Auto-enable unattended mode when stdin is not interactive (e.g. curl | bash).
+		if !sys.IsInteractive && !unattended {
+			u.Info("Non-interactive stdin detected, using default values for prompts")
+			unattended = true
+		}
+
 		// Phase 4: Module execution.
 		runCfg := &module.RunConfig{
 			SysInfo:    sys,
