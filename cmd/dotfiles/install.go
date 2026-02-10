@@ -56,7 +56,9 @@ resolution, module execution, and summary output.`,
 
 		// Phase 2: Secrets authentication.
 		provider := secrets.NewProvider(cfg.Secrets.Provider, cfg.Secrets.Account)
-		if provider.Available() && !provider.IsAuthenticated() && !dryRun {
+		if cfg.Secrets.Provider != "" && !provider.Available() {
+			u.Warn(fmt.Sprintf("Secrets provider %q is configured but not available (is the CLI installed?), continuing without secrets", cfg.Secrets.Provider))
+		} else if provider.Available() && !provider.IsAuthenticated() && !dryRun {
 			u.Info(fmt.Sprintf("Authenticating with %s...", provider.Name()))
 			if err := provider.Authenticate(); err != nil {
 				u.Warn(fmt.Sprintf("Secret authentication failed: %v (continuing without secrets)", err))

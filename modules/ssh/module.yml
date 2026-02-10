@@ -2,8 +2,7 @@ name: ssh
 description: "Configure SSH keys and settings"
 version: "1.0.0"
 priority: 20
-dependencies:
-  - 1password
+dependencies: []
 os:
   - macos
   - ubuntu

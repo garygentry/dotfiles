@@ -1,5 +1,4 @@
 modules:
-  - 1password
   - ssh
   - git
   - zsh
