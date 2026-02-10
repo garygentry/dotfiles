@@ -303,7 +303,21 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 
-	// Capture combined stdout/stderr output.
+	// In interactive mode, connect stdin/stdout/stderr directly to the
+	// terminal so commands like chsh can prompt for passwords.
+	if !cfg.Unattended {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
+		}
+		return nil
+	}
+
+	// Non-interactive / unattended: capture combined output and surface it
+	// only on failure or when verbose logging is enabled.
 	output, err := cmd.CombinedOutput()
 	if len(output) > 0 && cfg.Verbose {
 		cfg.UI.Debug(fmt.Sprintf("Script output:\n%s", string(output)))
@@ -315,8 +329,6 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 		if len(output) > 0 && !cfg.Verbose {
 			cfg.UI.Info(string(output))
 		}
-		// Return a clean error without embedded output to avoid duplication
-		// when the summary reprints the error.
 		return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
 	}
 

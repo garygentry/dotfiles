@@ -51,8 +51,12 @@ if [[ "$_zsh_current_shell" != "zsh" ]]; then
                     log_warn "Cannot add ${_zsh_path} to /etc/shells without sudo"
                 fi
             fi
-            chsh -s "$_zsh_path" || log_warn "Failed to change shell (may need password)"
-            log_success "Default shell changed to zsh"
+            if chsh -s "$_zsh_path"; then
+                log_success "Default shell changed to zsh"
+            else
+                log_warn "Failed to change default shell to zsh (chsh exited non-zero)"
+                log_warn "You can change it manually with: chsh -s $_zsh_path"
+            fi
         fi
     fi
 else
