@@ -140,7 +140,14 @@ build_and_run() {
     ok "Binary built at ${DOTFILES_DIR}/bin/dotfiles"
 
     info "Running: dotfiles install $*"
-    exec ./bin/dotfiles install "$@"
+    # Redirect stdin from /dev/tty so the Go binary gets an interactive
+    # terminal even when this script is piped from curl (curl | bash).
+    # Fall back to inherited stdin in headless environments (Docker, CI).
+    if [ -e /dev/tty ]; then
+        exec ./bin/dotfiles install "$@" < /dev/tty
+    else
+        exec ./bin/dotfiles install "$@"
+    fi
 }
 
 # ---------------------------------------------------------------------------

@@ -80,15 +80,21 @@ func Run(cfg *RunConfig, plan *ExecutionPlan) []RunResult {
 
 // runModule orchestrates the full lifecycle for a single module: prompts,
 // env vars, scripts, file deployment, verification, and state recording.
+//
+// Scripts are executed without an active spinner to avoid the spinner
+// goroutine colliding with subprocess output that writes directly to
+// /dev/tty (e.g. sudo password prompts). A spinner is used only during
+// file deployment which is Go-native and produces no terminal side-effects.
 func runModule(cfg *RunConfig, mod *Module) RunResult {
 	start := time.Now()
 
-	spinner := cfg.UI.StartSpinner(fmt.Sprintf("Installing %s...", mod.Name))
+	// Show a static progress line while scripts run (no animated spinner).
+	cfg.UI.Info(fmt.Sprintf("Installing %s...", mod.Name))
 
 	// Step 1: Handle prompts.
 	promptAnswers, err := handlePrompts(cfg, mod)
 	if err != nil {
-		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: %v", mod.Name, err))
+		cfg.UI.Error(fmt.Sprintf("Failed %s: %v", mod.Name, err))
 		recordState(cfg, mod, "failed", err)
 		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 	}
@@ -103,7 +109,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	osScript := filepath.Join(mod.Dir, "os", cfg.SysInfo.OS+".sh")
 	if _, statErr := os.Stat(osScript); statErr == nil {
 		if err := runScript(cfg, osScript, envVars); err != nil {
-			cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: os script error: %v", mod.Name, err))
+			cfg.UI.Error(fmt.Sprintf("Failed %s: os script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
@@ -113,24 +119,26 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	installScript := filepath.Join(mod.Dir, "install.sh")
 	if _, statErr := os.Stat(installScript); statErr == nil {
 		if err := runScript(cfg, installScript, envVars); err != nil {
-			cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: install script error: %v", mod.Name, err))
+			cfg.UI.Error(fmt.Sprintf("Failed %s: install script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
 	}
 
-	// Step 6: Deploy files.
+	// Step 6: Deploy files (use spinner here — Go-native, no subprocess writes).
+	spinner := cfg.UI.StartSpinner(fmt.Sprintf("Deploying %s files...", mod.Name))
 	if err := deployFiles(cfg, mod, tmplCtx); err != nil {
 		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: file deployment error: %v", mod.Name, err))
 		recordState(cfg, mod, "failed", err)
 		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 	}
+	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Deployed %s files", mod.Name))
 
 	// Step 7: Run verify.sh if it exists.
 	verifyScript := filepath.Join(mod.Dir, "verify.sh")
 	if _, statErr := os.Stat(verifyScript); statErr == nil {
 		if err := runScript(cfg, verifyScript, envVars); err != nil {
-			cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: verify script error: %v", mod.Name, err))
+			cfg.UI.Error(fmt.Sprintf("Failed %s: verify script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
@@ -139,8 +147,8 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 8: Record success in state store.
 	recordState(cfg, mod, "installed", nil)
 
-	// Step 9: Stop spinner with success.
-	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Installed %s", mod.Name))
+	// Step 9: Print final result.
+	cfg.UI.Success(fmt.Sprintf("Installed %s", mod.Name))
 
 	return RunResult{
 		Module:   mod,

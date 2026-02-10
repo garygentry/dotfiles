@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -25,34 +26,51 @@ func (p *OnePasswordProvider) Available() bool {
 	return err == nil
 }
 
-// Authenticate runs an interactive vault list command so that the 1Password
-// CLI can prompt the user for credentials if needed. It uses a 30-second
-// timeout to avoid hanging indefinitely.
+// Authenticate runs an interactive sign-in flow so the user can authenticate
+// with 1Password. Stdin, stdout, and stderr are connected to the terminal so
+// the op CLI can prompt for credentials. Uses a 60-second timeout.
 func (p *OnePasswordProvider) Authenticate() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "op", "--account", p.account, "vault", "list")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd := exec.CommandContext(ctx, "op", "signin", "--account", p.account)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("1password authentication failed: %s: %w", strings.TrimSpace(stderr.String()), err)
+		return fmt.Errorf("1password sign-in failed: %w", err)
 	}
 	return nil
 }
 
-// IsAuthenticated runs a silent vault list command and returns true when
-// it exits successfully, indicating a valid session already exists.
+// IsAuthenticated performs a non-interactive check for a valid 1Password
+// session. It first verifies that at least one account is configured (via
+// "op account list") and then checks for an active session (via "op whoami").
+// Neither command triggers interactive prompts.
 func (p *OnePasswordProvider) IsAuthenticated() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Step 1: Check if any accounts are configured. This never prompts.
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel1()
 
-	cmd := exec.CommandContext(ctx, "op", "--account", p.account, "vault", "list")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	listCmd := exec.CommandContext(ctx1, "op", "account", "list")
+	listCmd.Stdin = nil
+	listOut, err := listCmd.Output()
+	if err != nil || len(strings.TrimSpace(string(listOut))) == 0 {
+		return false
+	}
 
-	return cmd.Run() == nil
+	// Step 2: Check for an active session. This fails silently if no
+	// session exists and never triggers interactive prompts.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+
+	whoamiCmd := exec.CommandContext(ctx2, "op", "whoami", "--account", p.account)
+	whoamiCmd.Stdin = nil
+	whoamiCmd.Stdout = nil
+	whoamiCmd.Stderr = nil
+
+	return whoamiCmd.Run() == nil
 }
 
 // GetSecret resolves a 1Password secret reference (e.g.

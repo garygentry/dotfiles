@@ -58,12 +58,28 @@ resolution, module execution, and summary output.`,
 		provider := secrets.NewProvider(cfg.Secrets.Provider, cfg.Secrets.Account)
 		if cfg.Secrets.Provider != "" && !provider.Available() {
 			u.Warn(fmt.Sprintf("Secrets provider %q is configured but not available (is the CLI installed?), continuing without secrets", cfg.Secrets.Provider))
-		} else if provider.Available() && !provider.IsAuthenticated() && !dryRun {
-			u.Info(fmt.Sprintf("Authenticating with %s...", provider.Name()))
-			if err := provider.Authenticate(); err != nil {
-				u.Warn(fmt.Sprintf("Secret authentication failed: %v (continuing without secrets)", err))
-			} else {
+		} else if provider.Available() && !dryRun {
+			if provider.IsAuthenticated() {
 				u.Success(fmt.Sprintf("Authenticated with %s", provider.Name()))
+			} else if unattended {
+				u.Info("Skipping secrets authentication (unattended mode)")
+			} else {
+				setupNow, promptErr := u.PromptConfirm(
+					fmt.Sprintf("%s is not authenticated. Set up now?", provider.Name()),
+					false,
+				)
+				if promptErr != nil {
+					u.Warn("Could not read input, continuing without secrets")
+				} else if setupNow {
+					if err := provider.Authenticate(); err != nil {
+						u.Warn(fmt.Sprintf("Authentication failed: %v (continuing without secrets)", err))
+					} else {
+						u.Success(fmt.Sprintf("Authenticated with %s", provider.Name()))
+					}
+				} else {
+					u.Info("Skipping secrets. Modules that use secrets will fall back to defaults.")
+					u.Info("Run 'dotfiles install' later to set up 1Password.")
+				}
 			}
 		}
 
