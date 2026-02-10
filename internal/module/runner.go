@@ -225,6 +225,17 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 		env[envKey] = value
 	}
 
+	// Add user config values as DOTFILES_USER_*.
+	if cfg.Config.User.Name != "" {
+		env["DOTFILES_USER_NAME"] = cfg.Config.User.Name
+	}
+	if cfg.Config.User.Email != "" {
+		env["DOTFILES_USER_EMAIL"] = cfg.Config.User.Email
+	}
+	if cfg.Config.User.GithubUser != "" {
+		env["DOTFILES_USER_GITHUB_USER"] = cfg.Config.User.GithubUser
+	}
+
 	return env
 }
 
@@ -299,7 +310,14 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 	}
 
 	if err != nil {
-		return fmt.Errorf("script %s failed: %w\n%s", filepath.Base(scriptPath), err, string(output))
+		// Show script output on failure so the user can diagnose the problem.
+		// Only print here if verbose mode didn't already show it above.
+		if len(output) > 0 && !cfg.Verbose {
+			cfg.UI.Info(string(output))
+		}
+		// Return a clean error without embedded output to avoid duplication
+		// when the summary reprints the error.
+		return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
 	}
 
 	return nil

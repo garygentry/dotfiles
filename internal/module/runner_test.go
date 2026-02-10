@@ -138,6 +138,17 @@ func TestBuildEnvVars(t *testing.T) {
 	if _, ok := env["DOTFILES_BIN"]; !ok {
 		t.Error("expected DOTFILES_BIN to be present")
 	}
+
+	// Verify user config values are exported.
+	if got := env["DOTFILES_USER_NAME"]; got != "Test User" {
+		t.Errorf("env[DOTFILES_USER_NAME] = %q, want %q", got, "Test User")
+	}
+	if got := env["DOTFILES_USER_EMAIL"]; got != "test@example.com" {
+		t.Errorf("env[DOTFILES_USER_EMAIL] = %q, want %q", got, "test@example.com")
+	}
+	if got := env["DOTFILES_USER_GITHUB_USER"]; got != "testuser" {
+		t.Errorf("env[DOTFILES_USER_GITHUB_USER] = %q, want %q", got, "testuser")
+	}
 }
 
 func TestRunEmptyPlan(t *testing.T) {

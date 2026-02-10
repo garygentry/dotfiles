@@ -105,12 +105,22 @@ ensure_go() {
         fatal "Neither curl nor wget found. Cannot download Go."
     fi
 
-    info "Installing Go to /usr/local/go..."
-    sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf "${tmp}/${tarball}"
+    local go_install_dir
+    if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+        go_install_dir="/usr/local/go"
+        info "Installing Go to ${go_install_dir} (with sudo)..."
+        sudo rm -rf "${go_install_dir}"
+        sudo tar -C /usr/local -xzf "${tmp}/${tarball}"
+    else
+        go_install_dir="${HOME}/.local/go"
+        info "Installing Go to ${go_install_dir} (no sudo)..."
+        rm -rf "${go_install_dir}"
+        mkdir -p "${HOME}/.local"
+        tar -C "${HOME}/.local" -xzf "${tmp}/${tarball}"
+    fi
     rm -rf "$tmp"
 
-    export PATH="/usr/local/go/bin:${PATH}"
+    export PATH="${go_install_dir}/bin:${PATH}"
     command -v go &>/dev/null || fatal "Go installation failed"
     ok "Go installed ($(go version))"
 }
