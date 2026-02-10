@@ -106,6 +106,15 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Show a static progress line while scripts run (no animated spinner).
 	cfg.UI.Info(fmt.Sprintf("Installing %s...", mod.Name))
 
+	// Initialize state for operation recording
+	modState := &state.ModuleState{
+		Name:        mod.Name,
+		Version:     mod.Version,
+		Status:      "installing",
+		InstalledAt: time.Now(),
+		OS:          cfg.SysInfo.OS,
+	}
+
 	// Step 1: Handle prompts.
 	promptAnswers, err := handlePrompts(cfg, mod)
 	if err != nil {
@@ -123,9 +132,14 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 4: Run OS-specific script if it exists.
 	osScript := filepath.Join(mod.Dir, "os", cfg.SysInfo.OS+".sh")
 	if _, statErr := os.Stat(osScript); statErr == nil {
+		modState.RecordOperation(state.Operation{
+			Type:   "script_run",
+			Action: "executed",
+			Path:   osScript,
+		})
 		if err := runScript(cfg, mod, osScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: os script error: %v", mod.Name, err))
-			recordState(cfg, mod, "failed", err)
+			recordStateWithOps(cfg, modState, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
 	}
@@ -133,18 +147,23 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 5: Run install.sh if it exists.
 	installScript := filepath.Join(mod.Dir, "install.sh")
 	if _, statErr := os.Stat(installScript); statErr == nil {
+		modState.RecordOperation(state.Operation{
+			Type:   "script_run",
+			Action: "executed",
+			Path:   installScript,
+		})
 		if err := runScript(cfg, mod, installScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: install script error: %v", mod.Name, err))
-			recordState(cfg, mod, "failed", err)
+			recordStateWithOps(cfg, modState, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
 	}
 
 	// Step 6: Deploy files (use spinner here — Go-native, no subprocess writes).
 	spinner := cfg.UI.StartSpinner(fmt.Sprintf("Deploying %s files...", mod.Name))
-	if err := deployFiles(cfg, mod, tmplCtx); err != nil {
+	if err := deployFiles(cfg, mod, tmplCtx, modState); err != nil {
 		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: file deployment error: %v", mod.Name, err))
-		recordState(cfg, mod, "failed", err)
+		recordStateWithOps(cfg, modState, "failed", err)
 		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 	}
 	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Deployed %s files", mod.Name))
@@ -152,15 +171,20 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 7: Run verify.sh if it exists.
 	verifyScript := filepath.Join(mod.Dir, "verify.sh")
 	if _, statErr := os.Stat(verifyScript); statErr == nil {
+		modState.RecordOperation(state.Operation{
+			Type:   "script_run",
+			Action: "executed",
+			Path:   verifyScript,
+		})
 		if err := runScript(cfg, mod, verifyScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: verify script error: %v", mod.Name, err))
-			recordState(cfg, mod, "failed", err)
+			recordStateWithOps(cfg, modState, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 		}
 	}
 
-	// Step 8: Record success in state store.
-	recordState(cfg, mod, "installed", nil)
+	// Step 8: Record success in state store with operations.
+	recordStateWithOps(cfg, modState, "installed", nil)
 
 	// Step 9: Print final result.
 	cfg.UI.Success(fmt.Sprintf("Installed %s", mod.Name))
@@ -376,7 +400,8 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 
 // deployFiles processes each FileEntry in the module, creating symlinks,
 // copying files, or rendering templates as specified.
-func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context) error {
+// Operations are recorded in modState for rollback capability.
+func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modState *state.ModuleState) error {
 	for _, f := range mod.Files {
 		src := filepath.Join(mod.Dir, f.Source)
 		dest := expandHome(f.Dest, cfg.SysInfo.HomeDir)
@@ -394,19 +419,73 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context) error {
 			return fmt.Errorf("creating directory %s: %w", destDir, err)
 		}
 
+		// Record directory creation if it was created
+		if _, err := os.Stat(destDir); err == nil {
+			modState.RecordOperation(state.Operation{
+				Type:   "dir_create",
+				Action: "created",
+				Path:   destDir,
+			})
+		}
+
+		// Check if file exists before deploying (for backup/modification tracking)
+		fileExisted := false
+		if _, err := os.Lstat(dest); err == nil {
+			fileExisted = true
+		}
+
 		switch f.Type {
 		case "symlink":
 			if err := deploySymlink(src, dest); err != nil {
 				return fmt.Errorf("symlink %s -> %s: %w", src, dest, err)
 			}
+			modState.RecordOperation(state.Operation{
+				Type:   "file_deploy",
+				Action: "symlinked",
+				Path:   dest,
+				Metadata: map[string]string{
+					"source":      src,
+					"type":        "symlink",
+					"file_existed": fmt.Sprintf("%v", fileExisted),
+				},
+			})
+
 		case "copy":
 			if err := deployCopy(src, dest); err != nil {
 				return fmt.Errorf("copy %s -> %s: %w", src, dest, err)
 			}
+			action := "created"
+			if fileExisted {
+				action = "modified"
+			}
+			modState.RecordOperation(state.Operation{
+				Type:   "file_deploy",
+				Action: action,
+				Path:   dest,
+				Metadata: map[string]string{
+					"source": src,
+					"type":   "copy",
+				},
+			})
+
 		case "template":
 			if err := template.RenderToFile(src, dest, tmplCtx); err != nil {
 				return fmt.Errorf("template %s -> %s: %w", src, dest, err)
 			}
+			action := "created"
+			if fileExisted {
+				action = "modified"
+			}
+			modState.RecordOperation(state.Operation{
+				Type:   "file_deploy",
+				Action: action,
+				Path:   dest,
+				Metadata: map[string]string{
+					"source": src,
+					"type":   "template",
+				},
+			})
+
 		default:
 			return fmt.Errorf("unknown file type %q for %s", f.Type, f.Source)
 		}
@@ -473,6 +552,20 @@ func recordState(cfg *RunConfig, mod *Module, status string, runErr error) {
 
 	if err := cfg.State.Set(ms); err != nil {
 		cfg.UI.Warn(fmt.Sprintf("Failed to save state for %s: %v", mod.Name, err))
+	}
+}
+
+// recordStateWithOps persists the module state including recorded operations.
+func recordStateWithOps(cfg *RunConfig, modState *state.ModuleState, status string, runErr error) {
+	modState.Status = status
+	modState.UpdatedAt = time.Now()
+
+	if runErr != nil {
+		modState.Error = runErr.Error()
+	}
+
+	if err := cfg.State.Set(modState); err != nil {
+		cfg.UI.Warn(fmt.Sprintf("Failed to save state for %s: %v", modState.Name, err))
 	}
 }
 
