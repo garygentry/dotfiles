@@ -10,14 +10,25 @@ import (
 
 // ModuleState represents the persisted state of a single dotfiles module.
 type ModuleState struct {
-	Name        string    `json:"name"`
-	Version     string    `json:"version"`
-	Status      string    `json:"status"` // installed, failed, removed
-	InstalledAt time.Time `json:"installed_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	OS          string    `json:"os"`
-	Error       string    `json:"error,omitempty"` // last error if failed
-	Checksum    string    `json:"checksum"`        // for change detection
+	Name        string      `json:"name"`
+	Version     string      `json:"version"`
+	Status      string      `json:"status"` // installed, failed, removed
+	InstalledAt time.Time   `json:"installed_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	OS          string      `json:"os"`
+	Error       string      `json:"error,omitempty"`     // last error if failed
+	Checksum    string      `json:"checksum"`            // for change detection
+	Operations  []Operation `json:"operations,omitempty"` // rollback metadata
+}
+
+// Operation represents a single action taken during module installation.
+// Operations are recorded to enable rollback/uninstall functionality.
+type Operation struct {
+	Type      string            `json:"type"`      // file_deploy, dir_create, script_run, package_install
+	Action    string            `json:"action"`    // created, modified, backed_up, symlinked, executed
+	Path      string            `json:"path"`      // file path, package name, or script path
+	Timestamp time.Time         `json:"timestamp"` // when operation was performed
+	Metadata  map[string]string `json:"metadata,omitempty"` // additional context (backup_path, original_content, etc.)
 }
 
 // Store manages reading and writing module state files.
@@ -123,4 +134,54 @@ func (s *Store) Remove(name string) error {
 		return nil
 	}
 	return err
+}
+
+// RecordOperation adds an operation to the module state's operation history.
+// The timestamp is automatically set to the current time.
+func (ms *ModuleState) RecordOperation(op Operation) {
+	op.Timestamp = time.Now()
+	ms.Operations = append(ms.Operations, op)
+}
+
+// RollbackInstructions returns a list of human-readable instructions
+// for rolling back the module installation, in reverse chronological order.
+func (ms *ModuleState) RollbackInstructions() []string {
+	var instructions []string
+
+	// Process operations in reverse order (most recent first)
+	for i := len(ms.Operations) - 1; i >= 0; i-- {
+		op := ms.Operations[i]
+
+		switch op.Type {
+		case "file_deploy":
+			switch op.Action {
+			case "created", "symlinked":
+				instructions = append(instructions, "Remove: "+op.Path)
+			case "modified":
+				if backup := op.Metadata["backup_path"]; backup != "" {
+					instructions = append(instructions, "Restore: "+op.Path+" from "+backup)
+				} else {
+					instructions = append(instructions, "File was modified: "+op.Path+" (no backup available)")
+				}
+			}
+
+		case "dir_create":
+			if op.Action == "created" {
+				instructions = append(instructions, "Remove directory: "+op.Path)
+			}
+
+		case "package_install":
+			instructions = append(instructions, "Consider removing package: "+op.Path)
+
+		case "script_run":
+			instructions = append(instructions, "Script was executed: "+op.Path+" (manual cleanup may be needed)")
+		}
+	}
+
+	return instructions
+}
+
+// CanRollback returns true if the module has recorded operations that can be rolled back.
+func (ms *ModuleState) CanRollback() bool {
+	return len(ms.Operations) > 0
 }

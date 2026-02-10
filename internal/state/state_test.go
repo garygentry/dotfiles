@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -175,5 +176,199 @@ func TestGetNonExistentReturnsNilNil(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("expected nil state, got: %+v", got)
+	}
+}
+
+func TestRecordOperation(t *testing.T) {
+	ms := &ModuleState{
+		Name:    "test",
+		Version: "1.0.0",
+		Status:  "installed",
+	}
+
+	op := Operation{
+		Type:   "file_deploy",
+		Action: "created",
+		Path:   "/home/user/.config/test/config.conf",
+		Metadata: map[string]string{
+			"source": "files/config.conf",
+		},
+	}
+
+	ms.RecordOperation(op)
+
+	if len(ms.Operations) != 1 {
+		t.Fatalf("expected 1 operation, got %d", len(ms.Operations))
+	}
+
+	recorded := ms.Operations[0]
+	if recorded.Type != "file_deploy" {
+		t.Errorf("Type = %q, want %q", recorded.Type, "file_deploy")
+	}
+	if recorded.Action != "created" {
+		t.Errorf("Action = %q, want %q", recorded.Action, "created")
+	}
+	if recorded.Path != op.Path {
+		t.Errorf("Path = %q, want %q", recorded.Path, op.Path)
+	}
+	if recorded.Timestamp.IsZero() {
+		t.Error("Timestamp should be set automatically")
+	}
+}
+
+func TestRollbackInstructions(t *testing.T) {
+	ms := &ModuleState{
+		Name:    "test",
+		Version: "1.0.0",
+		Status:  "installed",
+	}
+
+	// Add various operations
+	ms.RecordOperation(Operation{
+		Type:   "dir_create",
+		Action: "created",
+		Path:   "/home/user/.config/test",
+	})
+
+	ms.RecordOperation(Operation{
+		Type:   "file_deploy",
+		Action: "created",
+		Path:   "/home/user/.config/test/config.conf",
+	})
+
+	ms.RecordOperation(Operation{
+		Type:   "file_deploy",
+		Action: "modified",
+		Path:   "/home/user/.bashrc",
+		Metadata: map[string]string{
+			"backup_path": "/home/user/.bashrc.backup",
+		},
+	})
+
+	ms.RecordOperation(Operation{
+		Type:   "package_install",
+		Action: "installed",
+		Path:   "test-package",
+	})
+
+	instructions := ms.RollbackInstructions()
+
+	// Should have 4 instructions (one per operation)
+	if len(instructions) != 4 {
+		t.Fatalf("expected 4 instructions, got %d", len(instructions))
+	}
+
+	// Instructions should be in reverse order
+	// Last operation (package) should come first
+	if !strings.Contains(instructions[0], "test-package") {
+		t.Errorf("first instruction should mention package, got: %s", instructions[0])
+	}
+
+	// Check for restore instruction
+	foundRestore := false
+	for _, inst := range instructions {
+		if strings.Contains(inst, "Restore") && strings.Contains(inst, ".bashrc") {
+			foundRestore = true
+			break
+		}
+	}
+	if !foundRestore {
+		t.Error("expected restore instruction for modified .bashrc")
+	}
+}
+
+func TestCanRollback(t *testing.T) {
+	tests := []struct {
+		name       string
+		operations []Operation
+		want       bool
+	}{
+		{
+			name:       "no operations",
+			operations: []Operation{},
+			want:       false,
+		},
+		{
+			name: "with operations",
+			operations: []Operation{
+				{Type: "file_deploy", Action: "created", Path: "/test"},
+			},
+			want: true,
+		},
+		{
+			name: "multiple operations",
+			operations: []Operation{
+				{Type: "file_deploy", Action: "created", Path: "/test1"},
+				{Type: "file_deploy", Action: "created", Path: "/test2"},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := &ModuleState{
+				Name:       "test",
+				Operations: tt.operations,
+			}
+
+			got := ms.CanRollback()
+			if got != tt.want {
+				t.Errorf("CanRollback() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOperationsPersistence(t *testing.T) {
+	store := tempStore(t)
+
+	ms := &ModuleState{
+		Name:        "test",
+		Version:     "1.0.0",
+		Status:      "installed",
+		InstalledAt: time.Now(),
+	}
+
+	// Record some operations
+	ms.RecordOperation(Operation{
+		Type:   "file_deploy",
+		Action: "created",
+		Path:   "/test/path",
+	})
+
+	ms.RecordOperation(Operation{
+		Type:   "dir_create",
+		Action: "created",
+		Path:   "/test/dir",
+	})
+
+	// Save to store
+	if err := store.Set(ms); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	// Load from store
+	loaded, err := store.Get("test")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
+	if loaded == nil {
+		t.Fatal("expected state to exist")
+	}
+
+	if len(loaded.Operations) != 2 {
+		t.Fatalf("expected 2 operations, got %d", len(loaded.Operations))
+	}
+
+	// Verify first operation
+	if loaded.Operations[0].Type != "file_deploy" {
+		t.Errorf("first operation type = %q, want %q", loaded.Operations[0].Type, "file_deploy")
+	}
+
+	// Verify second operation
+	if loaded.Operations[1].Type != "dir_create" {
+		t.Errorf("second operation type = %q, want %q", loaded.Operations[1].Type, "dir_create")
 	}
 }
