@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # zsh/os/arch.sh - Arch Linux-specific Zsh setup
 
 if ! command -v zsh &>/dev/null; then

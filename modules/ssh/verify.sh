@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ssh/verify.sh - Verify SSH configuration
 
 _ssh_dir="${DOTFILES_HOME}/.ssh"

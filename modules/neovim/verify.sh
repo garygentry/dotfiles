@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # neovim/verify.sh - Verify Neovim installation
 
 _nvim_errors=0

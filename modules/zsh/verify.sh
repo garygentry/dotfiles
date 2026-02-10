@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # zsh/verify.sh - Verify Zsh installation and configuration
 
 _zsh_errors=0

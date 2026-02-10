@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ssh/os/macos.sh - macOS-specific SSH setup
 
 # macOS has SSH built-in, just ensure the agent is running

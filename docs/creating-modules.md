@@ -134,6 +134,8 @@ requires:                  # System requirements (commands that must exist)
 tags:                      # Categorization
   - development
   - shell
+timeout: 10m               # Script timeout (default: 5m)
+                          # Accepts: "10s", "5m", "1h", etc.
 ```
 
 ### Files

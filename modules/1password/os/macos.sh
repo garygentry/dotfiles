@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # 1password/os/macos.sh - Install 1Password CLI on macOS via Homebrew
 
 if command -v op &>/dev/null; then

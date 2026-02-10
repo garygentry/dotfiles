@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # git/verify.sh - Verify git configuration
 
 _git_errors=0

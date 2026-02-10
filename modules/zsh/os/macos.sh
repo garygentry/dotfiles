@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # zsh/os/macos.sh - macOS-specific Zsh setup
 
 # macOS ships with zsh as the default shell since Catalina

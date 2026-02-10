@@ -1,4 +1,4 @@
-.PHONY: build test test-integration test-integration-ubuntu test-integration-arch test-all clean lint
+.PHONY: build test test-integration test-integration-ubuntu test-integration-arch test-all clean lint lint-shell lint-all
 
 build:
 	go build -o bin/dotfiles .
@@ -24,3 +24,11 @@ clean:
 
 lint:
 	go vet ./...
+
+lint-shell:
+	@echo "Linting shell scripts with shellcheck..."
+	@find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=warning || true
+	@echo "Checking for errors (will fail on errors)..."
+	@find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=error
+
+lint-all: lint lint-shell

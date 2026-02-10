@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ssh/install.sh - Configure SSH keys and settings
 
 _ssh_dir="${DOTFILES_HOME}/.ssh"

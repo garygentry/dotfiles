@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ssh/os/ubuntu.sh - Ubuntu-specific SSH setup
 
 # Ensure openssh-client is installed

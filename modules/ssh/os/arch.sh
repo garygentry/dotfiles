@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ssh/os/arch.sh - Arch Linux-specific SSH setup
 
 # Ensure openssh is installed

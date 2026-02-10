@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # git/os/macos.sh - macOS-specific git setup
 
 # macOS ships with git via Xcode CLI tools, but we may want a newer version

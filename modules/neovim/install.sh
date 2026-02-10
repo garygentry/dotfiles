@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # neovim/install.sh - Install Neovim
 
 # Install neovim if not already present (OS-specific scripts handle the

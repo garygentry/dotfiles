@@ -3,7 +3,9 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/garygentry/dotfiles/internal/config"
 	"github.com/garygentry/dotfiles/internal/secrets"
@@ -415,4 +417,117 @@ func TestRunFailFastStopsOnError(t *testing.T) {
 	if results[0].Error == nil {
 		t.Error("expected error to be set")
 	}
+}
+
+func TestScriptTimeout(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	// Create a module with a script that sleeps for 10 seconds.
+	modDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(modDir, "install.sh"), []byte("sleep 10"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:    "slow-module",
+		Dir:     modDir,
+		Timeout: "1s", // Set a 1-second timeout
+	}
+
+	plan := &ExecutionPlan{
+		Modules: []*Module{mod},
+	}
+
+	results := Run(cfg, plan)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// The module should have failed due to timeout.
+	if results[0].Success {
+		t.Error("expected module to fail due to timeout")
+	}
+	if results[0].Error == nil {
+		t.Error("expected error to be set")
+	}
+
+	// Verify the error message mentions timeout.
+	if results[0].Error != nil {
+		errMsg := results[0].Error.Error()
+		if !contains(errMsg, "timed out") && !contains(errMsg, "timeout") {
+			t.Errorf("expected timeout error, got: %v", results[0].Error)
+		}
+	}
+}
+
+func TestScriptTimeoutDefault(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.ScriptTimeout = 1 * time.Second // Set config-level timeout
+
+	// Create a module WITHOUT a module-specific timeout.
+	modDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(modDir, "install.sh"), []byte("sleep 10"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name: "slow-module-no-override",
+		Dir:  modDir,
+		// No Timeout field - should use config default
+	}
+
+	plan := &ExecutionPlan{
+		Modules: []*Module{mod},
+	}
+
+	results := Run(cfg, plan)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Should timeout using the config-level timeout.
+	if results[0].Success {
+		t.Error("expected module to fail due to timeout")
+	}
+	if results[0].Error == nil {
+		t.Error("expected error to be set")
+	}
+}
+
+func TestScriptNoTimeoutForQuickScripts(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	// Create a module with a quick script.
+	modDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(modDir, "install.sh"), []byte("echo 'quick'"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:    "quick-module",
+		Dir:     modDir,
+		Timeout: "5m", // Long timeout, but script finishes quickly
+	}
+
+	plan := &ExecutionPlan{
+		Modules: []*Module{mod},
+	}
+
+	results := Run(cfg, plan)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Should succeed.
+	if !results[0].Success {
+		t.Errorf("expected success, got error: %v", results[0].Error)
+	}
+}
+
+// contains checks if a string contains a substring.
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }

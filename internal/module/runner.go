@@ -1,6 +1,7 @@
 package module
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -53,15 +54,16 @@ type RunnerUI interface {
 
 // RunConfig holds all configuration needed by the module runner.
 type RunConfig struct {
-	SysInfo    *sysinfo.SystemInfo
-	Config     *config.Config
-	UI         RunnerUI
-	Secrets    secrets.Provider
-	State      *state.Store
-	DryRun     bool
-	Unattended bool
-	FailFast   bool
-	Verbose    bool
+	SysInfo       *sysinfo.SystemInfo
+	Config        *config.Config
+	UI            RunnerUI
+	Secrets       secrets.Provider
+	State         *state.Store
+	DryRun        bool
+	Unattended    bool
+	FailFast      bool
+	Verbose       bool
+	ScriptTimeout time.Duration // Default timeout for scripts (0 = use default)
 }
 
 // RunResult captures the outcome of running a single module.
@@ -121,7 +123,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 4: Run OS-specific script if it exists.
 	osScript := filepath.Join(mod.Dir, "os", cfg.SysInfo.OS+".sh")
 	if _, statErr := os.Stat(osScript); statErr == nil {
-		if err := runScript(cfg, osScript, envVars); err != nil {
+		if err := runScript(cfg, mod, osScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: os script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
@@ -131,7 +133,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 5: Run install.sh if it exists.
 	installScript := filepath.Join(mod.Dir, "install.sh")
 	if _, statErr := os.Stat(installScript); statErr == nil {
-		if err := runScript(cfg, installScript, envVars); err != nil {
+		if err := runScript(cfg, mod, installScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: install script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
@@ -150,7 +152,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	// Step 7: Run verify.sh if it exists.
 	verifyScript := filepath.Join(mod.Dir, "verify.sh")
 	if _, statErr := os.Stat(verifyScript); statErr == nil {
-		if err := runScript(cfg, verifyScript, envVars); err != nil {
+		if err := runScript(cfg, mod, verifyScript, envVars); err != nil {
 			cfg.UI.Error(fmt.Sprintf("Failed %s: verify script error: %v", mod.Name, err))
 			recordState(cfg, mod, "failed", err)
 			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
@@ -287,14 +289,32 @@ func buildTemplateContext(cfg *RunConfig, mod *Module, envVars map[string]string
 
 // runScript executes a shell script with the set -euo pipefail preamble
 // and sources lib/helpers.sh before sourcing the actual script. In dry-run
-// mode it logs what would be executed instead.
-func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) error {
+// mode it logs what would be executed instead. Scripts are executed with a
+// timeout (default 5 minutes, configurable per-module via timeout field).
+func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[string]string) error {
 	if cfg.DryRun {
 		cfg.UI.Info(fmt.Sprintf("[dry-run] Would run script: %s", scriptPath))
 		return nil
 	}
 
 	cfg.UI.Debug(fmt.Sprintf("Running script: %s", scriptPath))
+
+	// Determine timeout: module-specific > config > default (5 minutes)
+	timeout := cfg.ScriptTimeout
+	if timeout == 0 {
+		timeout = 5 * time.Minute
+	}
+	if mod.Timeout != "" {
+		if parsed, err := time.ParseDuration(mod.Timeout); err == nil {
+			timeout = parsed
+		} else {
+			cfg.UI.Warn(fmt.Sprintf("Invalid timeout %q in module %s, using default", mod.Timeout, mod.Name))
+		}
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	helpersPath := filepath.Join(cfg.SysInfo.DotfilesDir, "lib", "helpers.sh")
 
@@ -307,7 +327,7 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 	wrapper.WriteString(fmt.Sprintf("if [ -f %q ]; then source %q; fi\n", helpersPath, helpersPath))
 	wrapper.WriteString(fmt.Sprintf("source %q\n", scriptPath))
 
-	cmd := exec.Command("bash", "-c", wrapper.String())
+	cmd := exec.CommandContext(ctx, "bash", "-c", wrapper.String())
 
 	// Set all environment variables on the command. Start with the current
 	// process environment and layer DOTFILES_* vars on top.
@@ -324,6 +344,9 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return fmt.Errorf("script %s timed out after %v", filepath.Base(scriptPath), timeout)
+			}
 			return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
 		}
 		return nil
@@ -337,6 +360,9 @@ func runScript(cfg *RunConfig, scriptPath string, envVars map[string]string) err
 	}
 
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("script %s timed out after %v", filepath.Base(scriptPath), timeout)
+		}
 		// Show script output on failure so the user can diagnose the problem.
 		// Only print here if verbose mode didn't already show it above.
 		if len(output) > 0 && !cfg.Verbose {

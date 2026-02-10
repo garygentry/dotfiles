@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # git/os/ubuntu.sh - Ubuntu-specific git setup
 
 # Ensure git is installed

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # zsh/os/ubuntu.sh - Ubuntu-specific Zsh setup
 
 if ! command -v zsh &>/dev/null; then

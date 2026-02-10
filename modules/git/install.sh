@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # git/install.sh - Configure git with SSH signing and useful defaults
 
 # Read user settings from environment (set by the Go runner from config.yml)

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # starship/verify.sh - Verify Starship installation
 
 if ! command -v starship &>/dev/null; then

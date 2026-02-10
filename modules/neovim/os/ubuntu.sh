@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # neovim/os/ubuntu.sh - Install Neovim on Ubuntu
 
 if command -v nvim &>/dev/null; then

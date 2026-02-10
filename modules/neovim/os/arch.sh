@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # neovim/os/arch.sh - Install Neovim on Arch Linux
 
 if command -v nvim &>/dev/null; then

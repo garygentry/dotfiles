@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # starship/install.sh - Install Starship cross-shell prompt
 
 # Ensure ~/.config exists for the config symlink

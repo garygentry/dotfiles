@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # zsh/install.sh - Install and configure Zsh with Zinit plugin manager
 
 # Install zsh if not already present (OS-specific scripts handle this too)

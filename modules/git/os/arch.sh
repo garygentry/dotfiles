@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # git/os/arch.sh - Arch Linux-specific git setup
 
 # Ensure git is installed

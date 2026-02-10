@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # 1password/os/ubuntu.sh - Install 1Password CLI on Ubuntu via apt
 
 if command -v op &>/dev/null; then

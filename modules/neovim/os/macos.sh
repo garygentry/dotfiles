@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # neovim/os/macos.sh - Install Neovim on macOS
 
 if command -v nvim &>/dev/null; then

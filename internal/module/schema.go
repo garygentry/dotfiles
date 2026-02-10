@@ -19,6 +19,7 @@ type Module struct {
 	Files        []FileEntry `yaml:"files"`
 	Prompts      []Prompt    `yaml:"prompts"`
 	Tags         []string    `yaml:"tags"`
+	Timeout      string      `yaml:"timeout"` // e.g., "10m", parsed via time.ParseDuration
 	Dir          string      `yaml:"-"`
 }
 

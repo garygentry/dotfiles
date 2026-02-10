@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # 1password/verify.sh - Verify 1Password CLI installation
 
 if command -v op &>/dev/null; then

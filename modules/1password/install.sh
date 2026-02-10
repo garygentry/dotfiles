@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # 1password/install.sh - Install 1Password CLI
 
 if command -v op &>/dev/null; then
