@@ -329,6 +329,59 @@ func TestPrintExecutionPlanPlain(t *testing.T) {
 	}
 }
 
+// --- Multi-select prompt ---
+
+func TestPromptMultiSelectNonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	u := NewWithWriter(&buf, false, false)
+
+	options := []module.MultiSelectOption{
+		{Value: "ssh", Label: "ssh", Description: "SSH config"},
+		{Value: "git", Label: "git", Description: "Git config"},
+		{Value: "zsh", Label: "zsh", Description: "Zsh config"},
+	}
+	preSelected := []string{"ssh", "git"}
+
+	result, err := u.PromptMultiSelect("Select modules", options, preSelected)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Non-TTY should return pre-selected values unchanged.
+	if len(result) != 2 || result[0] != "ssh" || result[1] != "git" {
+		t.Errorf("expected pre-selected values [ssh git], got: %v", result)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "[MULTISELECT]") {
+		t.Errorf("expected [MULTISELECT] prefix, got: %q", out)
+	}
+	if !strings.Contains(out, "Select modules") {
+		t.Errorf("expected prompt message in output, got: %q", out)
+	}
+	if strings.Contains(out, "\033[") {
+		t.Errorf("expected no ANSI escape codes in non-TTY mode, got: %q", out)
+	}
+}
+
+func TestPromptMultiSelectNonTTYEmptyPreselection(t *testing.T) {
+	var buf bytes.Buffer
+	u := NewWithWriter(&buf, false, false)
+
+	options := []module.MultiSelectOption{
+		{Value: "ssh", Label: "ssh", Description: "SSH config"},
+	}
+
+	result, err := u.PromptMultiSelect("Select modules", options, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("expected empty result for nil preSelected, got: %v", result)
+	}
+}
+
 func TestPrintExecutionPlanNoDescription(t *testing.T) {
 	var buf bytes.Buffer
 	u := NewWithWriter(&buf, false, false)

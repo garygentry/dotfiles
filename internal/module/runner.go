@@ -1,6 +1,7 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,16 @@ import (
 	"github.com/garygentry/dotfiles/internal/sysinfo"
 	"github.com/garygentry/dotfiles/internal/template"
 )
+
+// ErrUserCancelled is returned when the user cancels an interactive prompt.
+var ErrUserCancelled = errors.New("operation cancelled by user")
+
+// MultiSelectOption represents a single option in a multi-select prompt.
+type MultiSelectOption struct {
+	Value       string
+	Label       string
+	Description string
+}
 
 // RunnerUI is the subset of ui functionality that the module runner requires.
 // Defining it as an interface inside the module package avoids the import
@@ -36,6 +47,8 @@ type RunnerUI interface {
 	StopSpinnerSuccess(s any, msg string)
 	StopSpinnerFail(s any, msg string)
 	StopSpinnerSkip(s any, msg string)
+
+	PromptMultiSelect(msg string, options []MultiSelectOption, preSelected []string) ([]string, error)
 }
 
 // RunConfig holds all configuration needed by the module runner.

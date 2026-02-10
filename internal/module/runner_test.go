@@ -46,6 +46,10 @@ func (t *testUI) StopSpinnerSuccess(_ any, _ string) {}
 func (t *testUI) StopSpinnerFail(_ any, _ string)    {}
 func (t *testUI) StopSpinnerSkip(_ any, _ string)    {}
 
+func (t *testUI) PromptMultiSelect(_ string, _ []MultiSelectOption, preSelected []string) ([]string, error) {
+	return preSelected, nil
+}
+
 // newTestRunConfig returns a RunConfig suitable for unit tests. It uses
 // temp directories for state and dotfiles, a test UI, and the noop secrets
 // provider.

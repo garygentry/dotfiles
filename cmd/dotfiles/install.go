@@ -1,8 +1,10 @@
 package dotfiles
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/garygentry/dotfiles/internal/config"
@@ -36,6 +38,12 @@ resolution, module execution, and summary output.`,
 			return fmt.Errorf("system detection: %w", err)
 		}
 		u.Success(fmt.Sprintf("System: %s/%s (pkg: %s)", sys.OS, sys.Arch, sys.PkgMgr))
+
+		// Auto-enable unattended mode when stdin is not interactive (e.g. curl | bash).
+		if !sys.IsInteractive && !unattended {
+			u.Info("Non-interactive stdin detected, using default values for prompts")
+			unattended = true
+		}
 
 		cfg, err := config.Load(sys.DotfilesDir)
 		if err != nil {
@@ -94,9 +102,61 @@ resolution, module execution, and summary output.`,
 			return nil
 		}
 
+		// Interactive module selection when no CLI args provided.
+		if len(args) == 0 && !unattended {
+			options := make([]module.MultiSelectOption, 0, len(allModules))
+			for _, m := range allModules {
+				if !m.SupportsOS(sys.OS) {
+					continue
+				}
+				desc := m.Description
+				if desc == "" {
+					desc = "no description"
+				}
+				options = append(options, module.MultiSelectOption{
+					Value:       m.Name,
+					Label:       m.Name,
+					Description: desc,
+				})
+			}
+
+			selected, selErr := u.PromptMultiSelect("Select modules to install", options, requested)
+			if selErr != nil {
+				if errors.Is(selErr, module.ErrUserCancelled) {
+					u.Info("Module selection cancelled")
+					return nil
+				}
+				return fmt.Errorf("module selection: %w", selErr)
+			}
+
+			if len(selected) == 0 {
+				u.Warn("No modules selected, nothing to do")
+				return nil
+			}
+
+			requested = selected
+		}
+
 		plan, err := module.Resolve(allModules, requested, sys.OS)
 		if err != nil {
 			return fmt.Errorf("dependency resolution: %w", err)
+		}
+
+		// Show auto-included dependencies if the user made an interactive selection.
+		if len(args) == 0 && !unattended && len(requested) > 0 {
+			requestedSet := make(map[string]bool, len(requested))
+			for _, name := range requested {
+				requestedSet[name] = true
+			}
+			var autoIncluded []string
+			for _, m := range plan.Modules {
+				if !requestedSet[m.Name] {
+					autoIncluded = append(autoIncluded, m.Name)
+				}
+			}
+			if len(autoIncluded) > 0 {
+				u.Info(fmt.Sprintf("Auto-including dependencies: %s", strings.Join(autoIncluded, ", ")))
+			}
 		}
 
 		u.PrintExecutionPlan(plan.Modules, plan.Skipped)
@@ -104,12 +164,6 @@ resolution, module execution, and summary output.`,
 		if dryRun {
 			u.Info("Dry-run mode: no changes will be made")
 			return nil
-		}
-
-		// Auto-enable unattended mode when stdin is not interactive (e.g. curl | bash).
-		if !sys.IsInteractive && !unattended {
-			u.Info("Non-interactive stdin detected, using default values for prompts")
-			unattended = true
 		}
 
 		// Phase 4: Module execution.

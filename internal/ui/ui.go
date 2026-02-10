@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/garygentry/dotfiles/internal/module"
 )
 
@@ -328,6 +330,56 @@ func (u *UI) PromptChoice(msg string, options []string) (string, error) {
 	}
 
 	return options[choice-1], nil
+}
+
+// --- Multi-select prompt ---
+
+// PromptMultiSelect presents an interactive checkbox list. In TTY mode, the
+// user navigates with arrow keys and toggles with spacebar. In non-TTY mode
+// the preSelected values are returned unchanged.
+func (u *UI) PromptMultiSelect(msg string, options []module.MultiSelectOption, preSelected []string) ([]string, error) {
+	if !u.IsTTY {
+		fmt.Fprintf(u.writer, "[MULTISELECT] %s (using defaults: %s)\n", msg, strings.Join(preSelected, ", "))
+		return preSelected, nil
+	}
+
+	// Build a set of pre-selected values for quick lookup.
+	preSelectedSet := make(map[string]bool, len(preSelected))
+	for _, v := range preSelected {
+		preSelectedSet[v] = true
+	}
+
+	// Build huh options with pre-selection state.
+	huhOptions := make([]huh.Option[string], 0, len(options))
+	for _, opt := range options {
+		label := opt.Label
+		if opt.Description != "" {
+			label = fmt.Sprintf("%s %s- %s%s", opt.Label, colorSubtext, opt.Description, colorReset)
+		}
+		h := huh.NewOption(label, opt.Value).Selected(preSelectedSet[opt.Value])
+		huhOptions = append(huhOptions, h)
+	}
+
+	var selected []string
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(msg).
+				Options(huhOptions...).
+				Value(&selected).
+				Filterable(false),
+		),
+	).WithTheme(huh.ThemeCatppuccin())
+
+	if err := form.Run(); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return nil, module.ErrUserCancelled
+		}
+		return nil, fmt.Errorf("multiselect prompt: %w", err)
+	}
+
+	return selected, nil
 }
 
 // --- Execution plan ---
