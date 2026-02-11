@@ -42,6 +42,9 @@ prompts:
 tags:
   - shell
   - cli
+notes:
+  - "Run 'exec zsh' to activate"
+  - "Check ~/.zshrc for details"
 `
 	ymlPath := filepath.Join(moduleDir, "module.yml")
 	if err := os.WriteFile(ymlPath, []byte(yml), 0o644); err != nil {
@@ -96,6 +99,9 @@ tags:
 	if len(m.Tags) != 2 || m.Tags[0] != "shell" || m.Tags[1] != "cli" {
 		t.Errorf("Tags = %v, want [shell cli]", m.Tags)
 	}
+	if len(m.Notes) != 2 || m.Notes[0] != "Run 'exec zsh' to activate" || m.Notes[1] != "Check ~/.zshrc for details" {
+		t.Errorf("Notes = %v, want [Run 'exec zsh' to activate, Check ~/.zshrc for details]", m.Notes)
+	}
 	if m.Dir != moduleDir {
 		t.Errorf("Dir = %q, want %q", m.Dir, moduleDir)
 	}
@@ -129,6 +135,9 @@ files:
 	}
 	if m.Priority != 50 {
 		t.Errorf("Priority = %d, want default 50", m.Priority)
+	}
+	if m.Notes != nil {
+		t.Errorf("Notes = %v, want nil when not specified", m.Notes)
 	}
 }
 

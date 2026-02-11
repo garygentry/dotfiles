@@ -88,8 +88,8 @@ install_delta() {
 
     if is_ubuntu; then
         # delta is not in Ubuntu's apt repos; install from GitHub releases
-        if ! has_sudo; then
-            log_warn "git-delta requires sudo to install via dpkg on Ubuntu"
+        if ! is_interactive && ! has_sudo; then
+            log_warn "git-delta requires sudo to install via dpkg on Ubuntu (non-interactive mode)"
             return 1
         fi
         local delta_version="0.18.2"

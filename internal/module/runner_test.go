@@ -527,6 +527,73 @@ func TestScriptNoTimeoutForQuickScripts(t *testing.T) {
 	}
 }
 
+func TestRunNotesOnSuccess(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	// Module with notes but no scripts or files — should succeed and carry notes.
+	modDir := t.TempDir()
+	mod := &Module{
+		Name:  "noted-mod",
+		Dir:   modDir,
+		Notes: []string{"Remember to log out and back in"},
+	}
+
+	plan := &ExecutionPlan{
+		Modules: []*Module{mod},
+	}
+
+	results := Run(cfg, plan)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Success {
+		t.Fatalf("expected success, got error: %v", results[0].Error)
+	}
+	if len(results[0].Notes) != 1 || results[0].Notes[0] != "Remember to log out and back in" {
+		t.Errorf("Notes = %v, want [Remember to log out and back in]", results[0].Notes)
+	}
+}
+
+func TestRunNotesEmptyOnSkip(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := t.TempDir()
+	mod := &Module{
+		Name:    "skip-noted-mod",
+		Version: "1.0.0",
+		Dir:     modDir,
+		Notes:   []string{"You should not see this"},
+	}
+
+	// Pre-populate state so the module gets skipped.
+	checksum, _ := ComputeModuleChecksum(mod)
+	configHash := ComputeConfigHash(mod, cfg.Config)
+	cfg.State.Set(&state.ModuleState{
+		Name:       mod.Name,
+		Version:    mod.Version,
+		Status:     "installed",
+		Checksum:   checksum,
+		ConfigHash: configHash,
+	})
+
+	plan := &ExecutionPlan{
+		Modules: []*Module{mod},
+	}
+
+	results := Run(cfg, plan)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Skipped {
+		t.Errorf("expected module to be skipped")
+	}
+	if len(results[0].Notes) != 0 {
+		t.Errorf("Notes = %v, want empty for skipped module", results[0].Notes)
+	}
+}
+
 // contains checks if a string contains a substring.
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)

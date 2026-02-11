@@ -233,6 +233,23 @@ resolution, module execution, and summary output.`,
 		u.Info(fmt.Sprintf("Completed in %s: %d succeeded, %d failed, %d skipped",
 			elapsed, succeeded, failed, skipped))
 
+		// Display post-run notes from modules that ran successfully.
+		var allNotes []string
+		for _, r := range results {
+			if r.Success && !r.Skipped && len(r.Notes) > 0 {
+				for _, note := range r.Notes {
+					allNotes = append(allNotes, fmt.Sprintf("[%s] %s", r.Module.Name, note))
+				}
+			}
+		}
+		if len(allNotes) > 0 {
+			u.Info("")
+			u.Warn("Post-install notes:")
+			for _, note := range allNotes {
+				u.Warn("  " + note)
+			}
+		}
+
 		if failed > 0 {
 			return fmt.Errorf("%d module(s) failed", failed)
 		}

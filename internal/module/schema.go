@@ -20,6 +20,7 @@ type Module struct {
 	Prompts      []Prompt    `yaml:"prompts"`
 	Tags         []string    `yaml:"tags"`
 	Timeout      string      `yaml:"timeout"` // e.g., "10m", parsed via time.ParseDuration
+	Notes        []string    `yaml:"notes"`   // Post-install messages displayed after run
 	Dir          string      `yaml:"-"`
 }
 

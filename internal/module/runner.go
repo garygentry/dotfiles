@@ -88,6 +88,7 @@ type RunResult struct {
 	Skipped  bool
 	Error    error
 	Duration time.Duration
+	Notes    []string // Post-install notes from module definition
 }
 
 // Run is the main entry point for executing an ordered set of modules.
@@ -287,6 +288,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		Module:   mod,
 		Success:  true,
 		Duration: time.Since(start),
+		Notes:    mod.Notes,
 	}
 }
 

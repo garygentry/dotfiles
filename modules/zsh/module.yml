@@ -23,3 +23,5 @@ prompts: []
 tags:
   - shell
   - cli
+notes:
+  - "Run 'exec zsh' or log out and back in to activate your new shell"
