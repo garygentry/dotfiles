@@ -10,10 +10,12 @@
 
 - **🎯 Modular Architecture** - Self-contained modules with clear dependencies
 - **🔄 Dependency Resolution** - Automatic topological sorting ensures correct execution order
+- **♻️ Fully Idempotent** - Safe to run multiple times, only updates what changed
 - **🖥️ Cross-Platform** - Works on macOS, Ubuntu, and Arch Linux
 - **🔐 Secrets Management** - Integrated 1Password support for sensitive data
 - **📝 Template Rendering** - Go templates for dynamic configuration files
 - **✅ State Tracking** - Persistent state to track installations
+- **💾 Automatic Backups** - Protects user modifications with timestamped backups
 - **🎨 Beautiful CLI** - Colored output, spinners, and interactive prompts
 - **🧪 Fully Tested** - Comprehensive unit and integration tests with CI
 
@@ -51,7 +53,7 @@ go build -o bin/dotfiles .
 # List available modules
 dotfiles list
 
-# Install all modules
+# Install all modules (safe to run multiple times)
 dotfiles install
 
 # Install specific modules
@@ -65,7 +67,21 @@ dotfiles install --dry-run
 
 # Run without prompts (use defaults)
 dotfiles install --unattended
+
+# Force reinstall (even if up-to-date)
+dotfiles install --force
+
+# Skip previously failed modules
+dotfiles install --skip-failed
+
+# Only update existing modules
+dotfiles install --update-only
+
+# Check status and see what needs updating
+dotfiles status
 ```
+
+> **💡 Tip:** The system is fully idempotent - run `dotfiles install` as many times as you want! Only modules and files that actually changed will be updated. [Learn more →](docs/IDEMPOTENCE.md)
 
 ## Available Modules
 
