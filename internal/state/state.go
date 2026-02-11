@@ -17,8 +17,24 @@ type ModuleState struct {
 	UpdatedAt   time.Time   `json:"updated_at"`
 	OS          string      `json:"os"`
 	Error       string      `json:"error,omitempty"`     // last error if failed
-	Checksum    string      `json:"checksum"`            // for change detection
+	Checksum    string      `json:"checksum,omitempty"`  // SHA256 of module.yml + scripts
+	ConfigHash  string      `json:"config_hash,omitempty"` // Hash of user config for this module
+	FileStates  []FileState `json:"file_states,omitempty"` // Per-file deployment tracking
 	Operations  []Operation `json:"operations,omitempty"` // rollback metadata
+}
+
+// FileState tracks the deployment state of an individual file.
+// This enables file-level idempotence by detecting changes to source files,
+// user modifications to deployed files, and skipping unnecessary redeployments.
+type FileState struct {
+	Source       string    `json:"source"`        // Relative path in module dir (e.g., "files/.gitconfig")
+	Dest         string    `json:"dest"`          // Absolute destination path (e.g., "/home/user/.gitconfig")
+	Type         string    `json:"type"`          // "symlink", "copy", or "template"
+	DeployedAt   time.Time `json:"deployed_at"`   // When this file was last deployed
+	SourceHash   string    `json:"source_hash"`   // SHA256 of source file at deploy time
+	DeployedHash string    `json:"deployed_hash"` // SHA256 of deployed content at deploy time
+	UserModified bool      `json:"user_modified"` // True if user changed dest after deployment
+	LastChecked  time.Time `json:"last_checked"`  // Last time we verified this file's state
 }
 
 // Operation represents a single action taken during module installation.
@@ -184,4 +200,48 @@ func (ms *ModuleState) RollbackInstructions() []string {
 // CanRollback returns true if the module has recorded operations that can be rolled back.
 func (ms *ModuleState) CanRollback() bool {
 	return len(ms.Operations) > 0
+}
+
+// NeedsMigration returns true if this state was written by an older version
+// and needs migration to the current schema (e.g., missing FileStates).
+func (ms *ModuleState) NeedsMigration() bool {
+	// If module is marked as installed but has no FileStates, it needs migration
+	return ms.Status == "installed" && len(ms.FileStates) == 0
+}
+
+// MigrateFileStatesFromOperations attempts to reconstruct FileStates from
+// recorded operations for modules installed before file tracking was added.
+// This is best-effort - we can extract deployment information from operations
+// but can't recover exact hashes without reading the files again.
+func (ms *ModuleState) MigrateFileStatesFromOperations() {
+	if !ms.NeedsMigration() {
+		return
+	}
+
+	// Build FileStates from file_deploy operations
+	seenFiles := make(map[string]bool)
+	for _, op := range ms.Operations {
+		if op.Type != "file_deploy" {
+			continue
+		}
+
+		// Skip duplicates (if file was deployed multiple times)
+		if seenFiles[op.Path] {
+			continue
+		}
+		seenFiles[op.Path] = true
+
+		fs := FileState{
+			Source:       op.Metadata["source"],
+			Dest:         op.Path,
+			Type:         op.Metadata["type"],
+			DeployedAt:   op.Timestamp,
+			SourceHash:   op.Metadata["source_hash"], // May be empty for old operations
+			DeployedHash: "",                          // Unknown for old installations
+			UserModified: false,                       // Assume not modified
+			LastChecked:  time.Now(),
+		}
+
+		ms.FileStates = append(ms.FileStates, fs)
+	}
 }

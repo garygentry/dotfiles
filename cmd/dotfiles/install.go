@@ -19,6 +19,9 @@ import (
 var (
 	unattended bool
 	failFast   bool
+	force      bool
+	skipFailed bool
+	updateOnly bool
 )
 
 var installCmd = &cobra.Command{
@@ -159,6 +162,33 @@ resolution, module execution, and summary output.`,
 			}
 		}
 
+		// Filter modules for update-only mode
+		if updateOnly {
+			stateStore := state.NewStore(filepath.Join(sys.DotfilesDir, ".state"))
+			var updatableModules []*module.Module
+			var skippedNew []*module.Module
+
+			for _, m := range plan.Modules {
+				existingState, _ := stateStore.Get(m.Name)
+				if existingState != nil && existingState.Status == "installed" {
+					updatableModules = append(updatableModules, m)
+				} else {
+					skippedNew = append(skippedNew, m)
+				}
+			}
+
+			plan.Modules = updatableModules
+			plan.Skipped = append(plan.Skipped, skippedNew...)
+
+			if len(skippedNew) > 0 {
+				var names []string
+				for _, m := range skippedNew {
+					names = append(names, m.Name)
+				}
+				u.Info(fmt.Sprintf("Skipping new modules (--update-only): %s", strings.Join(names, ", ")))
+			}
+		}
+
 		u.PrintExecutionPlan(plan.Modules, plan.Skipped)
 
 		if dryRun {
@@ -177,6 +207,9 @@ resolution, module execution, and summary output.`,
 			Unattended: unattended,
 			FailFast:   failFast,
 			Verbose:    verbose,
+			Force:      force,
+			SkipFailed: skipFailed,
+			UpdateOnly: updateOnly,
 		}
 
 		results := module.Run(runCfg, plan)
@@ -210,5 +243,8 @@ resolution, module execution, and summary output.`,
 func init() {
 	installCmd.Flags().BoolVar(&unattended, "unattended", false, "Run without prompts, using defaults")
 	installCmd.Flags().BoolVar(&failFast, "fail-fast", false, "Stop on first module failure")
+	installCmd.Flags().BoolVar(&force, "force", false, "Force reinstall all modules even if up-to-date")
+	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")
+	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
 	rootCmd.AddCommand(installCmd)
 }

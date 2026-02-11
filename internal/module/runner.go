@@ -64,7 +64,22 @@ type RunConfig struct {
 	FailFast      bool
 	Verbose       bool
 	ScriptTimeout time.Duration // Default timeout for scripts (0 = use default)
+	Force         bool          // Force reinstall even if up-to-date
+	SkipFailed    bool          // Skip modules that failed previously
+	UpdateOnly    bool          // Only update existing modules, don't install new
 }
+
+// ExecutionDecision represents the runner's decision about whether to execute a module.
+type ExecutionDecision int
+
+const (
+	ExecutionSkip         ExecutionDecision = iota // Already up-to-date
+	ExecutionInstallFresh                          // No previous state
+	ExecutionInstallRetry                          // Failed previously
+	ExecutionUpdateModule                          // Module changed
+	ExecutionUpdateConfig                          // Config changed
+	ExecutionForce                                 // --force flag
+)
 
 // RunResult captures the outcome of running a single module.
 type RunResult struct {
@@ -93,6 +108,53 @@ func Run(cfg *RunConfig, plan *ExecutionPlan) []RunResult {
 	return results
 }
 
+// shouldRunModule determines whether a module needs to be executed based on
+// existing state, checksums, and configuration. This enables idempotent
+// installations where modules are only re-run when necessary.
+func shouldRunModule(mod *Module, existingState *state.ModuleState, cfg *RunConfig) (ExecutionDecision, string) {
+	// No state = fresh install
+	if existingState == nil {
+		return ExecutionInstallFresh, "no previous installation"
+	}
+
+	// Force flag = always run
+	if cfg.Force {
+		return ExecutionForce, "--force flag set"
+	}
+
+	// Failed previously = retry (unless --skip-failed)
+	if existingState.Status == "failed" {
+		if cfg.SkipFailed {
+			return ExecutionSkip, "failed previously, --skip-failed set"
+		}
+		return ExecutionInstallRetry, "retrying failed installation"
+	}
+
+	// Check module checksum (scripts/definition changed?)
+	currentChecksum, err := ComputeModuleChecksum(mod)
+	if err != nil {
+		// If we can't compute checksum, be safe and re-run
+		return ExecutionUpdateModule, fmt.Sprintf("checksum error: %v", err)
+	}
+	if existingState.Checksum != "" && currentChecksum != existingState.Checksum {
+		return ExecutionUpdateModule, "module definition/scripts changed"
+	}
+
+	// Check config hash (user settings changed?)
+	currentConfigHash := ComputeConfigHash(mod, cfg.Config)
+	if existingState.ConfigHash != "" && currentConfigHash != existingState.ConfigHash {
+		return ExecutionUpdateConfig, "user config values changed"
+	}
+
+	// Check version
+	if mod.Version != existingState.Version {
+		return ExecutionUpdateModule, "module version changed"
+	}
+
+	// Everything matches = skip
+	return ExecutionSkip, "already installed and up-to-date"
+}
+
 // runModule orchestrates the full lifecycle for a single module: prompts,
 // env vars, scripts, file deployment, verification, and state recording.
 //
@@ -103,15 +165,34 @@ func Run(cfg *RunConfig, plan *ExecutionPlan) []RunResult {
 func runModule(cfg *RunConfig, mod *Module) RunResult {
 	start := time.Now()
 
+	// Check if module needs running (idempotence check)
+	existingState, _ := cfg.State.Get(mod.Name)
+	decision, reason := shouldRunModule(mod, existingState, cfg)
+
+	if decision == ExecutionSkip {
+		cfg.UI.Info(fmt.Sprintf("✓ %s (skipped: %s)", mod.Name, reason))
+		return RunResult{Module: mod, Success: true, Skipped: true, Duration: time.Since(start)}
+	}
+
 	// Show a static progress line while scripts run (no animated spinner).
-	cfg.UI.Info(fmt.Sprintf("Installing %s...", mod.Name))
+	action := "Installing"
+	if existingState != nil && existingState.Status == "installed" {
+		action = "Updating"
+	}
+	cfg.UI.Info(fmt.Sprintf("%s %s (%s)...", action, mod.Name, reason))
 
 	// Initialize state for operation recording
+	// Preserve InstalledAt timestamp for updates
+	installedAt := time.Now()
+	if existingState != nil && !existingState.InstalledAt.IsZero() {
+		installedAt = existingState.InstalledAt
+	}
+
 	modState := &state.ModuleState{
 		Name:        mod.Name,
 		Version:     mod.Version,
 		Status:      "installing",
-		InstalledAt: time.Now(),
+		InstalledAt: installedAt,
 		OS:          cfg.SysInfo.OS,
 	}
 
@@ -159,11 +240,24 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 
 	// Step 6: Deploy files (use spinner here — Go-native, no subprocess writes).
 	spinner := cfg.UI.StartSpinner(fmt.Sprintf("Deploying %s files...", mod.Name))
-	if err := deployFiles(cfg, mod, tmplCtx, modState); err != nil {
+	deployedCount, skippedCount, err := deployFiles(cfg, mod, tmplCtx, modState, existingState)
+	if err != nil {
 		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s: file deployment error: %v", mod.Name, err))
 		return handleInstallFailure(cfg, modState, mod, err, start)
 	}
-	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Deployed %s files", mod.Name))
+
+	// Build informative message about file operations
+	var fileMsg string
+	if deployedCount > 0 && skippedCount > 0 {
+		fileMsg = fmt.Sprintf("Deployed %d file(s), %d unchanged", deployedCount, skippedCount)
+	} else if deployedCount > 0 {
+		fileMsg = fmt.Sprintf("Deployed %d file(s)", deployedCount)
+	} else if skippedCount > 0 {
+		fileMsg = fmt.Sprintf("All %d file(s) unchanged", skippedCount)
+	} else {
+		fileMsg = "No files to deploy"
+	}
+	cfg.UI.StopSpinnerSuccess(spinner, fileMsg)
 
 	// Step 7: Run verify.sh if it exists.
 	verifyScript := filepath.Join(mod.Dir, "verify.sh")
@@ -179,11 +273,15 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		}
 	}
 
-	// Step 8: Record success in state store with operations.
-	recordStateWithOps(cfg, modState, "installed", nil)
+	// Step 8: Record success in state store with operations and checksums.
+	recordStateWithChecksums(cfg, modState, mod, "installed", nil)
 
 	// Step 9: Print final result.
-	cfg.UI.Success(fmt.Sprintf("Installed %s", mod.Name))
+	action = "Installed"
+	if existingState != nil && existingState.Status == "installed" {
+		action = "Updated"
+	}
+	cfg.UI.Success(fmt.Sprintf("%s %s", action, mod.Name))
 
 	return RunResult{
 		Module:   mod,
@@ -394,25 +492,126 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 	return nil
 }
 
+// shouldDeployFile determines whether a file needs to be deployed based on
+// existing state, source hash, and destination state. This enables file-level
+// idempotence where files are only deployed when necessary.
+func shouldDeployFile(fileEntry FileEntry, src, dest, sourceHash string,
+	existingFile *state.FileState, cfg *RunConfig) (bool, string) {
+
+	if cfg.Force {
+		return true, "force flag set"
+	}
+
+	if existingFile == nil {
+		return true, "not previously deployed"
+	}
+
+	// Source content changed = must redeploy
+	if sourceHash != existingFile.SourceHash {
+		return true, "source file changed"
+	}
+
+	// Check if destination exists
+	if _, err := os.Lstat(dest); os.IsNotExist(err) {
+		return true, "destination file missing"
+	}
+
+	// For symlinks: check if pointing to correct location
+	if fileEntry.Type == "symlink" {
+		target, err := os.Readlink(dest)
+		if err != nil {
+			return true, "symlink read error"
+		}
+		expectedTarget, _ := filepath.Abs(src)
+		if target != expectedTarget {
+			return true, "symlink points to wrong location"
+		}
+		return false, "symlink already correct"
+	}
+
+	// For copy/template: check file content hash
+	currentHash, err := ComputeFileHash(dest)
+	if err != nil {
+		return true, "destination hash error"
+	}
+
+	// Destination matches our deployed content = unchanged
+	if currentHash == existingFile.DeployedHash {
+		return false, "destination unchanged since deployment"
+	}
+
+	// Content changed but source didn't = user modified
+	// Don't redeploy (protect user changes)
+	return false, "user modified (source unchanged)"
+}
+
 // deployFiles processes each FileEntry in the module, creating symlinks,
 // copying files, or rendering templates as specified.
 // Operations are recorded in modState for rollback capability.
-func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modState *state.ModuleState) error {
+// File-level idempotence: files are only deployed when source changed or dest is missing.
+// Returns (deployedCount, skippedCount, error).
+func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modState *state.ModuleState, existingState *state.ModuleState) (int, int, error) {
+	// Build map of previously deployed files for quick lookup
+	existingFiles := make(map[string]*state.FileState)
+	if existingState != nil {
+		for i := range existingState.FileStates {
+			fs := &existingState.FileStates[i]
+			existingFiles[fs.Dest] = fs
+		}
+	}
+
+	var deployedCount, skippedCount int
+
 	for _, f := range mod.Files {
 		src := filepath.Join(mod.Dir, f.Source)
 		dest := expandHome(f.Dest, cfg.SysInfo.HomeDir)
 
-		if cfg.DryRun {
-			cfg.UI.Info(fmt.Sprintf("[dry-run] Would deploy %s -> %s (%s)", f.Source, dest, f.Type))
+		// Compute source hash for change detection
+		sourceHash, err := ComputeFileHash(src)
+		if err != nil {
+			return 0, 0, fmt.Errorf("computing hash for %s: %w", src, err)
+		}
+
+		// Check if deployment needed
+		existingFile := existingFiles[dest]
+		needsDeploy, reason := shouldDeployFile(f, src, dest, sourceHash, existingFile, cfg)
+
+		if !needsDeploy {
+			cfg.UI.Debug(fmt.Sprintf("Skipping %s: %s", dest, reason))
+			skippedCount++
+
+			// Carry forward existing state with updated check time
+			modState.FileStates = append(modState.FileStates, state.FileState{
+				Source:       f.Source,
+				Dest:         dest,
+				Type:         f.Type,
+				DeployedAt:   existingFile.DeployedAt,
+				SourceHash:   sourceHash,
+				DeployedHash: existingFile.DeployedHash,
+				UserModified: reason == "user modified (source unchanged)",
+				LastChecked:  time.Now(),
+			})
 			continue
 		}
 
-		cfg.UI.Debug(fmt.Sprintf("Deploying %s -> %s (%s)", f.Source, dest, f.Type))
+		if cfg.DryRun {
+			cfg.UI.Info(fmt.Sprintf("[dry-run] Would deploy %s -> %s (%s): %s", f.Source, dest, f.Type, reason))
+			continue
+		}
+
+		// Backup user-modified files before overwriting
+		if existingFile != nil && existingFile.UserModified {
+			if err := createBackup(dest, cfg, mod.Name); err != nil {
+				cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, err))
+			}
+		}
+
+		cfg.UI.Debug(fmt.Sprintf("Deploying %s -> %s (%s): %s", f.Source, dest, f.Type, reason))
 
 		// Ensure the destination directory exists.
 		destDir := filepath.Dir(dest)
 		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return fmt.Errorf("creating directory %s: %w", destDir, err)
+			return 0, 0, fmt.Errorf("creating directory %s: %w", destDir, err)
 		}
 
 		// Record directory creation if it was created
@@ -430,26 +629,38 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 			fileExisted = true
 		}
 
+		var deployedHash string
+
 		switch f.Type {
 		case "symlink":
 			if err := deploySymlink(src, dest); err != nil {
-				return fmt.Errorf("symlink %s -> %s: %w", src, dest, err)
+				return 0, 0, fmt.Errorf("symlink %s -> %s: %w", src, dest, err)
 			}
+			// For symlinks, we use source hash as deployed hash
+			deployedHash = sourceHash
+
 			modState.RecordOperation(state.Operation{
 				Type:   "file_deploy",
 				Action: "symlinked",
 				Path:   dest,
 				Metadata: map[string]string{
-					"source":      src,
-					"type":        "symlink",
+					"source":       src,
+					"type":         "symlink",
 					"file_existed": fmt.Sprintf("%v", fileExisted),
+					"source_hash":  sourceHash,
 				},
 			})
 
 		case "copy":
 			if err := deployCopy(src, dest); err != nil {
-				return fmt.Errorf("copy %s -> %s: %w", src, dest, err)
+				return 0, 0, fmt.Errorf("copy %s -> %s: %w", src, dest, err)
 			}
+			// For copies, compute the deployed file's hash
+			deployedHash, err = ComputeFileHash(dest)
+			if err != nil {
+				return 0, 0, fmt.Errorf("computing deployed hash for %s: %w", dest, err)
+			}
+
 			action := "created"
 			if fileExisted {
 				action = "modified"
@@ -459,15 +670,22 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 				Action: action,
 				Path:   dest,
 				Metadata: map[string]string{
-					"source": src,
-					"type":   "copy",
+					"source":      src,
+					"type":        "copy",
+					"source_hash": sourceHash,
 				},
 			})
 
 		case "template":
 			if err := template.RenderToFile(src, dest, tmplCtx); err != nil {
-				return fmt.Errorf("template %s -> %s: %w", src, dest, err)
+				return 0, 0, fmt.Errorf("template %s -> %s: %w", src, dest, err)
 			}
+			// For templates, compute the rendered file's hash
+			deployedHash, err = ComputeFileHash(dest)
+			if err != nil {
+				return 0, 0, fmt.Errorf("computing deployed hash for %s: %w", dest, err)
+			}
+
 			action := "created"
 			if fileExisted {
 				action = "modified"
@@ -477,17 +695,33 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 				Action: action,
 				Path:   dest,
 				Metadata: map[string]string{
-					"source": src,
-					"type":   "template",
+					"source":      src,
+					"type":        "template",
+					"source_hash": sourceHash,
 				},
 			})
 
 		default:
-			return fmt.Errorf("unknown file type %q for %s", f.Type, f.Source)
+			return 0, 0, fmt.Errorf("unknown file type %q for %s", f.Type, f.Source)
 		}
+
+		// File was successfully deployed
+		deployedCount++
+
+		// Record file state for idempotence tracking
+		modState.FileStates = append(modState.FileStates, state.FileState{
+			Source:       f.Source,
+			Dest:         dest,
+			Type:         f.Type,
+			DeployedAt:   time.Now(),
+			SourceHash:   sourceHash,
+			DeployedHash: deployedHash,
+			UserModified: false,
+			LastChecked:  time.Now(),
+		})
 	}
 
-	return nil
+	return deployedCount, skippedCount, nil
 }
 
 // deploySymlink creates a symbolic link at dest pointing to src. If dest
@@ -559,6 +793,30 @@ func recordStateWithOps(cfg *RunConfig, modState *state.ModuleState, status stri
 	if runErr != nil {
 		modState.Error = runErr.Error()
 	}
+
+	if err := cfg.State.Set(modState); err != nil {
+		cfg.UI.Warn(fmt.Sprintf("Failed to save state for %s: %v", modState.Name, err))
+	}
+}
+
+// recordStateWithChecksums persists the module state including checksums and config hash
+// for idempotence tracking. Used after successful installation/update.
+func recordStateWithChecksums(cfg *RunConfig, modState *state.ModuleState, mod *Module, status string, runErr error) {
+	modState.Status = status
+	modState.UpdatedAt = time.Now()
+
+	if runErr != nil {
+		modState.Error = runErr.Error()
+	}
+
+	// Compute and store checksums for change detection
+	if checksum, err := ComputeModuleChecksum(mod); err == nil {
+		modState.Checksum = checksum
+	} else {
+		cfg.UI.Debug(fmt.Sprintf("Failed to compute checksum for %s: %v", mod.Name, err))
+	}
+
+	modState.ConfigHash = ComputeConfigHash(mod, cfg.Config)
 
 	if err := cfg.State.Set(modState); err != nil {
 		cfg.UI.Warn(fmt.Sprintf("Failed to save state for %s: %v", modState.Name, err))
