@@ -139,5 +139,10 @@ if command -v starship &>/dev/null; then
     eval "$(starship init zsh)"
 fi
 {{ end }}
+# zoxide (smarter cd)
+if command -v zoxide &>/dev/null; then
+    eval "$(zoxide init zsh)"
+fi
+
 # Source local overrides (not managed by dotfiles)
 [[ -f "${HOME}/.zshrc.local" ]] && source "${HOME}/.zshrc.local"

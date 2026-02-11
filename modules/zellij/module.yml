@@ -1,0 +1,13 @@
+name: zellij
+description: "Install Zellij terminal multiplexer"
+version: "1.0.0"
+priority: 35
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - cli
+  - terminal

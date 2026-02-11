@@ -1,0 +1,15 @@
+name: claude-code
+description: "Install Claude Code CLI"
+version: "1.0.0"
+priority: 50
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - ai
+  - cli
+notes:
+  - "Run 'claude' to authenticate with your Anthropic account"

@@ -1,0 +1,12 @@
+name: ghostty
+description: "Install Ghostty terminal emulator"
+version: "1.0.0"
+priority: 35
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - terminal

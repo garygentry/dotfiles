@@ -1,0 +1,14 @@
+name: rust
+description: "Install Rust programming language via rustup"
+version: "1.0.0"
+priority: 50
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - programming
+  - cli

@@ -1,0 +1,13 @@
+name: zoxide
+description: "Install zoxide, a smarter cd command"
+version: "1.0.0"
+priority: 20
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - cli
+  - navigation

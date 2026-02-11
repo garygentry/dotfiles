@@ -1,0 +1,17 @@
+name: gh
+description: "Install GitHub CLI"
+version: "1.0.0"
+priority: 20
+dependencies:
+  - git
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - cli
+  - git
+notes:
+  - "Run 'gh auth login' to authenticate with GitHub"

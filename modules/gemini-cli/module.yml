@@ -1,0 +1,17 @@
+name: gemini-cli
+description: "Install Gemini CLI"
+version: "1.0.0"
+priority: 50
+dependencies:
+  - nodejs
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - npm
+tags:
+  - ai
+  - cli
+notes:
+  - "Run 'gemini' to authenticate with your Google account"

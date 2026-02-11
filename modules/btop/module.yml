@@ -1,0 +1,13 @@
+name: btop
+description: "Install btop system monitor"
+version: "1.0.0"
+priority: 20
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - cli
+  - monitoring

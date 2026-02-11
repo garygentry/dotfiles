@@ -1,0 +1,15 @@
+name: gcloud
+description: "Install Google Cloud CLI"
+version: "1.0.0"
+priority: 50
+dependencies: []
+os:
+  - macos
+  - ubuntu
+requires:
+  - curl
+tags:
+  - cloud
+  - cli
+notes:
+  - "Run 'gcloud init' to set up your Google Cloud configuration"

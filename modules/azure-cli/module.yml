@@ -1,0 +1,16 @@
+name: azure-cli
+description: "Install Azure CLI"
+version: "1.0.0"
+priority: 50
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - cloud
+  - cli
+notes:
+  - "Run 'az login' to authenticate with Azure"
