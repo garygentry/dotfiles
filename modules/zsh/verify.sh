@@ -2,6 +2,7 @@
 # zsh/verify.sh - Verify Zsh installation and configuration
 
 _zsh_errors=0
+_zsh_framework="${DOTFILES_PROMPT_ZSH_FRAMEWORK:-zinit}"
 
 # Check zsh is installed
 if command -v zsh &>/dev/null; then
@@ -12,24 +13,34 @@ else
     _zsh_errors=$((_zsh_errors + 1))
 fi
 
-# Check .zshrc is linked
+# Check .zshrc exists (symlink for zinit, regular file for template)
 _zsh_rc="${DOTFILES_HOME}/.zshrc"
 if [[ -L "$_zsh_rc" ]]; then
     log_success ".zshrc is symlinked: ${_zsh_rc}"
 elif [[ -f "$_zsh_rc" ]]; then
-    log_info ".zshrc exists but is not a symlink: ${_zsh_rc}"
+    log_success ".zshrc exists: ${_zsh_rc}"
 else
     log_warn ".zshrc not found: ${_zsh_rc}"
     _zsh_errors=$((_zsh_errors + 1))
 fi
 
-# Check Zinit is installed
-_zsh_zinit_home="${DOTFILES_HOME}/.local/share/zinit/zinit.git"
-if [[ -d "$_zsh_zinit_home" ]]; then
-    log_success "Zinit is installed at ${_zsh_zinit_home}"
+# Check plugin framework
+if [[ "$_zsh_framework" == "ohmyzsh" ]]; then
+    _zsh_omz_dir="${DOTFILES_HOME}/.oh-my-zsh"
+    if [[ -d "$_zsh_omz_dir" ]]; then
+        log_success "Oh My Zsh is installed at ${_zsh_omz_dir}"
+    else
+        log_warn "Oh My Zsh is not installed at ${_zsh_omz_dir}"
+        _zsh_errors=$((_zsh_errors + 1))
+    fi
 else
-    log_warn "Zinit is not installed at ${_zsh_zinit_home}"
-    _zsh_errors=$((_zsh_errors + 1))
+    _zsh_zinit_home="${DOTFILES_HOME}/.local/share/zinit/zinit.git"
+    if [[ -d "$_zsh_zinit_home" ]]; then
+        log_success "Zinit is installed at ${_zsh_zinit_home}"
+    else
+        log_warn "Zinit is not installed at ${_zsh_zinit_home}"
+        _zsh_errors=$((_zsh_errors + 1))
+    fi
 fi
 
 # Check aliases file is linked

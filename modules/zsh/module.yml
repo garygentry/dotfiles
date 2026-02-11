@@ -1,6 +1,6 @@
 name: zsh
-description: "Install and configure Zsh with Zinit plugin manager"
-version: "1.0.0"
+description: "Install and configure Zsh with plugin manager (Zinit or Oh My Zsh)"
+version: "1.1.0"
 priority: 40
 dependencies:
   - git
@@ -10,16 +10,39 @@ os:
   - arch
 requires: []
 files:
-  - source: zshrc
+  - source: zshrc.tmpl
     dest: "~/.zshrc"
-    type: symlink
+    type: template
   - source: aliases.zsh
     dest: "~/.config/zsh/aliases.zsh"
     type: symlink
   - source: functions.zsh
     dest: "~/.config/zsh/functions.zsh"
     type: symlink
-prompts: []
+prompts:
+  - key: zsh_framework
+    message: "Zsh plugin framework"
+    default: "zinit"
+    type: choice
+    options:
+      - zinit
+      - ohmyzsh
+  - key: zsh_omz_plugins
+    message: "Oh My Zsh plugin preset (ignored if using Zinit)"
+    default: "standard"
+    type: choice
+    options:
+      - minimal
+      - standard
+      - full
+  - key: zsh_prompt
+    message: "Prompt theme (ignored if using Zinit)"
+    default: "starship"
+    type: choice
+    options:
+      - starship
+      - robbyrussell
+      - agnoster
 tags:
   - shell
   - cli

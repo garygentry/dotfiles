@@ -1,102 +1,100 @@
-# Fix: git-delta sudo prompt + post-install notes
+# Add Oh My Zsh support to zsh module
 
 ## Context
 
-On a clean Ubuntu user install, two UX issues:
-1. **git-delta silently fails** instead of prompting for sudo password — the `has_sudo` gate checks for *passwordless* sudo (`sudo -n true`) and bails before the user gets a chance to authenticate interactively, unlike `chsh` which prompts naturally.
-2. **No post-install guidance** — after zsh/starship install, the new shell isn't active until the user logs out and back in, but nothing tells them this.
+User wants Oh My Zsh as an alternative to the existing Zinit plugin manager. OMZ and Zinit are mutually exclusive — they both manage the shell initialization, so you can't source both. Rather than a separate module (which would create zshrc deployment conflicts), the zsh module gains a framework choice prompt and the zshrc becomes a Go template with conditional sections.
 
 ---
 
-## Fix 1: git-delta sudo prompt
+## Design
 
-**File:** `modules/git/install.sh` (line 91)
+### Prompts (added to `modules/zsh/module.yml`)
 
-Change the `has_sudo` gate to allow interactive sudo prompting. In interactive mode, skip the gate and let `sudo dpkg -i` prompt naturally (stdin is already connected by the runner). In non-interactive mode, keep the existing `has_sudo` check.
+1. **`zsh_framework`** — choice: `zinit` (default), `ohmyzsh`
+2. **`zsh_omz_plugins`** — choice: `minimal`, `standard` (default), `full`
+   - minimal: git, z
+   - standard: git, z, docker, colored-man-pages, command-not-found
+   - full: git, z, docker, colored-man-pages, command-not-found, sudo, extract, history, aliases, web-search
+3. **`zsh_prompt`** — choice: `starship` (default), `robbyrussell`, `agnoster`
 
-```bash
-# Before:
-if ! has_sudo; then
+All 3 prompts shown. If zinit chosen, prompts 2-3 ignored by template (zinit always uses starship + its own plugins). Defaults preserve current behavior for existing/unattended installs.
 
-# After:
-if ! is_interactive && ! has_sudo; then
+### zshrc → zshrc.tmpl (Go template)
+
+Convert from static file (symlink) to rendered template. Structure:
+
+```
+{{- $framework := index .Env "DOTFILES_PROMPT_ZSH_FRAMEWORK" -}}
+{{- $prompt := index .Env "DOTFILES_PROMPT_ZSH_PROMPT" -}}
+{{- $plugins := index .Env "DOTFILES_PROMPT_ZSH_OMZ_PLUGINS" -}}
+
+{{- if eq $framework "ohmyzsh" }}
+# Oh My Zsh setup
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="{{ theme based on $prompt }}"
+plugins=( {{ plugin list based on $plugins }} )
+source $ZSH/oh-my-zsh.sh
+{{- else }}
+# Zinit setup (current content, unchanged)
+{{- end }}
+
+# === Shared config (both frameworks) ===
+# History, shell options, key bindings, PATH
+# Source aliases.zsh, functions.zsh
+# Starship init (if prompt=starship or framework=zinit)
+# Source .zshrc.local
 ```
 
-One line change. `is_interactive()` is already available in `lib/helpers.sh:63`. The runner already connects stdin for interactive mode (`runner.go:459`).
+Key details:
+- OMZ handles completions internally, so completion settings only render for zinit
+- When OMZ + starship: `ZSH_THEME=""` (empty disables OMZ theme, starship takes over)
+- When OMZ + robbyrussell/agnoster: normal OMZ theme, no starship init
 
----
+### install.sh changes
 
-## Fix 2: Post-install notes system
+Read `DOTFILES_PROMPT_ZSH_FRAMEWORK` env var. Conditionally:
+- **zinit**: clone Zinit (current logic, unchanged)
+- **ohmyzsh**: `git clone https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh`
+- Both: shared logic (install zsh, create config dir, chsh) stays the same
 
-### 2a. Add `Notes` field to Module struct
-**File:** `internal/module/schema.go`
+### verify.sh changes
 
-Add `Notes []string \`yaml:"notes"\`` to the `Module` struct (after `Timeout`, before `Dir`). Backward compatible — omitted YAML fields result in nil slice.
+Read `DOTFILES_PROMPT_ZSH_FRAMEWORK`. Conditionally check:
+- **zinit**: `~/.local/share/zinit/zinit.git` exists
+- **ohmyzsh**: `~/.oh-my-zsh` directory exists
+- `.zshrc` check: accept both symlink and regular file (template produces a file)
+- Shared checks unchanged (zsh binary, aliases.zsh, functions.zsh)
 
-### 2b. Add `Notes` to RunResult and populate on success
-**File:** `internal/module/runner.go`
-
-- Add `Notes []string` to `RunResult` struct
-- In `runModule()` success return (line 286), set `Notes: mod.Notes`
-- Skipped and failed modules get no notes (correct behavior)
-
-### 2c. Display notes after summary
-**File:** `cmd/dotfiles/install.go`
-
-After the summary line (line 234), collect and display notes from successful non-skipped results:
-
-```go
-var allNotes []string
-for _, r := range results {
-    if r.Success && !r.Skipped && len(r.Notes) > 0 {
-        for _, note := range r.Notes {
-            allNotes = append(allNotes, fmt.Sprintf("[%s] %s", r.Module.Name, note))
-        }
-    }
-}
-if len(allNotes) > 0 {
-    u.Info("")
-    u.Warn("Post-install notes:")
-    for _, note := range allNotes {
-        u.Warn("  " + note)
-    }
-}
-```
-
-### 2d. Add notes to zsh module
-**File:** `modules/zsh/module.yml`
+### module.yml file entry change
 
 ```yaml
-notes:
-  - "Run 'exec zsh' or log out and back in to activate your new shell"
+# Before:
+- source: zshrc
+  dest: "~/.zshrc"
+  type: symlink
+
+# After:
+- source: zshrc.tmpl
+  dest: "~/.zshrc"
+  type: template
 ```
 
-Starship does **not** need its own note — it depends on zsh and activates via zshrc. The zsh note covers both.
-
 ---
 
-## Tests
+## Files to modify/create
 
-### Update existing test YAML in `schema_test.go`
-Add `notes:` to the `TestParseModuleYAML` test YAML and assert `m.Notes` is parsed correctly. Also verify that `TestParseModuleYAML_DefaultName` (no notes in YAML) results in nil `Notes`.
+1. **`modules/zsh/module.yml`** — add 3 prompts, change zshrc file entry to template type
+2. **`modules/zsh/zshrc`** → rename to **`modules/zsh/zshrc.tmpl`** — Go template with conditional zinit/omz sections
+3. **`modules/zsh/install.sh`** — conditional Zinit/OMZ installation
+4. **`modules/zsh/verify.sh`** — conditional framework verification
 
-### Add runner test in `runner_test.go`
-Add `TestRunNotesOnSuccess` — create a module with `Notes: []string{"test note"}`, no scripts, run it, assert `result.Notes` contains the note. Verify a skipped module returns empty notes.
-
----
-
-## Files modified (6)
-1. `modules/git/install.sh` — interactive-aware sudo gate
-2. `internal/module/schema.go` — Notes field on Module
-3. `internal/module/runner.go` — Notes on RunResult, populate on success
-4. `cmd/dotfiles/install.go` — display post-install notes
-5. `modules/zsh/module.yml` — add notes
-6. `internal/module/schema_test.go` — test Notes parsing
-7. `internal/module/runner_test.go` — test Notes in RunResult
+No Go code changes needed.
 
 ## Verification
+
 ```bash
 export PATH="/usr/local/go/bin:$PATH"
 go test ./internal/module/ ./cmd/dotfiles/
 go build ./cmd/dotfiles/
+# Manual: dotfiles install zsh --force (test both zinit and ohmyzsh paths)
 ```

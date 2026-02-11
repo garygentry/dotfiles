@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# zsh/install.sh - Install and configure Zsh with Zinit plugin manager
+# zsh/install.sh - Install and configure Zsh with Zinit or Oh My Zsh
+
+_zsh_framework="${DOTFILES_PROMPT_ZSH_FRAMEWORK:-zinit}"
 
 # Install zsh if not already present (OS-specific scripts handle this too)
 if ! command -v zsh &>/dev/null; then
@@ -20,19 +22,36 @@ if [[ ! -d "$_zsh_config_dir" ]]; then
     fi
 fi
 
-# Install Zinit plugin manager
-_zsh_zinit_home="${DOTFILES_HOME}/.local/share/zinit/zinit.git"
-if [[ ! -d "$_zsh_zinit_home" ]]; then
-    if is_dry_run; then
-        log_info "[dry-run] Would install Zinit plugin manager to ${_zsh_zinit_home}"
+# Install plugin framework
+if [[ "$_zsh_framework" == "ohmyzsh" ]]; then
+    # Install Oh My Zsh
+    _zsh_omz_dir="${DOTFILES_HOME}/.oh-my-zsh"
+    if [[ ! -d "$_zsh_omz_dir" ]]; then
+        if is_dry_run; then
+            log_info "[dry-run] Would install Oh My Zsh to ${_zsh_omz_dir}"
+        else
+            log_info "Installing Oh My Zsh..."
+            git clone https://github.com/ohmyzsh/ohmyzsh.git "$_zsh_omz_dir"
+            log_success "Oh My Zsh installed to ${_zsh_omz_dir}"
+        fi
     else
-        log_info "Installing Zinit plugin manager..."
-        mkdir -p "$(dirname "$_zsh_zinit_home")"
-        git clone https://github.com/zdharma-continuum/zinit.git "$_zsh_zinit_home"
-        log_success "Zinit installed to ${_zsh_zinit_home}"
+        log_info "Oh My Zsh is already installed at ${_zsh_omz_dir}"
     fi
 else
-    log_info "Zinit is already installed at ${_zsh_zinit_home}"
+    # Install Zinit plugin manager
+    _zsh_zinit_home="${DOTFILES_HOME}/.local/share/zinit/zinit.git"
+    if [[ ! -d "$_zsh_zinit_home" ]]; then
+        if is_dry_run; then
+            log_info "[dry-run] Would install Zinit plugin manager to ${_zsh_zinit_home}"
+        else
+            log_info "Installing Zinit plugin manager..."
+            mkdir -p "$(dirname "$_zsh_zinit_home")"
+            git clone https://github.com/zdharma-continuum/zinit.git "$_zsh_zinit_home"
+            log_success "Zinit installed to ${_zsh_zinit_home}"
+        fi
+    else
+        log_info "Zinit is already installed at ${_zsh_zinit_home}"
+    fi
 fi
 
 # Set default shell to zsh if not already
