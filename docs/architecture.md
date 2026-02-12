@@ -17,43 +17,7 @@ For a deeper discussion of why Go was chosen over pure shell or other languages,
 
 ## System Overview
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                        CLI Layer (Go)                         │
-│  ┌────────────┐  ┌──────────────┐  ┌───────────────────┐   │
-│  │   install  │  │     list     │  │  get-secret /     │   │
-│  │   command  │  │    command   │  │  render-template  │   │
-│  └────────────┘  └──────────────┘  └───────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    Core Packages (Go)                         │
-│  ┌──────────┐  ┌─────────┐  ┌─────────┐  ┌──────────────┐  │
-│  │  config  │  │ sysinfo │  │  module │  │    secrets   │  │
-│  └──────────┘  └─────────┘  └─────────┘  └──────────────┘  │
-│  ┌──────────┐  ┌─────────┐  ┌─────────┐  ┌──────────────┐  │
-│  │   state  │  │    ui   │  │template │  │      ...     │  │
-│  └──────────┘  └─────────┘  └─────────┘  └──────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    Module Layer (Shell)                       │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              lib/helpers.sh                          │   │
-│  │  Common utilities available to all module scripts    │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                              │                                │
-│  ┌───────────┐  ┌──────────┐  ┌─────────┐  ┌─────────────┐ │
-│  │ 1password │  │   ssh    │  │   git   │  │     zsh     │ │
-│  │  module   │  │  module  │  │  module │  │    module   │ │
-│  └───────────┘  └──────────┘  └─────────┘  └─────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                       System (OS/Tools)
-```
+![System Overview](diagrams/system-overview.svg)
 
 ## Core Components
 
@@ -377,143 +341,21 @@ dotfiles install git --verbose
 
 ### Installation Flow
 
-```
-User runs: dotfiles install
-
-1. Parse CLI flags
-   └─> install.go
-
-2. Detect system
-   └─> sysinfo.Detect()
-
-3. Load configuration
-   └─> config.Load()
-
-4. Authenticate secrets (if available)
-   └─> secrets.Provider.Authenticate()
-
-5. Discover modules
-   └─> module.DiscoverModules()
-
-6. Resolve dependencies
-   └─> module.ResolveModules()
-   └─> Returns ExecutionPlan
-
-7. Display plan
-   └─> ui.ShowExecutionPlan()
-
-8. Execute modules (loop)
-   For each module:
-   ├─> runner.RunModule()
-   │   ├─> Handle prompts
-   │   ├─> Setup environment
-   │   ├─> Run os/<os>.sh (if exists)
-   │   ├─> Run install.sh
-   │   ├─> Deploy files
-   │   ├─> Run verify.sh (if exists)
-   │   └─> Record state
-   └─> Display progress
-
-9. Show summary
-   └─> ui.ShowSummary()
-```
+![Installation Flow](diagrams/installation-flow.svg)
 
 ### Module Execution Flow
 
-```
-For each module in execution plan:
-
-1. Prompts Phase
-   ├─> ui.PromptInput/Confirm/Choice()
-   └─> Store answers
-
-2. Environment Setup
-   ├─> Build DOTFILES_* variables
-   └─> Include user config, prompts
-
-3. Template Context
-   ├─> Build template.Context
-   └─> Load user, OS, secrets data
-
-4. OS Script (optional)
-   ├─> Execute os/${DOTFILES_OS}.sh
-   └─> Wrapped with helpers.sh
-
-5. Install Script
-   ├─> Execute install.sh
-   └─> Wrapped with helpers.sh
-
-6. File Deployment
-   For each file in module.yml:
-   ├─> Symlink: Create symlink
-   ├─> Copy: Copy with permissions
-   └─> Template: Render + write
-
-7. Verification (optional)
-   ├─> Execute verify.sh
-   └─> Wrapped with helpers.sh
-
-8. State Recording
-   └─> state.Store.Save()
-```
+![Module Execution Flow](diagrams/module-execution-flow.svg)
 
 ### Shell Script Execution
 
-```
-Go Runner prepares:
-1. Environment variables (DOTFILES_*)
-2. Wrapper script that:
-   ├─> Sets bash options (set -euo pipefail)
-   ├─> Sources lib/helpers.sh
-   └─> Sources actual module script
-
-Module script runs with:
-├─> Access to helper functions
-├─> Access to DOTFILES_* env vars
-├─> Ability to call back to Go CLI:
-│   ├─> dotfiles get-secret
-│   └─> dotfiles render-template
-└─> stdout/stderr captured by runner
-```
+![Shell Script Execution](diagrams/shell-execution.svg)
 
 ## Dependency Resolution
 
 ### Algorithm: Kahn's Topological Sort
 
-```
-Input: Requested modules (or all if none specified)
-
-1. Expand Dependencies (BFS)
-   ├─> Start with requested modules
-   ├─> For each module:
-   │   └─> Add all dependencies to set
-   └─> Repeat until no new modules added
-
-2. Filter by OS Compatibility
-   ├─> Check module.OS field
-   ├─> Keep if empty (all platforms)
-   └─> Keep if contains current OS
-
-3. Build Dependency Graph
-   ├─> Create adjacency list
-   ├─> Calculate in-degrees
-   └─> Sort within levels by priority, name
-
-4. Topological Sort
-   ├─> Initialize queue with zero-degree nodes
-   ├─> While queue not empty:
-   │   ├─> Dequeue node
-   │   ├─> Add to result
-   │   ├─> For each dependent:
-   │   │   ├─> Decrement in-degree
-   │   │   └─> If zero, add to queue
-   │   └─> Sort queue by priority, name
-   └─> Check for cycles (remaining nodes)
-
-5. Return ExecutionPlan
-   ├─> Ordered modules
-   └─> Skipped modules (with reasons)
-```
+![Dependency Resolution](diagrams/dependency-resolution.svg)
 
 ### Example
 
