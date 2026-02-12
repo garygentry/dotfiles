@@ -13,3 +13,4 @@ packer_cache/
 *_secret*
 secrets.yml
 secrets.yaml
+dotfiles

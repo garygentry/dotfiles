@@ -135,8 +135,8 @@ echo ""
 echo "--- Test: dotfiles list ---"
 LIST_OUTPUT=$("$DOTFILES_BIN" list 2>&1) || true
 
-MODULES=("1password" "ssh" "git" "zsh" "neovim")
-for mod in "${MODULES[@]}"; do
+LIST_MODULES=("ssh" "git" "zsh" "neovim")
+for mod in "${LIST_MODULES[@]}"; do
     assert_output_contains "list shows module '$mod'" "$mod" "$LIST_OUTPUT"
 done
 
@@ -154,15 +154,24 @@ fi
 
 assert_output_contains "output contains 'Execution Plan'" "Execution Plan" "$INSTALL_OUTPUT"
 
-for mod in "${MODULES[@]}"; do
+INSTALL_MODULES=("ssh" "git" "zsh" "neovim")
+for mod in "${INSTALL_MODULES[@]}"; do
     assert_output_contains "install output contains module '$mod'" "$mod" "$INSTALL_OUTPUT"
 done
 
-# Verify dependency order: 1password before ssh, ssh before git, git before zsh, git before neovim
-assert_order "1password appears before ssh" "1password" "ssh" "$INSTALL_OUTPUT"
+# Verify dependency order: ssh before git, git before zsh, git before neovim
 assert_order "ssh appears before git" "ssh" "git" "$INSTALL_OUTPUT"
 assert_order "git appears before zsh" "git" "zsh" "$INSTALL_OUTPUT"
 assert_order "git appears before neovim" "git" "neovim" "$INSTALL_OUTPUT"
+
+# v2.0.0: --prompt-dependencies flag is accepted
+PROMPT_DEPS_OUTPUT=$("$DOTFILES_BIN" install --dry-run --unattended --prompt-dependencies 2>&1)
+PROMPT_DEPS_EXIT=$?
+if [ "$PROMPT_DEPS_EXIT" -eq 0 ]; then
+    pass "install --dry-run --unattended --prompt-dependencies exits with code 0"
+else
+    fail "install --dry-run --unattended --prompt-dependencies exits with code 0 (got: $PROMPT_DEPS_EXIT)"
+fi
 
 # --- Test 3: dotfiles --help ---
 echo ""
@@ -179,6 +188,10 @@ fi
 assert_output_contains "--help shows 'install' command" "install" "$HELP_OUTPUT"
 assert_output_contains "--help shows 'list' command" "list" "$HELP_OUTPUT"
 assert_output_contains "--help shows 'Available Commands' or command info" "dotfiles" "$HELP_OUTPUT"
+
+# v2.0.0: install --help shows --prompt-dependencies flag
+INSTALL_HELP=$("$DOTFILES_BIN" install --help 2>&1)
+assert_output_contains "install help shows --prompt-dependencies" "prompt-dependencies" "$INSTALL_HELP"
 
 # --- Test 4: Full installation ---
 echo ""
@@ -204,6 +217,12 @@ assert_dir_perms "~/.ssh has permissions 700" "$HOME/.ssh" "700"
 assert_file_exists "~/.ssh/id_ed25519 exists" "$HOME/.ssh/id_ed25519"
 assert_file_exists "~/.ssh/id_ed25519.pub exists" "$HOME/.ssh/id_ed25519.pub"
 assert_file_exists "~/.ssh/config exists" "$HOME/.ssh/config"
+# ssh/config is deployed as a template (regular file, not symlink)
+if [[ -f "$HOME/.ssh/config" && ! -L "$HOME/.ssh/config" ]]; then
+    pass "~/.ssh/config is a regular file (template, not symlink)"
+else
+    fail "~/.ssh/config is a regular file (template, not symlink)"
+fi
 
 # --- Test 6: Git module verification ---
 echo ""
@@ -218,7 +237,13 @@ assert_symlink "~/.gitmessage is symlink" "$HOME/.gitmessage"
 echo ""
 echo "--- Test: Zsh module verification ---"
 assert_command_exists "zsh is installed" "zsh"
-assert_symlink "~/.zshrc is symlink" "$HOME/.zshrc"
+assert_file_exists "~/.zshrc exists (rendered template)" "$HOME/.zshrc"
+# zshrc is deployed as a template (regular file, not symlink)
+if [[ -f "$HOME/.zshrc" && ! -L "$HOME/.zshrc" ]]; then
+    pass "~/.zshrc is a regular file (template, not symlink)"
+else
+    fail "~/.zshrc is a regular file (template, not symlink)"
+fi
 assert_dir_exists "zinit directory exists" "$HOME/.local/share/zinit/zinit.git"
 assert_symlink "~/.config/zsh/aliases.zsh is symlink" "$HOME/.config/zsh/aliases.zsh"
 assert_symlink "~/.config/zsh/functions.zsh is symlink" "$HOME/.config/zsh/functions.zsh"
