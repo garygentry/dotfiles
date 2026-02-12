@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	unattended         bool
 	failFast           bool
 	force              bool
 	skipFailed         bool
@@ -261,7 +260,6 @@ resolution, module execution, and summary output.`,
 }
 
 func init() {
-	installCmd.Flags().BoolVar(&unattended, "unattended", false, "Run without prompts, using defaults")
 	installCmd.Flags().BoolVar(&failFast, "fail-fast", false, "Stop on first module failure")
 	installCmd.Flags().BoolVar(&force, "force", false, "Force reinstall all modules even if up-to-date")
 	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")

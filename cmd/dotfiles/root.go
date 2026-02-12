@@ -5,9 +5,10 @@ import (
 )
 
 var (
-	verbose bool
-	dryRun  bool
-	logJSON bool
+	verbose    bool
+	dryRun     bool
+	logJSON    bool
+	unattended bool
 )
 
 var rootCmd = &cobra.Command{
@@ -23,6 +24,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.PersistentFlags().BoolVar(&logJSON, "log-json", false, "Output logs in JSON format")
+	rootCmd.PersistentFlags().BoolVar(&unattended, "unattended", false, "Run without prompts, using defaults")
 }
 
 func Execute() error {
