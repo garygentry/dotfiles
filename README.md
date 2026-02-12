@@ -98,7 +98,7 @@ dotfiles status
 | **zsh** | Install Zsh with Zinit plugin manager | git |
 | **neovim** | Install Neovim and symlink config | git |
 
-[See detailed module documentation →](docs/modules.md)
+[Creating modules guide →](docs/creating-modules.md)
 
 ## Configuration
 
@@ -127,7 +127,7 @@ modules:
     theme: powerlevel10k
 ```
 
-[Configuration guide →](docs/configuration.md)
+[Full documentation →](docs/README.md)
 
 ### Profiles
 
@@ -150,7 +150,7 @@ modules:
   - zsh
 ```
 
-[Profile documentation →](docs/profiles.md)
+[Full documentation →](docs/README.md)
 
 ## Architecture
 
@@ -333,36 +333,17 @@ GitHub Actions CI runs on every push and PR:
 - Integration tests (Ubuntu + Arch)
 - Docker layer caching for faster builds
 
-[CI/CD documentation →](docs/ci-cd.md)
+[Full documentation →](docs/README.md)
 
 ## Documentation
 
-### Getting Started
 - [Installation Guide](docs/installation.md)
 - [Quick Start](docs/quick-start.md)
-- [Configuration](docs/configuration.md)
-
-### Core Concepts
-- [Architecture](docs/architecture.md)
-- [Design Rationale](docs/design-rationale.md)
-- [Modules](docs/modules.md)
-- [Profiles](docs/profiles.md)
-- [Dependencies](docs/dependencies.md)
-
-### Development
+- [Architecture](docs/architecture.md) · [Design Rationale](docs/design-rationale.md)
 - [Creating Modules](docs/creating-modules.md)
-- [Module Reference](docs/module-reference.md)
-- [Shell Helpers](docs/shell-helpers.md)
-- [Templates](docs/templates.md)
-
-### Advanced Topics
-- [Secrets Management](docs/secrets-management.md)
-- [State Management](docs/state-management.md)
-- [CI/CD Integration](docs/ci-cd.md)
-
-### Reference
+- [Idempotence](docs/IDEMPOTENCE.md)
 - [CLI Reference](docs/cli-reference.md)
-- [Environment Variables](docs/environment-variables.md)
+- [Rollback Guide](docs/rollback-guide.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
 ## FAQ
@@ -385,7 +366,7 @@ A: The secrets provider is optional. You can omit it or implement your own provi
 
 **Q: Can I run this in CI/CD?**
 
-A: Yes! Use `--unattended` flag for non-interactive execution. See [CI/CD Integration](docs/ci-cd.md).
+A: Yes! Use `--unattended` flag for non-interactive execution.
 
 ## Troubleshooting
 
