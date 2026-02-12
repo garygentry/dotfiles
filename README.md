@@ -154,11 +154,7 @@ modules:
 
 ## Architecture
 
-The system uses a **hybrid architecture**:
-
-- **Go CLI** - Orchestration, dependency resolution, state management
-- **Shell Modules** - Actual installation and configuration logic
-- **Helper Library** - Common utilities available to all modules
+The system uses a **hybrid architecture** where Go handles orchestration and shell scripts handle system operations. Go provides type-safe dependency resolution, structured state tracking, and rollback capabilities that would be fragile in pure shell. Shell scripts keep the actual installation logic readable and modifiable without recompilation.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -185,7 +181,7 @@ The system uses a **hybrid architecture**:
 - **Secrets Integration** - Seamless 1Password integration
 - **State Tracking** - JSON-based state persistence
 
-[Architecture documentation →](docs/architecture.md)
+[Architecture documentation →](docs/architecture.md) · [Design rationale →](docs/design-rationale.md)
 
 ## Creating Modules
 
@@ -348,6 +344,7 @@ GitHub Actions CI runs on every push and PR:
 
 ### Core Concepts
 - [Architecture](docs/architecture.md)
+- [Design Rationale](docs/design-rationale.md)
 - [Modules](docs/modules.md)
 - [Profiles](docs/profiles.md)
 - [Dependencies](docs/dependencies.md)

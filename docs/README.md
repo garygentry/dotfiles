@@ -11,6 +11,7 @@ Welcome to the dotfiles management system documentation.
 
 ### Core Concepts
 - [Architecture](architecture.md) - System design and component overview
+- [Design Rationale](design-rationale.md) - Why Go, why shell, and why build from source
 - [Modules](modules.md) - Understanding the module system
 - [Profiles](profiles.md) - Working with profiles
 - [Dependencies](dependencies.md) - How module dependencies work

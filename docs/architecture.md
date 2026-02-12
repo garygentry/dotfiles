@@ -13,6 +13,8 @@ This separation provides:
 - **Flexibility and portability** from shell scripts
 - **Cross-platform compatibility** without requiring platform-specific Go code
 
+For a deeper discussion of why Go was chosen over pure shell or other languages, and why the system builds from source rather than distributing pre-built binaries, see [Design Rationale](design-rationale.md).
+
 ## System Overview
 
 ```
