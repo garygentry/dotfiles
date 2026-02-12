@@ -20,6 +20,7 @@ prompts:
     options:
       - ed25519
       - rsa
+    show_when: explicit_install
 tags:
   - security
   - ssh

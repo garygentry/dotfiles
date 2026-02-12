@@ -77,9 +77,14 @@ dotfiles install --skip-failed
 # Only update existing modules
 dotfiles install --update-only
 
+# Show prompts for auto-included dependencies (default: use defaults)
+dotfiles install --prompt-dependencies
+
 # Check status and see what needs updating
 dotfiles status
 ```
+
+> **🎯 Smart Prompts:** When installing modules, you'll only be prompted for configuration options for modules you explicitly selected. Auto-included dependencies use sensible defaults. Use `--prompt-dependencies` to configure dependencies interactively.
 
 > **💡 Tip:** The system is fully idempotent - run `dotfiles install` as many times as you want! Only modules and files that actually changed will be updated. [Learn more →](docs/IDEMPOTENCE.md)
 
@@ -223,6 +228,7 @@ prompts:
     type: choice
     options: [dark, light]
     default: dark
+    show_when: explicit_install  # Optional: only show if module explicitly selected
 ```
 
 ### Example install.sh

@@ -1,9 +1,8 @@
 name: starship
 description: "Install Starship cross-shell prompt with custom configuration"
-version: "1.0.0"
+version: "1.1.0"
 priority: 45
-dependencies:
-  - zsh
+dependencies: []
 os:
   - macos
   - ubuntu

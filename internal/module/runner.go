@@ -54,19 +54,21 @@ type RunnerUI interface {
 
 // RunConfig holds all configuration needed by the module runner.
 type RunConfig struct {
-	SysInfo       *sysinfo.SystemInfo
-	Config        *config.Config
-	UI            RunnerUI
-	Secrets       secrets.Provider
-	State         *state.Store
-	DryRun        bool
-	Unattended    bool
-	FailFast      bool
-	Verbose       bool
-	ScriptTimeout time.Duration // Default timeout for scripts (0 = use default)
-	Force         bool          // Force reinstall even if up-to-date
-	SkipFailed    bool          // Skip modules that failed previously
-	UpdateOnly    bool          // Only update existing modules, don't install new
+	SysInfo            *sysinfo.SystemInfo
+	Config             *config.Config
+	UI                 RunnerUI
+	Secrets            secrets.Provider
+	State              *state.Store
+	DryRun             bool
+	Unattended         bool
+	FailFast           bool
+	Verbose            bool
+	ScriptTimeout      time.Duration       // Default timeout for scripts (0 = use default)
+	Force              bool                // Force reinstall even if up-to-date
+	SkipFailed         bool                // Skip modules that failed previously
+	UpdateOnly         bool                // Only update existing modules, don't install new
+	ExplicitModules    map[string]bool     // Tracks which modules were explicitly selected (not auto-included)
+	PromptDependencies bool                // Force prompts for auto-included dependencies
 }
 
 // ExecutionDecision represents the runner's decision about whether to execute a module.
@@ -292,18 +294,62 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	}
 }
 
+// shouldShowPrompt determines whether a prompt should be shown interactively
+// based on the module's selection context and the prompt's ShowWhen field.
+func shouldShowPrompt(p Prompt, cfg *RunConfig, mod *Module, isExplicit bool) bool {
+	// --prompt-dependencies flag overrides everything
+	if cfg.PromptDependencies {
+		return true
+	}
+
+	// Check show_when field (empty means use default behavior)
+	switch p.ShowWhen {
+	case "explicit_install":
+		// Only show for explicitly selected modules
+		return isExplicit
+	case "interactive":
+		// Always show in interactive mode
+		return true
+	case "always":
+		// Always show this prompt
+		return true
+	case "":
+		// Default: only show for explicit modules (same as explicit_install)
+		return isExplicit
+	default:
+		// Unknown value, default to explicit_install behavior
+		return isExplicit
+	}
+}
+
 // handlePrompts processes module prompts. In unattended mode, defaults are
-// used. Otherwise the UI is used to prompt the user interactively. Returns
-// a map of prompt key -> answer value.
+// used. For auto-included dependencies (not explicitly selected), defaults are
+// also used unless --prompt-dependencies is set. Otherwise the UI is used to
+// prompt the user interactively. Returns a map of prompt key -> answer value.
 func handlePrompts(cfg *RunConfig, mod *Module) (map[string]string, error) {
 	answers := make(map[string]string, len(mod.Prompts))
 
+	// Check if this module was explicitly selected
+	isExplicit := cfg.ExplicitModules != nil && cfg.ExplicitModules[mod.Name]
+
 	for _, p := range mod.Prompts {
+		// Always use defaults in unattended mode
 		if cfg.Unattended {
 			answers[p.Key] = p.Default
 			continue
 		}
 
+		// Check if we should show this prompt interactively
+		if !shouldShowPrompt(p, cfg, mod, isExplicit) {
+			answers[p.Key] = p.Default
+			// Log for transparency when using defaults for auto-included modules
+			if !isExplicit && cfg.Verbose {
+				cfg.UI.Debug(fmt.Sprintf("Using default for %s.%s: %s (auto-included dependency)", mod.Name, p.Key, p.Default))
+			}
+			continue
+		}
+
+		// Show interactive prompt
 		var answer string
 		var err error
 

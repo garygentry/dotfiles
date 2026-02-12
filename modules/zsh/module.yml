@@ -27,6 +27,7 @@ prompts:
     options:
       - zinit
       - ohmyzsh
+    show_when: explicit_install
   - key: zsh_omz_plugins
     message: "Oh My Zsh plugin preset (ignored if using Zinit)"
     default: "standard"
@@ -35,6 +36,7 @@ prompts:
       - minimal
       - standard
       - full
+    show_when: explicit_install
   - key: zsh_prompt
     message: "Prompt theme (ignored if using Zinit)"
     default: "starship"
@@ -43,6 +45,7 @@ prompts:
       - starship
       - robbyrussell
       - agnoster
+    show_when: explicit_install
 tags:
   - shell
   - cli

@@ -33,11 +33,12 @@ type FileEntry struct {
 
 // Prompt describes an interactive prompt to present during module installation.
 type Prompt struct {
-	Key     string   `yaml:"key"`
-	Message string   `yaml:"message"`
-	Default string   `yaml:"default"`
-	Type    string   `yaml:"type"` // input, confirm, or choice
-	Options []string `yaml:"options"`
+	Key      string   `yaml:"key"`
+	Message  string   `yaml:"message"`
+	Default  string   `yaml:"default"`
+	Type     string   `yaml:"type"`      // input, confirm, or choice
+	Options  []string `yaml:"options"`
+	ShowWhen string   `yaml:"show_when"` // always, explicit_install, or interactive (default: explicit_install)
 }
 
 // ParseModuleYAML reads a module.yml file at the given path and returns the

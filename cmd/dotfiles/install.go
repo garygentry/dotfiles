@@ -17,11 +17,12 @@ import (
 )
 
 var (
-	unattended bool
-	failFast   bool
-	force      bool
-	skipFailed bool
-	updateOnly bool
+	unattended         bool
+	failFast           bool
+	force              bool
+	skipFailed         bool
+	updateOnly         bool
+	promptDependencies bool
 )
 
 var installCmd = &cobra.Command{
@@ -198,18 +199,20 @@ resolution, module execution, and summary output.`,
 
 		// Phase 4: Module execution.
 		runCfg := &module.RunConfig{
-			SysInfo:    sys,
-			Config:     cfg,
-			UI:         u,
-			Secrets:    provider,
-			State:      state.NewStore(filepath.Join(sys.DotfilesDir, ".state")),
-			DryRun:     dryRun,
-			Unattended: unattended,
-			FailFast:   failFast,
-			Verbose:    verbose,
-			Force:      force,
-			SkipFailed: skipFailed,
-			UpdateOnly: updateOnly,
+			SysInfo:            sys,
+			Config:             cfg,
+			UI:                 u,
+			Secrets:            provider,
+			State:              state.NewStore(filepath.Join(sys.DotfilesDir, ".state")),
+			DryRun:             dryRun,
+			Unattended:         unattended,
+			FailFast:           failFast,
+			Verbose:            verbose,
+			Force:              force,
+			SkipFailed:         skipFailed,
+			UpdateOnly:         updateOnly,
+			ExplicitModules:    plan.ExplicitlyRequested,
+			PromptDependencies: promptDependencies,
 		}
 
 		results := module.Run(runCfg, plan)
@@ -263,5 +266,6 @@ func init() {
 	installCmd.Flags().BoolVar(&force, "force", false, "Force reinstall all modules even if up-to-date")
 	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")
 	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
+	installCmd.Flags().BoolVar(&promptDependencies, "prompt-dependencies", false, "Show prompts for auto-included dependency modules (default: use defaults)")
 	rootCmd.AddCommand(installCmd)
 }

@@ -13,6 +13,10 @@ type ExecutionPlan struct {
 	// Skipped contains modules that were excluded because they do not support
 	// the target operating system.
 	Skipped []*Module
+	// ExplicitlyRequested tracks which modules were explicitly requested by the user
+	// (as opposed to auto-included as dependencies). Used to determine which modules
+	// should show interactive prompts vs use defaults.
+	ExplicitlyRequested map[string]bool
 }
 
 // Resolve takes all known modules, a list of requested module names, and the
@@ -42,6 +46,12 @@ func Resolve(allModules []*Module, requested []string, osName string) (*Executio
 		for _, m := range allModules {
 			requested = append(requested, m.Name)
 		}
+	}
+
+	// Track explicitly requested modules (before expanding dependencies).
+	explicitlyRequested := make(map[string]bool, len(requested))
+	for _, name := range requested {
+		explicitlyRequested[name] = true
 	}
 
 	// Step 3: Expand requested set to include transitive dependencies and
@@ -74,8 +84,9 @@ func Resolve(allModules []*Module, requested []string, osName string) (*Executio
 	}
 
 	return &ExecutionPlan{
-		Modules: ordered,
-		Skipped: skipped,
+		Modules:             ordered,
+		Skipped:             skipped,
+		ExplicitlyRequested: explicitlyRequested,
 	}, nil
 }
 
