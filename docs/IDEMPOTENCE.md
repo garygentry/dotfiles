@@ -2,6 +2,65 @@
 
 The dotfiles system is fully idempotent - you can safely run `dotfiles install` multiple times without unnecessary work or data loss.
 
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Normal install (skips unchanged)
+dotfiles install
+
+# After git pull (only changed modules run)
+git pull && dotfiles install
+
+# Force reinstall everything
+dotfiles install --force
+
+# Skip failed modules
+dotfiles install --skip-failed
+
+# Only update existing (no new installs)
+dotfiles install --update-only
+
+# Check what needs updating
+dotfiles status
+```
+
+### Status Symbols
+
+| Symbol | Meaning |
+|--------|---------|
+| `✓` | Up-to-date, nothing to do |
+| `•` | Needs update (version/changed/config) |
+| `⚠` | User modified files |
+| `!` | Failed previously |
+
+### Why Things Run or Skip
+
+**Module runs when:**
+- First time installing
+- Module version changed
+- Module scripts changed (`install.sh`, `verify.sh`, `os/*.sh`)
+- User config changed (`config.yml` values for this module)
+- Previously failed (and not using `--skip-failed`)
+- `--force` flag used
+
+**Module skips when:**
+- Already installed and no changes detected
+- Failed previously + `--skip-failed` flag
+- New module + `--update-only` flag
+
+**File deploys when:**
+- Source file changed
+- Destination missing
+- Symlink points to wrong location
+
+**File skips when:**
+- Already correct (hash matches)
+- User modified (source unchanged)
+
+---
+
 ## Overview
 
 **Idempotent** means running the same command multiple times produces the same result as running it once. The dotfiles system now:

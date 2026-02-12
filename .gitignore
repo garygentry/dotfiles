@@ -1,15 +1,3 @@
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-.terraform.lock.hcl
-crash.log
-
-# Packer
-packer_cache/
-*.box
-output-*/
-
 # Secrets & API Tokens
 *.secret
 *_secret*
