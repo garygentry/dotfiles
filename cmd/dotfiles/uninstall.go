@@ -74,7 +74,7 @@ func uninstallModule(u *ui.UI, store *state.Store, moduleName string) error {
 		u.Info("This module may have been installed before operation recording was implemented")
 
 		// Ask for confirmation to remove state anyway
-		if !dryRun && !uninstallForce {
+		if !dryRun && !uninstallForce && !unattended {
 			confirm, err := u.PromptConfirm("Remove module state anyway?", false)
 			if err != nil || !confirm {
 				return fmt.Errorf("uninstall cancelled")
@@ -104,7 +104,7 @@ func uninstallModule(u *ui.UI, store *state.Store, moduleName string) error {
 	}
 
 	// Ask for confirmation
-	if !uninstallForce {
+	if !uninstallForce && !unattended {
 		confirm, err := u.PromptConfirm(fmt.Sprintf("Proceed with uninstall of %s?", moduleName), false)
 		if err != nil || !confirm {
 			return fmt.Errorf("uninstall cancelled")

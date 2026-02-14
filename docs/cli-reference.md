@@ -11,6 +11,7 @@ These flags are available for all commands:
 --verbose, -v    Enable verbose output
 --dry-run        Show what would be done without making changes
 --log-json       Output logs in JSON format (for log aggregation)
+--unattended     Run without prompts, using defaults (ideal for CI/CD and IaC)
 ```
 
 ## Commands
@@ -195,6 +196,7 @@ dotfiles uninstall <modules...> [flags]
 **Flags:**
 ```
 --force              Skip confirmation prompts and continue on errors
+--unattended         Skip confirmation prompts (for automated environments)
 --dry-run            Preview rollback plan without executing
 -v, --verbose        Show detailed rollback information
 ```
@@ -211,7 +213,10 @@ dotfiles uninstall git zsh neovim
 # Preview what would be uninstalled
 dotfiles uninstall git --dry-run
 
-# Force uninstall (no prompts)
+# Unattended mode (auto-confirm)
+dotfiles uninstall git --unattended
+
+# Force uninstall (no prompts, continue on errors)
 dotfiles uninstall git --force
 
 # Verbose uninstall with detailed output

@@ -47,6 +47,20 @@ go build -o bin/dotfiles .
 ./bin/dotfiles install
 ```
 
+### Automated/Unattended Installation
+
+For IaC, CI/CD, or automated server provisioning:
+
+```bash
+# Download and run in unattended mode
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- --unattended
+
+# With specific profile
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- --unattended --profile minimal
+```
+
+This installs all modules using defaults with zero interactive prompts. See the [CI/CD Guide](docs/ci-cd-guide.md) for Terraform, Docker, and Ansible examples.
+
 ### Usage
 
 ```bash
@@ -65,8 +79,9 @@ dotfiles install --profile minimal
 # Preview changes without applying
 dotfiles install --dry-run
 
-# Run without prompts (use defaults)
+# Run without prompts - works with all commands
 dotfiles install --unattended
+dotfiles uninstall git --unattended
 
 # Force reinstall (even if up-to-date)
 dotfiles install --force

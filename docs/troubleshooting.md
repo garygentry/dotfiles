@@ -595,8 +595,113 @@ lsb_release -a  # Ubuntu/Debian
 uname -r        # All systems
 ```
 
+## Unattended Mode / CI-CD Issues
+
+### Installation Hangs in CI/CD
+
+**Problem:** Installation blocks waiting for input in automated environments.
+
+**Solutions:**
+
+```bash
+# Use --unattended flag
+dotfiles install --unattended
+
+# For bootstrap script
+curl -sfL https://url/to/bootstrap.sh | bash -s -- --unattended
+```
+
+### Modules Fail in Docker/CI
+
+**Problem:** Some modules require interactive terminal or system features not available in containers.
+
+**Solutions:**
+
+```bash
+# Use --skip-failed to continue installation
+dotfiles install --unattended --skip-failed
+
+# Or create a container-specific profile
+cat > profiles/docker.yml << 'EOF'
+modules:
+  - git
+  - zsh
+  # Exclude modules that need GUI or special permissions
+EOF
+
+dotfiles install --unattended --profile docker
+```
+
+### Secrets Not Available in CI
+
+**Problem:** 1Password prompts block installation in CI/CD pipelines.
+
+**Solutions:**
+
+```bash
+# Unattended mode auto-skips secrets authentication
+dotfiles install --unattended
+
+# Or disable secrets in config
+cat > config.yml << 'EOF'
+profile: ci
+secrets:
+  provider: ""  # Disable secrets
+EOF
+
+# Use a profile without secrets-dependent modules
+dotfiles install --unattended --profile ci
+```
+
+### Non-Interactive Stdin
+
+**Problem:** Installation hangs when piped from curl or in automation.
+
+**Solutions:**
+
+```bash
+# System auto-detects non-interactive stdin, but you can force it
+dotfiles install --unattended
+
+# Check if running in CI/CD environment
+if [ -n "$CI" ]; then
+  dotfiles install --unattended
+fi
+```
+
+### Exit Code Handling
+
+**Problem:** Need to handle failures in automated scripts.
+
+**Solutions:**
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Installation with error handling
+if dotfiles install --unattended --skip-failed; then
+  echo "Installation successful"
+else
+  echo "Installation failed with exit code $?"
+  dotfiles status  # Show what succeeded
+  exit 1
+fi
+
+# Verify critical modules
+for module in git zsh; do
+  if ! dotfiles status | grep -q "${module}.*installed"; then
+    echo "ERROR: ${module} not installed"
+    exit 1
+  fi
+done
+```
+
+For comprehensive CI/CD integration examples, see the [CI/CD Guide](ci-cd-guide.md).
+
 ## See Also
 
 - [CLI Reference](cli-reference.md) - Command documentation
 - [Configuration](configuration.md) - Configuration options
 - [Creating Modules](creating-modules.md) - Module development guide
+- [CI/CD Guide](ci-cd-guide.md) - Automation and IaC integration
