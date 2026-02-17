@@ -85,3 +85,29 @@ if [[ "$_zsh_login_shell" != "zsh" ]]; then
 else
     log_info "Default shell is already zsh"
 fi
+
+# Add zsh auto-exec to the login profile as a reliable fallback.
+# This starts zsh on login even when chsh hasn't taken effect yet (e.g.,
+# requires a password, container environment, or system restart). Only fires
+# in interactive sessions so batch/script logins are unaffected.
+_zsh_autoexec_marker="# dotfiles: auto-exec zsh on login"
+_zsh_autoexec_block="${_zsh_autoexec_marker}
+if [[ -z \"\${ZSH_VERSION}\" ]] && [[ \$- == *i* ]] && command -v zsh &>/dev/null; then
+    exec zsh -l
+fi"
+
+# macOS uses ~/.bash_profile; Linux uses ~/.profile
+if is_macos; then
+    _login_profile="${DOTFILES_HOME}/.bash_profile"
+else
+    _login_profile="${DOTFILES_HOME}/.profile"
+fi
+
+if is_dry_run; then
+    log_info "[dry-run] Would add zsh auto-exec to ${_login_profile}"
+elif grep -qF "$_zsh_autoexec_marker" "${_login_profile}" 2>/dev/null; then
+    log_info "Zsh auto-exec already configured in ${_login_profile}"
+else
+    printf '\n%s\n' "${_zsh_autoexec_block}" >> "${_login_profile}"
+    log_success "Added zsh auto-exec to ${_login_profile}"
+fi
