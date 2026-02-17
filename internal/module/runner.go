@@ -566,14 +566,18 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 
-	// Detect if script uses sudo (requires interactive mode)
-	usesSudo := scriptUsesSudo(scriptPath)
+	// Detect if script uses sudo (directly or via pkg_install on apt/pacman).
+	// Only stream output when sudo requires an interactive password prompt;
+	// passwordless sudo can run fine under the spinner without colliding.
+	usesSudo := scriptUsesSudo(scriptPath, cfg.SysInfo.PkgMgr)
+	needsInteractiveSudo := usesSudo && cfg.SysInfo.HasSudo && !cfg.SysInfo.HasPasswordlessSudo
 
 	// Decide execution mode:
 	// - Verbose mode: always stream output
-	// - Sudo detected: stream output (preserve interactivity)
+	// - Script needs interactive sudo password: stream output to avoid
+	//   the spinner colliding with the sudo prompt on the same line
 	// - Otherwise: buffer output with spinner
-	shouldStreamOutput := cfg.Verbose || usesSudo
+	shouldStreamOutput := cfg.Verbose || needsInteractiveSudo
 
 	scriptName := filepath.Base(scriptPath)
 	var spinner any
@@ -698,13 +702,16 @@ func extractOperation(line string) string {
 	return ""
 }
 
-// scriptUsesSudo detects if a script uses sudo by scanning for sudo commands.
-// This is a simple heuristic that checks for "sudo" as a word (not in comments).
-func scriptUsesSudo(scriptPath string) bool {
+// scriptUsesSudo detects if a script uses sudo, either directly or indirectly
+// via pkg_install (which calls sudo for apt/pacman). pkgMgr is used to
+// determine whether pkg_install will require sudo.
+func scriptUsesSudo(scriptPath, pkgMgr string) bool {
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
 		return false // If we can't read it, assume no sudo
 	}
+
+	pkgInstallUsesSudo := pkgMgr == "apt" || pkgMgr == "pacman"
 
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
@@ -713,8 +720,12 @@ func scriptUsesSudo(scriptPath string) bool {
 		if strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		// Check if line contains sudo command
-		if strings.Contains(trimmed, "sudo ") || strings.HasPrefix(trimmed, "sudo ") {
+		// Direct sudo call
+		if strings.Contains(trimmed, "sudo ") {
+			return true
+		}
+		// Indirect sudo via pkg_install on package managers that require sudo
+		if pkgInstallUsesSudo && strings.Contains(trimmed, "pkg_install") {
 			return true
 		}
 	}
