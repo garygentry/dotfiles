@@ -402,6 +402,17 @@ func handlePrompts(cfg *RunConfig, mod *Module) (map[string]string, error) {
 			continue
 		}
 
+		// Skip prompts whose dependency condition is not met; use empty string
+		// so the template can fall back to its own default (via the `default`
+		// function). Only prompts collected earlier in the same loop can be
+		// referenced, so prompt order in module.yml matters.
+		if p.DependsOn != nil {
+			if answers[p.DependsOn.Key] != p.DependsOn.Value {
+				answers[p.Key] = ""
+				continue
+			}
+		}
+
 		// Check if we should show this prompt interactively
 		if !shouldShowPrompt(p, cfg, mod, isExplicit) {
 			answers[p.Key] = p.Default

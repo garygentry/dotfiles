@@ -31,14 +31,23 @@ type FileEntry struct {
 	Type   string `yaml:"type"` // symlink, copy, or template
 }
 
+// PromptDependency describes a conditional dependency on a prior prompt answer.
+// A prompt with DependsOn set is only shown (and only uses its own default)
+// when the referenced prompt was answered with the specified value.
+type PromptDependency struct {
+	Key   string `yaml:"key"`   // key of the prompt this depends on
+	Value string `yaml:"value"` // required answer value
+}
+
 // Prompt describes an interactive prompt to present during module installation.
 type Prompt struct {
-	Key      string   `yaml:"key"`
-	Message  string   `yaml:"message"`
-	Default  string   `yaml:"default"`
-	Type     string   `yaml:"type"`      // input, confirm, or choice
-	Options  []string `yaml:"options"`
-	ShowWhen string   `yaml:"show_when"` // always, explicit_install, or interactive (default: explicit_install)
+	Key       string            `yaml:"key"`
+	Message   string            `yaml:"message"`
+	Default   string            `yaml:"default"`
+	Type      string            `yaml:"type"`      // input, confirm, or choice
+	Options   []string          `yaml:"options"`
+	ShowWhen  string            `yaml:"show_when"`  // always, explicit_install, or interactive (default: explicit_install)
+	DependsOn *PromptDependency `yaml:"depends_on"` // only show when another prompt equals a value
 }
 
 // ParseModuleYAML reads a module.yml file at the given path and returns the
