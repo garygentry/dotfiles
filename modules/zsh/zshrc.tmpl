@@ -48,6 +48,9 @@ fi
 unalias zi 2>/dev/null
 
 source "${ZINIT_HOME}/zinit.zsh"
+# Zinit sets 'alias zi=zinit'; remove it so Zinit can define zi() as a
+# function during cdreplay without the alias conflicting
+unalias zi 2>/dev/null
 
 # =============================================================================
 # Plugins (loaded via Zinit)

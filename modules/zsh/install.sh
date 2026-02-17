@@ -54,9 +54,12 @@ else
     fi
 fi
 
-# Set default shell to zsh if not already
-_zsh_current_shell="$(basename "${SHELL:-}")"
-if [[ "$_zsh_current_shell" != "zsh" ]]; then
+# Set default shell to zsh if not already.
+# Read from /etc/passwd rather than $SHELL: when the user has already run
+# 'exec zsh', $SHELL is set to zsh by the running process, which would
+# fool the check even though the login shell in /etc/passwd is still bash.
+_zsh_login_shell="$(basename "$(getent passwd "${USER:-$(whoami)}" | cut -d: -f7)")"
+if [[ "$_zsh_login_shell" != "zsh" ]]; then
     _zsh_path="$(command -v zsh)"
     if [[ -n "$_zsh_path" ]]; then
         if is_dry_run; then
