@@ -140,11 +140,20 @@ path=(
 # Starship prompt
 if command -v starship &>/dev/null; then
     eval "$(starship init zsh)"
+else
+    # Fallback prompt: makes it obvious zsh is active when Starship isn't installed
+    PROMPT='%F{#cba6f7}%n%f@%F{#89b4fa}%m%f %F{#a6e3a1}%~%f %# '
 fi
 {{ end }}
 # zoxide (smarter cd)
 if command -v zoxide &>/dev/null; then
+    # Remove any conflicting 'z' alias (e.g., from rupa/z or OMZ z plugin)
+    unalias z 2>/dev/null
     eval "$(zoxide init zsh)"
+{{ if eq $framework "zinit" -}}
+    # zoxide replaces zi() with interactive cd; restore Zinit's zi command
+    function zi() { zinit "$@"; }
+{{ end -}}
 fi
 
 # Source local overrides (not managed by dotfiles)
