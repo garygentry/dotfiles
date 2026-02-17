@@ -59,8 +59,9 @@ log_success() {
 is_macos()       { [[ "${DOTFILES_OS:-}" == "darwin" ]]; }
 is_ubuntu()      { [[ "${DOTFILES_OS:-}" == "ubuntu" ]]; }
 is_arch()        { [[ "${DOTFILES_OS:-}" == "arch" ]]; }
-has_sudo()       { [[ "${DOTFILES_HAS_SUDO:-false}" == "true" ]]; }
-is_interactive() { [[ "${DOTFILES_INTERACTIVE:-false}" == "true" ]]; }
+has_sudo()             { [[ "${DOTFILES_HAS_SUDO:-false}" == "true" ]]; }
+has_passwordless_sudo() { [[ "${DOTFILES_HAS_PASSWORDLESS_SUDO:-false}" == "true" ]]; }
+is_interactive()       { [[ "${DOTFILES_INTERACTIVE:-false}" == "true" ]]; }
 is_dry_run()     { [[ "${DOTFILES_DRY_RUN:-false}" == "true" ]]; }
 
 # ===========================================================================
@@ -107,7 +108,7 @@ pkg_install() {
             if has_sudo; then
                 cmd=(sudo apt-get install -y)
             else
-                log_error "apt requires sudo but DOTFILES_HAS_SUDO is not true"
+                log_error "apt requires sudo but sudo is not available"
                 return 1
             fi
             ;;
@@ -115,7 +116,7 @@ pkg_install() {
             if has_sudo; then
                 cmd=(sudo pacman -S --noconfirm)
             else
-                log_error "pacman requires sudo but DOTFILES_HAS_SUDO is not true"
+                log_error "pacman requires sudo but sudo is not available"
                 return 1
             fi
             ;;

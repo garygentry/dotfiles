@@ -182,6 +182,7 @@ func (m *gridMultiSelect) View() string {
 			itemStyle := lipgloss.NewStyle().Width(itemWidth)
 			if isCursor {
 				itemStyle = itemStyle.
+					Background(lipgloss.Color("#45475a")). // Surface (cursor background)
 					Foreground(lipgloss.Color("#cba6f7")). // Mauve (cursor)
 					Bold(true)
 			} else if isSelected {

@@ -17,7 +17,8 @@ type SystemInfo struct {
 	OS            string // "macos", "ubuntu", "arch", "debian", etc.
 	Arch          string // runtime.GOARCH value, e.g. "amd64", "arm64"
 	PkgMgr       string // "brew", "apt", "pacman", or ""
-	HasSudo       bool   // whether the current user can run sudo without a password
+	HasSudo             bool   // whether the sudo command exists and is usable
+	HasPasswordlessSudo bool   // whether sudo works without a password prompt
 	User          string // current username
 	HomeDir       string // user home directory
 	DotfilesDir   string // location of dotfiles repository
@@ -39,7 +40,8 @@ func Detect() (*SystemInfo, error) {
 	info.PkgMgr = detectPkgMgr(info.OS)
 
 	// --- HasSudo ---
-	info.HasSudo = detectSudo()
+	info.HasSudo = detectSudoExists()
+	info.HasPasswordlessSudo = detectSudo()
 
 	// --- User ---
 	u, err := user.Current()
@@ -119,6 +121,12 @@ func detectPkgMgr(osID string) string {
 	default:
 		return ""
 	}
+}
+
+// detectSudoExists checks if the sudo command is available on PATH.
+func detectSudoExists() bool {
+	_, err := exec.LookPath("sudo")
+	return err == nil
 }
 
 // detectSudo checks whether the current user can invoke sudo without a
