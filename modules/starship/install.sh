@@ -24,3 +24,17 @@ else
         log_success "Starship installed"
     fi
 fi
+
+# Apply starship preset or custom config
+_preset="${DOTFILES_PROMPT_STARSHIP_PRESET:-custom}"
+_starship_cfg="${DOTFILES_HOME}/.config/starship.toml"
+
+if is_dry_run; then
+    log_info "[dry-run] Would apply starship preset: ${_preset}"
+elif [[ "$_preset" == "custom" ]]; then
+    cp "${DOTFILES_MODULE_DIR}/starship.toml" "$_starship_cfg"
+    log_success "Applied custom starship config"
+else
+    starship preset "$_preset" > "$_starship_cfg"
+    log_success "Applied starship preset: ${_preset}"
+fi

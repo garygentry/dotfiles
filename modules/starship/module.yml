@@ -9,11 +9,25 @@ os:
   - arch
 requires:
   - curl
-files:
-  - source: starship.toml
-    dest: "~/.config/starship.toml"
-    type: symlink
-prompts: []
+prompts:
+  - key: starship_preset
+    message: "Starship prompt preset (custom = dotfiles curated config)"
+    default: "custom"
+    type: choice
+    options:
+      - custom
+      - no-nerd-font
+      - plain-text
+      - pure-preset
+      - tokyo-night
+      - catppuccin-powerline
+      - gruvbox-rainbow
+      - jetpack
+      - onehalf-dark
+      - pastel-powerline
+      - bracketed-segments
+      - solarized-osaka
+    show_when: explicit_install
 tags:
   - shell
   - prompt
