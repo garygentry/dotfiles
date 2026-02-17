@@ -52,6 +52,12 @@ func (t *testUI) PromptMultiSelect(_ string, _ []MultiSelectOption, preSelected 
 	return preSelected, nil
 }
 
+func (t *testUI) PrintCollapsedOutput(scriptName, output string) {}
+func (t *testUI) StartProgressBar(total int) ProgressTracker     { return nil }
+func (t *testUI) UpdateProgress(p ProgressTracker, current int, moduleName string) {}
+func (t *testUI) RecordModuleTime(p ProgressTracker, duration time.Duration)       {}
+func (t *testUI) FinishProgress(p ProgressTracker, summary *ProgressSummary)       {}
+
 // newTestRunConfig returns a RunConfig suitable for unit tests. It uses
 // temp directories for state and dotfiles, a test UI, and the noop secrets
 // provider.

@@ -32,8 +32,12 @@ dotfiles install [modules...] [flags]
 --profile string      Use a specific profile (e.g., minimal, developer)
 --unattended         Run without prompts, use default answers
 --fail-fast          Stop on first module failure (default: continue)
--v, --verbose        Show detailed output including script execution
+-v, --verbose        Stream all script output in real-time (disables compact mode)
 --dry-run            Preview changes without applying them
+--force              Force reinstall even if up-to-date
+--skip-failed        Skip modules that failed previously
+--update-only        Only update existing modules, don't install new ones
+--prompt-dependencies Show prompts for auto-included dependencies
 ```
 
 **Examples:**
@@ -61,38 +65,96 @@ dotfiles install -v
 dotfiles install --fail-fast
 ```
 
-**Output:**
+**Interactive Module Selection (TTY mode):**
+
+When no modules are specified, you'll see a compact grid-based selector:
 
 ```
-System Information:
-  OS: ubuntu 22.04
-  Architecture: amd64
-  Package Manager: apt
-
-Execution Plan:
-  1. 1password (v1.0.0) - Install and configure 1Password CLI
-  2. ssh (v1.0.0) - Configure SSH keys and settings
-  3. git (v1.0.0) - Configure Git with SSH signing
-  4. zsh (v1.0.0) - Install and configure Zsh + Zinit
-  5. neovim (v1.0.0) - Install Neovim and symlink config
-
-? Which SSH key type would you like to use?
-  > ed25519 (recommended)
-    rsa
-
-✓ 1password - Install and configure 1Password CLI
-✓ ssh - Configure SSH keys and settings
-✓ git - Configure Git with SSH signing
-✓ zsh - Install and configure Zsh + Zinit
-✓ neovim - Install Neovim and symlink config
-
-Summary:
-  ✓ 5 installed
-  ✗ 0 failed
-  ⊘ 0 skipped
-
-All modules installed successfully!
+┌─ Select modules to install ──────────────────────────────────┐
+│                                                               │
+│  [x] 1password      [x] git            [ ] neovim            │
+│  [ ] golang         [x] docker         [ ] python            │
+│  [x] fish           [ ] tmux           [ ] zsh               │
+│  [ ] aws            [x] kubernetes     [ ] terraform         │
+│                                                               │
+│  Navigate: ↑/↓/←/→  Toggle: Space  Select All: A  Continue: Enter
+│  Preview: git - Configure git with SSH signing and useful defaults
+└───────────────────────────────────────────────────────────────┘
 ```
+
+**Progress Tracking:**
+
+During installation, you'll see real-time progress:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Installing 5 modules  ████████░░░░  3/5 (60%)              │
+│ Current: git • Elapsed: 45s • Est. remaining: ~30s          │
+└─────────────────────────────────────────────────────────────┘
+
+✓ Executed install.sh
+```
+
+**Completion Summary:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ✓ Installation complete  ██████████████  5/5 (100%)        │
+│ Success: 5 • Failed: 0 • Skipped: 0 • Time: 2m15s           │
+└─────────────────────────────────────────────────────────────┘
+
+✓ 1password (8s)
+✓ ssh (12s)
+✓ git (15s)
+✓ zsh (45s)
+✓ neovim (35s)
+```
+
+**Non-TTY Output (for CI/CD):**
+
+When piped or in non-interactive mode, output uses plain text:
+
+```
+[INFO] Detecting system...
+[OK] System: ubuntu/amd64 (pkg: apt)
+[MULTISELECT] Select modules to install (using defaults: git, zsh)
+[PROGRESS] 1/2: git
+[OK] Executed install.sh
+[PROGRESS] 2/2: zsh
+[OK] Executed install.sh
+[SUMMARY] Completed in 1m23s: 2 succeeded, 0 failed, 0 skipped
+```
+
+**Output Modes:**
+
+The install command has three output modes:
+
+1. **Compact Mode (default in TTY)**:
+   - Grid-based module selector with preview
+   - Progress bar with time estimates
+   - Spinning indicators during script execution
+   - Compact one-line summaries on success
+   - Auto-expanding error boxes on failure (shows last 30 lines)
+   - Recommended for interactive use
+
+2. **Verbose Mode (`--verbose` or `-v`)**:
+   - Streams all script output in real-time
+   - Shows debug information and detailed progress
+   - Useful for debugging module issues
+   - Recommended when troubleshooting
+
+3. **Non-TTY Mode (automatic when piped)**:
+   - Plain text output suitable for logs
+   - No ANSI colors or interactive elements
+   - Used automatically in CI/CD pipelines
+   - Uses default module selections when stdin is non-interactive
+
+**Smart Output Handling:**
+
+- **Sudo detection**: Scripts using `sudo` automatically stream output to preserve password prompts
+- **Error expansion**: Failed scripts automatically show their output for debugging
+- **Buffered success**: Successful scripts show compact summaries to reduce noise
+- **Pattern recognition**: Extracts operations from script output (e.g., "Installing packages...")
 
 ### dotfiles list
 

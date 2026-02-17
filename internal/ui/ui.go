@@ -2,7 +2,6 @@ package ui
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/garygentry/dotfiles/internal/module"
 )
 
@@ -335,51 +334,57 @@ func (u *UI) PromptChoice(msg string, options []string) (string, error) {
 // --- Multi-select prompt ---
 
 // PromptMultiSelect presents an interactive checkbox list. In TTY mode, the
-// user navigates with arrow keys and toggles with spacebar. In non-TTY mode
-// the preSelected values are returned unchanged.
+// user navigates with arrow keys and toggles with spacebar using a compact
+// grid layout. In non-TTY mode the preSelected values are returned unchanged.
 func (u *UI) PromptMultiSelect(msg string, options []module.MultiSelectOption, preSelected []string) ([]string, error) {
 	if !u.IsTTY {
 		fmt.Fprintf(u.writer, "[MULTISELECT] %s (using defaults: %s)\n", msg, strings.Join(preSelected, ", "))
 		return preSelected, nil
 	}
 
-	// Build a set of pre-selected values for quick lookup.
-	preSelectedSet := make(map[string]bool, len(preSelected))
-	for _, v := range preSelected {
-		preSelectedSet[v] = true
+	// Use the compact grid-based multi-select component
+	return runGridMultiSelect(msg, options, preSelected)
+}
+
+// --- Collapsed output ---
+
+// PrintCollapsedOutput prints script output in a bordered box. This is used
+// when script execution fails to show the error context, or when verbose mode
+// is enabled and the user wants to see all output.
+func (u *UI) PrintCollapsedOutput(scriptName, output string) {
+	if output == "" {
+		return
 	}
 
-	// Build huh options with pre-selection state.
-	huhOptions := make([]huh.Option[string], 0, len(options))
-	for _, opt := range options {
-		label := opt.Label
-		if opt.Description != "" {
-			label = fmt.Sprintf("%s %s- %s%s", opt.Label, colorSubtext, opt.Description, colorReset)
+	// Truncate to last 30 lines if output is very long
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) > 30 {
+		lines = lines[len(lines)-30:]
+	}
+
+	if u.IsTTY {
+		// Use lipgloss for styled bordered box
+		boxStyle := lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#f38ba8")). // Red
+			Padding(0, 1)
+
+		headerStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#f38ba8")). // Red
+			Bold(true)
+
+		header := headerStyle.Render(fmt.Sprintf("Script output (%s)", scriptName))
+		content := strings.Join(lines, "\n")
+
+		fmt.Fprintf(u.writer, "\n%s\n", header)
+		fmt.Fprintf(u.writer, "%s\n", boxStyle.Render(content))
+	} else {
+		fmt.Fprintf(u.writer, "\n[ERROR OUTPUT] %s:\n", scriptName)
+		for _, line := range lines {
+			fmt.Fprintf(u.writer, "  %s\n", line)
 		}
-		h := huh.NewOption(label, opt.Value).Selected(preSelectedSet[opt.Value])
-		huhOptions = append(huhOptions, h)
+		fmt.Fprintf(u.writer, "\n")
 	}
-
-	var selected []string
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title(msg).
-				Options(huhOptions...).
-				Value(&selected).
-				Filterable(false),
-		),
-	).WithTheme(huh.ThemeCatppuccin())
-
-	if err := form.Run(); err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return nil, module.ErrUserCancelled
-		}
-		return nil, fmt.Errorf("multiselect prompt: %w", err)
-	}
-
-	return selected, nil
 }
 
 // --- Execution plan ---

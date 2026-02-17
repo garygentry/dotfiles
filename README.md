@@ -16,7 +16,9 @@
 - **📝 Template Rendering** - Go templates for dynamic configuration files
 - **✅ State Tracking** - Persistent state to track installations
 - **💾 Automatic Backups** - Protects user modifications with timestamped backups
-- **🎨 Beautiful CLI** - Colored output, spinners, and interactive prompts
+- **🎨 Beautiful CLI** - Modern terminal UX with grid-based selection, progress bars, and smart output collapsing
+- **⚡ Smart Output** - Compact progress indicators with auto-expanding errors and verbose mode for debugging
+- **📊 Progress Tracking** - Real-time progress bars with time estimates and completion summaries
 - **🧪 Fully Tested** - Comprehensive unit and integration tests with CI
 
 ## Quick Start
@@ -338,6 +340,7 @@ GitHub Actions CI runs on every push and PR:
 
 - [Installation Guide](docs/installation.md)
 - [Quick Start](docs/quick-start.md)
+- [UX Features](docs/ux-features.md) - Grid selector, progress tracking, smart output
 - [Architecture](docs/architecture.md) · [Design Rationale](docs/design-rationale.md)
 - [Creating Modules](docs/creating-modules.md)
 - [Idempotence](docs/IDEMPOTENCE.md)

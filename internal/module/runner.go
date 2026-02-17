@@ -1,6 +1,7 @@
 package module
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -28,6 +29,19 @@ type MultiSelectOption struct {
 	Description string
 }
 
+// ProgressTracker is an opaque handle for tracking installation progress.
+// The actual implementation is in the ui package to avoid import cycles.
+type ProgressTracker interface{}
+
+// ProgressSummary contains the final summary of module execution.
+type ProgressSummary struct {
+	Total     int
+	Succeeded int
+	Failed    int
+	Skipped   int
+	Duration  time.Duration
+}
+
 // RunnerUI is the subset of ui functionality that the module runner requires.
 // Defining it as an interface inside the module package avoids the import
 // cycle between the module and ui packages. The concrete *ui.UI type does
@@ -50,6 +64,13 @@ type RunnerUI interface {
 	StopSpinnerSkip(s any, msg string)
 
 	PromptMultiSelect(msg string, options []MultiSelectOption, preSelected []string) ([]string, error)
+	PrintCollapsedOutput(scriptName, output string)
+
+	// Progress tracking
+	StartProgressBar(total int) ProgressTracker
+	UpdateProgress(p ProgressTracker, current int, moduleName string)
+	RecordModuleTime(p ProgressTracker, duration time.Duration)
+	FinishProgress(p ProgressTracker, summary *ProgressSummary)
 }
 
 // RunConfig holds all configuration needed by the module runner.
@@ -99,13 +120,55 @@ type RunResult struct {
 func Run(cfg *RunConfig, plan *ExecutionPlan) []RunResult {
 	results := make([]RunResult, 0, len(plan.Modules))
 
-	for _, mod := range plan.Modules {
+	// Start progress bar if we have modules to install
+	var progress ProgressTracker
+	if len(plan.Modules) > 0 {
+		progress = cfg.UI.StartProgressBar(len(plan.Modules))
+	}
+
+	for i, mod := range plan.Modules {
+		// Update progress before executing module
+		if progress != nil {
+			cfg.UI.UpdateProgress(progress, i, mod.Name)
+		}
+
 		result := runModule(cfg, mod)
 		results = append(results, result)
+
+		// Record module execution time for progress estimation
+		if progress != nil {
+			cfg.UI.RecordModuleTime(progress, result.Duration)
+		}
 
 		if cfg.FailFast && !result.Success && !result.Skipped {
 			break
 		}
+	}
+
+	// Show completion summary if we tracked progress
+	if progress != nil && len(results) > 0 {
+		var succeeded, failed, skipped int
+		var totalDuration time.Duration
+		for _, r := range results {
+			switch {
+			case r.Skipped:
+				skipped++
+			case r.Success:
+				succeeded++
+			default:
+				failed++
+			}
+			totalDuration += r.Duration
+		}
+
+		summary := &ProgressSummary{
+			Total:     len(plan.Modules),
+			Succeeded: succeeded,
+			Failed:    failed,
+			Skipped:   skipped,
+			Duration:  totalDuration,
+		}
+		cfg.UI.FinishProgress(progress, summary)
 	}
 
 	return results
@@ -502,42 +565,160 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 
-	// In interactive mode, connect stdin/stdout/stderr directly to the
-	// terminal so commands like chsh can prompt for passwords.
-	if !cfg.Unattended {
+	// Detect if script uses sudo (requires interactive mode)
+	usesSudo := scriptUsesSudo(scriptPath)
+
+	// Decide execution mode:
+	// - Verbose mode: always stream output
+	// - Sudo detected: stream output (preserve interactivity)
+	// - Otherwise: buffer output with spinner
+	shouldStreamOutput := cfg.Verbose || usesSudo
+
+	scriptName := filepath.Base(scriptPath)
+	var spinner any
+
+	if !cfg.Unattended && shouldStreamOutput {
+		// Interactive streaming mode: connect stdin/stdout/stderr directly
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
-				return fmt.Errorf("script %s timed out after %v", filepath.Base(scriptPath), timeout)
+				return fmt.Errorf("script %s timed out after %v", scriptName, timeout)
 			}
-			return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
+			return fmt.Errorf("script %s failed: %w", scriptName, err)
 		}
 		return nil
 	}
 
-	// Non-interactive / unattended: capture combined output and surface it
-	// only on failure or when verbose logging is enabled.
-	output, err := cmd.CombinedOutput()
-	if len(output) > 0 && cfg.Verbose {
-		cfg.UI.Debug(fmt.Sprintf("Script output:\n%s", string(output)))
+	// Buffered mode with spinner: capture output and show compact progress
+	spinner = cfg.UI.StartSpinner(fmt.Sprintf("Installing %s...", mod.Name))
+
+	// Create pipes to capture and parse output in real-time
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("script %s timed out after %v", filepath.Base(scriptPath), timeout)
-		}
-		// Show script output on failure so the user can diagnose the problem.
-		// Only print here if verbose mode didn't already show it above.
-		if len(output) > 0 && !cfg.Verbose {
-			cfg.UI.Info(string(output))
-		}
-		return fmt.Errorf("script %s failed: %w", filepath.Base(scriptPath), err)
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed to start %s", mod.Name))
+		return fmt.Errorf("script %s failed to start: %w", scriptName, err)
 	}
+
+	// Capture and parse output in real-time
+	var outputBuf strings.Builder
+	outputChan := make(chan string, 10)
+	done := make(chan bool)
+
+	// Read stdout and stderr concurrently
+	go streamOutput(stdout, outputChan, &outputBuf)
+	go streamOutput(stderr, outputChan, &outputBuf)
+
+	// Parse output and update spinner in background
+	go func() {
+		for line := range outputChan {
+			if operation := extractOperation(line); operation != "" {
+				// Note: We can't easily update the spinner message here without
+				// stopping and restarting it, which would cause flicker.
+				// This is a placeholder for future enhancement.
+				cfg.UI.Debug(fmt.Sprintf("  %s", operation))
+			}
+		}
+		done <- true
+	}()
+
+	// Wait for command to complete
+	cmdErr := cmd.Wait()
+
+	// Close channels and wait for output processing
+	close(outputChan)
+	<-done
+
+	capturedOutput := outputBuf.String()
+
+	if cmdErr != nil {
+		cfg.UI.StopSpinnerFail(spinner, fmt.Sprintf("Failed %s", mod.Name))
+
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("script %s timed out after %v", scriptName, timeout)
+		}
+
+		// Auto-expand error output
+		if len(capturedOutput) > 0 {
+			cfg.UI.PrintCollapsedOutput(scriptName, capturedOutput)
+		}
+
+		return fmt.Errorf("script %s failed: %w", scriptName, cmdErr)
+	}
+
+	// Success - show compact summary
+	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Executed %s", scriptName))
 
 	return nil
+}
+
+// streamOutput reads from a reader line by line and sends to a channel.
+func streamOutput(reader io.Reader, outputChan chan<- string, buf *strings.Builder) {
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		buf.WriteString(line)
+		buf.WriteString("\n")
+		outputChan <- line
+	}
+}
+
+// extractOperation extracts the current operation from script output patterns.
+// It recognizes patterns from lib/helpers.sh like log_info, log_success, etc.
+func extractOperation(line string) string {
+	line = strings.TrimSpace(line)
+
+	// Pattern: • Message (log_info)
+	if strings.HasPrefix(line, "•") {
+		return strings.TrimSpace(strings.TrimPrefix(line, "•"))
+	}
+
+	// Pattern: ✓ Message (log_success)
+	if strings.HasPrefix(line, "✓") {
+		return strings.TrimSpace(strings.TrimPrefix(line, "✓"))
+	}
+
+	// Pattern: Installing ... (pkg_install)
+	if strings.HasPrefix(line, "Installing ") {
+		return line
+	}
+
+	return ""
+}
+
+// scriptUsesSudo detects if a script uses sudo by scanning for sudo commands.
+// This is a simple heuristic that checks for "sudo" as a word (not in comments).
+func scriptUsesSudo(scriptPath string) bool {
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		return false // If we can't read it, assume no sudo
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Skip comments
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		// Check if line contains sudo command
+		if strings.Contains(trimmed, "sudo ") || strings.HasPrefix(trimmed, "sudo ") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // shouldDeployFile determines whether a file needs to be deployed based on

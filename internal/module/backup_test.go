@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/garygentry/dotfiles/internal/config"
 	"github.com/garygentry/dotfiles/internal/sysinfo"
@@ -202,3 +203,8 @@ func (m *mockUI) StopSpinnerSkip(s any, msg string)                {}
 func (m *mockUI) PromptMultiSelect(msg string, opts []MultiSelectOption, pre []string) ([]string, error) {
 	return pre, nil
 }
+func (m *mockUI) PrintCollapsedOutput(scriptName, output string) {}
+func (m *mockUI) StartProgressBar(total int) ProgressTracker       { return nil }
+func (m *mockUI) UpdateProgress(p ProgressTracker, current int, moduleName string) {}
+func (m *mockUI) RecordModuleTime(p ProgressTracker, duration time.Duration)       {}
+func (m *mockUI) FinishProgress(p ProgressTracker, summary *ProgressSummary)       {}

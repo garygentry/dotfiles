@@ -16,7 +16,8 @@ Welcome to the dotfiles management system documentation.
 - [Creating Modules](creating-modules.md) - Step-by-step guide to creating new modules
 - [Idempotence](IDEMPOTENCE.md) - How the idempotence system works
 
-### CLI
+### User Interface
+- [UX Features](ux-features.md) - Grid selector, progress bars, and smart output handling
 - [CLI Reference](cli-reference.md) - Complete command-line interface reference
 
 ### Operations

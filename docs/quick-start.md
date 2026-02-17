@@ -35,11 +35,25 @@ neovim       Install Neovim and symlink config    all          not installed
 dotfiles install
 ```
 
+When you run this command, you'll see a **grid-based module selector** where you can:
+- Use **arrow keys** (↑↓←→) to navigate between modules
+- Press **Space** to toggle module selection
+- Press **A** to select all modules, **N** to select none
+- See a live preview of the currently highlighted module
+- Press **Enter** to start installation
+
+During installation, a **progress bar** shows:
+- How many modules have been installed (e.g., "3/10 60%")
+- Current module being installed
+- Elapsed time and estimated time remaining
+
 ### Install Specific Modules
 
 ```bash
 dotfiles install git zsh neovim
 ```
+
+This skips the interactive selector and directly installs the specified modules.
 
 ### Install with a Profile
 
@@ -69,25 +83,76 @@ Uses default answers for all prompts. Useful for automation.
 dotfiles install -v
 ```
 
-Shows detailed information about what's happening.
+**Verbose mode** streams all script output in real-time, showing:
+- Detailed execution logs
+- All script output (stdout/stderr)
+- Debug information
 
-## Understanding the Execution Plan
+Use verbose mode when:
+- Troubleshooting module failures
+- Understanding what scripts are doing
+- Debugging configuration issues
 
-When you run `dotfiles install`, you'll see an execution plan:
+**Note**: In compact mode (default), script output is buffered and only shown on errors. Verbose mode disables this buffering and streams everything live.
+
+## Understanding the Installation Flow
+
+### 1. Module Selection (Interactive Mode)
+
+When you run `dotfiles install` without specifying modules, you'll see a grid selector:
+
+```
+┌─ Select modules to install ──────────────────────────────────┐
+│                                                               │
+│  [x] 1password      [x] git            [ ] neovim            │
+│  [ ] golang         [x] docker         [ ] python            │
+│  [x] fish           [ ] tmux           [ ] zsh               │
+│                                                               │
+│  Navigate: ↑/↓/←/→  Toggle: Space  Select All: A  Continue: Enter
+│  Preview: git - Configure git with SSH signing and defaults  │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### 2. Execution Plan
+
+After selection, you'll see the execution plan:
 
 ```
 Execution Plan:
-  1. 1password (v1.0.0) - Install and configure 1Password CLI
-  2. ssh (v1.0.0) - Configure SSH keys and settings
-  3. git (v1.0.0) - Configure Git with SSH signing
-  4. zsh (v1.0.0) - Install and configure Zsh + Zinit
-  5. neovim (v1.0.0) - Install Neovim and symlink config
+  Install (3):
+    1. 1password - Install and configure 1Password CLI
+    2. git - Configure Git with SSH signing
+    3. docker - Install Docker and Docker Compose
 
 OS: ubuntu 22.04 (amd64)
 Package Manager: apt
 ```
 
-Modules are listed in dependency order. For example, `ssh` depends on `1password`, so `1password` runs first.
+Modules are listed in **dependency order**. For example, `git` depends on `1password`, so `1password` runs first.
+
+### 3. Progress Tracking
+
+During installation, a progress bar shows overall status:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Installing 3 modules  ████████░░░░  2/3 (67%)              │
+│ Current: git • Elapsed: 1m15s • Est. remaining: ~38s        │
+└─────────────────────────────────────────────────────────────┘
+
+⠋ Installing git...
+```
+
+### 4. Completion Summary
+
+After all modules complete:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ✓ Installation complete  ██████████████  3/3 (100%)        │
+│ Success: 3 • Failed: 0 • Skipped: 0 • Time: 2m5s            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Working with Profiles
 

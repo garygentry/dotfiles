@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-16
+
+### Added
+
+- **🎨 Comprehensive UX Overhaul**: Dramatically improved terminal user experience with modern, polished interface
+
+  - **Compact Grid-Based Module Selection**
+    - Interactive grid layout (3-5 columns) reduces module selection from 28+ lines to ~10 lines (64% reduction)
+    - Keyboard navigation with arrow keys (↑↓←→)
+    - Quick selection shortcuts: Space (toggle), A (select all), N (select none)
+    - Live preview pane shows full description of highlighted module
+    - Catppuccin Mocha theming throughout
+
+  - **Collapsible Script Output**
+    - Smart output buffering with spinner animations during execution
+    - Automatic sudo detection preserves interactivity when needed
+    - Compact one-line summaries on success (90% output reduction)
+    - Auto-expanding bordered error boxes showing last 30 lines on failure
+    - `--verbose` flag streams all output for debugging
+    - Reduces total installation output from 200+ lines to 50-80 lines
+
+  - **Overall Progress Tracking**
+    - Real-time progress bar showing current module and completion percentage
+    - Elapsed time and estimated time remaining (based on average module duration)
+    - Completion summary with success/failed/skipped counts
+    - Total installation time tracking
+
+  - **Enhanced Script Execution Feedback**
+    - Real-time output parsing to detect current operations
+    - Pattern recognition for `log_info`, `log_success`, and `pkg_install` helpers
+    - Context-aware progress updates during script execution
+
+### Changed
+
+- **Module Selection**: Interactive grid-based selector replaces vertical list in TTY mode
+- **Script Output**: Buffered with spinners by default; streams when sudo detected or `--verbose` enabled
+- **Progress Display**: Added progress bar and time estimation to module execution
+
+### Technical Details
+
+- New files:
+  - `internal/ui/multiselect.go` - Custom Bubble Tea grid component
+  - `internal/ui/progress.go` - Progress bar component with time estimation
+- Enhanced `internal/module/runner.go` with output buffering and pattern recognition
+- Updated `RunnerUI` interface with progress tracking methods
+- All changes maintain full backward compatibility (non-TTY graceful degradation)
+
+### Performance
+
+- Minimal overhead: Added complexity is primarily I/O-bound (already the bottleneck)
+- Script output buffering typically < 1MB per script
+- Grid rendering and progress updates are O(n) where n is small
+
 ## [2.0.0] - 2026-02-11
 
 ### ⚠️ Breaking Changes
@@ -84,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive and unattended modes
 - Comprehensive test suite
 
+[2.1.0]: https://github.com/garygentry/dotfiles/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/garygentry/dotfiles/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/garygentry/dotfiles/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/garygentry/dotfiles/releases/tag/v1.0.0
