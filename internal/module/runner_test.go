@@ -604,3 +604,95 @@ func TestRunNotesEmptyOnSkip(t *testing.T) {
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
+
+// sequentialUI is a testUI variant whose PromptChoice returns answers in
+// order from a pre-supplied slice, making prompt ordering deterministic.
+type sequentialUI struct {
+	testUI
+	choiceAnswers []string
+	choiceIdx     int
+	promptsCalled []string
+}
+
+func (s *sequentialUI) PromptChoice(msg string, _ []string) (string, error) {
+	s.promptsCalled = append(s.promptsCalled, msg)
+	if s.choiceIdx < len(s.choiceAnswers) {
+		answer := s.choiceAnswers[s.choiceIdx]
+		s.choiceIdx++
+		return answer, nil
+	}
+	return "", nil
+}
+
+func TestHandlePromptsZinitSkipsOMZQuestions(t *testing.T) {
+	ui := &sequentialUI{choiceAnswers: []string{"zinit"}}
+	cfg := newTestRunConfig(t)
+	cfg.Unattended = false
+	cfg.UI = ui
+	cfg.ExplicitModules = map[string]bool{"zsh": true}
+
+	mod := &Module{
+		Name: "zsh",
+		Prompts: []Prompt{
+			{Key: "zsh_framework", Message: "Zsh plugin framework", Default: "zinit", Type: "choice", Options: []string{"zinit", "ohmyzsh"}, ShowWhen: "explicit_install"},
+			{Key: "zsh_omz_plugins", Message: "Oh My Zsh plugin preset", Default: "standard", Type: "choice", Options: []string{"minimal", "standard", "full"}, ShowWhen: "explicit_install", DependsOn: &PromptDependency{Key: "zsh_framework", Value: "ohmyzsh"}},
+			{Key: "zsh_prompt", Message: "Prompt theme", Default: "starship", Type: "choice", Options: []string{"starship", "robbyrussell"}, ShowWhen: "explicit_install", DependsOn: &PromptDependency{Key: "zsh_framework", Value: "ohmyzsh"}},
+		},
+	}
+
+	answers, err := handlePrompts(cfg, mod)
+	if err != nil {
+		t.Fatalf("handlePrompts error: %v", err)
+	}
+
+	// Only the framework question should have been asked
+	if len(ui.promptsCalled) != 1 {
+		t.Errorf("prompts called = %v, want only [Zsh plugin framework]", ui.promptsCalled)
+	}
+	if answers["zsh_framework"] != "zinit" {
+		t.Errorf("zsh_framework = %q, want zinit", answers["zsh_framework"])
+	}
+	// OMZ prompts should be empty (dependency not met)
+	if answers["zsh_omz_plugins"] != "" {
+		t.Errorf("zsh_omz_plugins = %q, want empty (skipped)", answers["zsh_omz_plugins"])
+	}
+	if answers["zsh_prompt"] != "" {
+		t.Errorf("zsh_prompt = %q, want empty (skipped)", answers["zsh_prompt"])
+	}
+}
+
+func TestHandlePromptsOhmyzshShowsAllQuestions(t *testing.T) {
+	ui := &sequentialUI{choiceAnswers: []string{"ohmyzsh", "full", "robbyrussell"}}
+	cfg := newTestRunConfig(t)
+	cfg.Unattended = false
+	cfg.UI = ui
+	cfg.ExplicitModules = map[string]bool{"zsh": true}
+
+	mod := &Module{
+		Name: "zsh",
+		Prompts: []Prompt{
+			{Key: "zsh_framework", Message: "Zsh plugin framework", Default: "zinit", Type: "choice", Options: []string{"zinit", "ohmyzsh"}, ShowWhen: "explicit_install"},
+			{Key: "zsh_omz_plugins", Message: "Oh My Zsh plugin preset", Default: "standard", Type: "choice", Options: []string{"minimal", "standard", "full"}, ShowWhen: "explicit_install", DependsOn: &PromptDependency{Key: "zsh_framework", Value: "ohmyzsh"}},
+			{Key: "zsh_prompt", Message: "Prompt theme", Default: "starship", Type: "choice", Options: []string{"starship", "robbyrussell"}, ShowWhen: "explicit_install", DependsOn: &PromptDependency{Key: "zsh_framework", Value: "ohmyzsh"}},
+		},
+	}
+
+	answers, err := handlePrompts(cfg, mod)
+	if err != nil {
+		t.Fatalf("handlePrompts error: %v", err)
+	}
+
+	// All three prompts should have been asked
+	if len(ui.promptsCalled) != 3 {
+		t.Errorf("prompts called = %v, want all 3", ui.promptsCalled)
+	}
+	if answers["zsh_framework"] != "ohmyzsh" {
+		t.Errorf("zsh_framework = %q, want ohmyzsh", answers["zsh_framework"])
+	}
+	if answers["zsh_omz_plugins"] != "full" {
+		t.Errorf("zsh_omz_plugins = %q, want full", answers["zsh_omz_plugins"])
+	}
+	if answers["zsh_prompt"] != "robbyrussell" {
+		t.Errorf("zsh_prompt = %q, want robbyrussell", answers["zsh_prompt"])
+	}
+}
