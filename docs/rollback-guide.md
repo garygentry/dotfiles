@@ -355,6 +355,6 @@ Operation paths are absolute and machine-specific. When syncing across machines:
 ## Related Documentation
 
 - [Architecture Guide](architecture.md) - System design and operation recording
-- [Module Development](module-development.md) - Creating rollback-friendly modules
-- [CLI Reference](cli.md) - Full uninstall command documentation
+- [Creating Modules](creating-modules.md) - Creating rollback-friendly modules
+- [CLI Reference](cli-reference.md) - Full uninstall command documentation
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions

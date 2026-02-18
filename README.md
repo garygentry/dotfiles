@@ -173,8 +173,6 @@ modules:
 
 The system uses a **hybrid architecture** where Go handles orchestration and shell scripts handle system operations. Go provides type-safe dependency resolution, structured state tracking, and rollback capabilities that would be fragile in pure shell. Shell scripts keep the actual installation logic readable and modifiable without recompilation.
 
-![Architecture Overview](docs/diagrams/architecture-overview.svg)
-
 **Key Features:**
 - **Topological Dependency Resolution** - Kahn's algorithm ensures correct order
 - **OS-Specific Logic** - Optional platform-specific scripts

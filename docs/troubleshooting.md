@@ -702,6 +702,6 @@ For comprehensive CI/CD integration examples, see the [CI/CD Guide](ci-cd-guide.
 ## See Also
 
 - [CLI Reference](cli-reference.md) - Command documentation
-- [Configuration](configuration.md) - Configuration options
+- [Quick Start](quick-start.md) - Configuration options and common tasks
 - [Creating Modules](creating-modules.md) - Module development guide
 - [CI/CD Guide](ci-cd-guide.md) - Automation and IaC integration

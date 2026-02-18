@@ -17,8 +17,6 @@ For a deeper discussion of why Go was chosen over pure shell or other languages,
 
 ## System Overview
 
-![System Overview](diagrams/system-overview.svg)
-
 ## Core Components
 
 ### 1. CLI Layer (Cobra Framework)
@@ -341,21 +339,19 @@ dotfiles install git --verbose
 
 ### Installation Flow
 
-![Installation Flow](diagrams/installation-flow.svg)
+The installation flow proceeds through system detection, module discovery, dependency resolution, and sequential module execution (prompts → environment setup → OS script → install script → file deployment → verification → state recording).
 
 ### Module Execution Flow
 
-![Module Execution Flow](diagrams/module-execution-flow.svg)
+Each module runs through 8 phases: prompts, environment variable injection, template context preparation, OS-specific script, install script, file deployment, verification, and state recording.
 
 ### Shell Script Execution
 
-![Shell Script Execution](diagrams/shell-execution.svg)
+The Go runner wraps each shell script in a generated wrapper that sources `lib/helpers.sh` first, then executes the module script. All `DOTFILES_*` environment variables are available to the script.
 
 ## Dependency Resolution
 
 ### Algorithm: Kahn's Topological Sort
-
-![Dependency Resolution](diagrams/dependency-resolution.svg)
 
 ### Example
 

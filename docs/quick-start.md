@@ -286,7 +286,6 @@ dotfiles install git
 
 ## Next Steps
 
-- [Configuration Guide](configuration.md) - Detailed configuration options
-- [Modules Overview](modules.md) - Learn about each module
 - [Creating Modules](creating-modules.md) - Build your own modules
 - [CLI Reference](cli-reference.md) - Complete command documentation
+- [Idempotence](IDEMPOTENCE.md) - How re-runs are handled safely

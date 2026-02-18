@@ -164,5 +164,5 @@ Note: This does not uninstall packages or tools installed by modules. You'll nee
 ## Next Steps
 
 - [Quick Start Guide](quick-start.md) - Get started with common tasks
-- [Configuration](configuration.md) - Customize your setup
-- [Modules](modules.md) - Learn about available modules
+- [Creating Modules](creating-modules.md) - Build and extend modules
+- [CLI Reference](cli-reference.md) - Full command documentation

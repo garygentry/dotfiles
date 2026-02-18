@@ -534,7 +534,7 @@ DOTFILES_VERBOSE      # Force verbose output
 
 ### Module Scripts
 
-Module scripts receive many more environment variables. See [Environment Variables](environment-variables.md) for a complete list.
+Module scripts receive many more environment variables. See [Creating Modules — Environment Variables](creating-modules.md#environment-variables) for a complete list.
 
 ## Configuration Files
 
@@ -755,6 +755,5 @@ dotfiles install module-name -v
 ## See Also
 
 - [Quick Start](quick-start.md) - Getting started guide
-- [Configuration](configuration.md) - Configuration options
-- [Environment Variables](environment-variables.md) - Complete environment variable reference
+- [Creating Modules](creating-modules.md) - Module development and configuration reference
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions

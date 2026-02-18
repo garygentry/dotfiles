@@ -753,7 +753,7 @@ See existing modules for reference:
 
 ## Next Steps
 
-- [Module Reference](module-reference.md) - Complete module.yml schema
-- [Shell Helpers](shell-helpers.md) - All available helper functions
-- [Templates](templates.md) - Advanced template usage
-- [Testing](ci-cd.md) - Add integration tests for your module
+- [CLI Reference](cli-reference.md) - Full command documentation
+- [Idempotence](IDEMPOTENCE.md) - How re-runs and change detection work
+- [Rollback Guide](rollback-guide.md) - Uninstalling modules and reversing changes
+- [CI/CD Guide](ci-cd-guide.md) - Add integration tests for your module
