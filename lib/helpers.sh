@@ -200,6 +200,48 @@ copy_file() {
 }
 
 # ===========================================================================
+# GitHub / git operations
+# ===========================================================================
+
+# github_clone REPO DEST [REF]
+#   Clone a GitHub repository into DEST if it does not already exist.
+#
+#   REPO can be:
+#     "user/repo"   - explicit owner (works for any GitHub repo)
+#     "repo"        - short form; prepends $DOTFILES_USER_GITHUB_USER
+#
+#   REF is the branch/tag to clone (default: "main").
+#
+#   Idempotent: does nothing if DEST already exists.
+#   Dry-run safe: logs what would happen without acting.
+github_clone() {
+    local repo="$1" dest="$2" ref="${3:-main}"
+
+    # Expand short-form repo name using the configured GitHub username.
+    if [[ "$repo" != */* ]]; then
+        if [[ -z "${DOTFILES_USER_GITHUB_USER:-}" ]]; then
+            log_error "github_clone: short repo '$repo' given but DOTFILES_USER_GITHUB_USER is not set"
+            return 1
+        fi
+        repo="${DOTFILES_USER_GITHUB_USER}/${repo}"
+    fi
+
+    if [[ -d "$dest" ]]; then
+        log_info "Already cloned: $repo"
+        return 0
+    fi
+
+    if is_dry_run; then
+        log_info "[dry-run] Would clone github.com/${repo}@${ref} -> $dest"
+        return 0
+    fi
+
+    log_info "Cloning github.com/${repo}@${ref} -> $dest"
+    git clone --depth 1 --branch "$ref" "https://github.com/${repo}.git" "$dest"
+    log_success "Cloned: $repo -> $dest"
+}
+
+# ===========================================================================
 # Templates and secrets (delegate to the Go binary)
 # ===========================================================================
 

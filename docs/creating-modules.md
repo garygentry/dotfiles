@@ -345,6 +345,24 @@ link_file "$DOTFILES_MODULE_DIR/files/config" ~/.config/app/config
 copy_file "$DOTFILES_MODULE_DIR/files/script.sh" ~/bin/script.sh
 ```
 
+### GitHub / Git Operations
+
+```bash
+# Clone a GitHub repo into a local directory (idempotent, dry-run safe)
+github_clone "my-tool" "$HOME/.local/share/my-tool"
+
+# Short form uses $DOTFILES_USER_GITHUB_USER automatically:
+#   github_clone "my-tool" DEST  →  github.com/<github_user>/my-tool
+
+# Long form for any GitHub repo:
+github_clone "other-user/their-tool" "$HOME/.local/share/their-tool"
+
+# Optionally specify a branch/tag (default: "main"):
+github_clone "my-tool" "$HOME/.local/share/my-tool" "v2.0"
+```
+
+Skips silently if the destination already exists, so it is safe to re-run.
+
 ### Templates and Secrets
 
 ```bash
@@ -485,6 +503,47 @@ Templates have access to:
 {{ contains "substring" .OS }}      // String contains
 {{ join "," .Module.features }}     // Join slice
 {{ .Module.name | trimSpace }}      // Trim whitespace
+```
+
+## Cloning from GitHub
+
+Use the `github_clone` helper to include tools from your own (or others') GitHub repositories. Each such tool should be its own module so it gets independent dependency tracking, idempotence checking, and selective installation.
+
+### Example: personal CLI tool
+
+```yaml
+# modules/my-tool/module.yml
+name: my-tool
+description: My personal CLI tool from GitHub
+requires: [git]
+```
+
+```bash
+# modules/my-tool/install.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+TOOL_DIR="$HOME/.local/share/my-tool"
+
+# Clones github.com/<DOTFILES_USER_GITHUB_USER>/my-tool if not already present
+github_clone "my-tool" "$TOOL_DIR"
+
+mkdir -p "$HOME/.local/bin"
+ln -sf "$TOOL_DIR/bin/my-tool" "$HOME/.local/bin/my-tool"
+
+log_success "my-tool installed"
+```
+
+The short-form repo name (`"my-tool"`) is expanded using `$DOTFILES_USER_GITHUB_USER` from your `config.yml`. Use `"other-user/repo"` to clone from a different account.
+
+### Batching related repos
+
+If several small repos always travel together, one module can clone all of them:
+
+```bash
+# modules/personal-tools/install.sh
+github_clone "scripts" "$HOME/.local/share/scripts"
+github_clone "prompts" "$HOME/.local/share/prompts"
 ```
 
 ## Dependencies
