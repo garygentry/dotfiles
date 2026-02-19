@@ -64,6 +64,19 @@ detect_platform() {
 }
 
 # ---------------------------------------------------------------------------
+# Run a command with sudo if needed and available
+# ---------------------------------------------------------------------------
+as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo &>/dev/null; then
+        sudo "$@"
+    else
+        fatal "Root privileges required but sudo is not installed. Please run as root or install sudo."
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Install git if missing
 # ---------------------------------------------------------------------------
 ensure_git() {
@@ -74,8 +87,8 @@ ensure_git() {
     info "Installing git..."
     case "$OS" in
         darwin) xcode-select --install 2>/dev/null || true ;;
-        ubuntu) sudo apt-get update -qq && sudo apt-get install -y -qq git ;;
-        arch)   sudo pacman -Sy --noconfirm git ;;
+        ubuntu) as_root apt-get update -qq && as_root apt-get install -y -qq git ;;
+        arch)   as_root pacman -Sy --noconfirm git ;;
         *)      fatal "Cannot install git automatically on ${OS}. Please install git and retry." ;;
     esac
     command -v git &>/dev/null || fatal "git installation failed"
@@ -106,11 +119,11 @@ ensure_go() {
     fi
 
     local go_install_dir
-    if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+    if [ "$(id -u)" -eq 0 ] || (command -v sudo &>/dev/null && sudo -n true 2>/dev/null); then
         go_install_dir="/usr/local/go"
-        info "Installing Go to ${go_install_dir} (with sudo)..."
-        sudo rm -rf "${go_install_dir}"
-        sudo tar -C /usr/local -xzf "${tmp}/${tarball}"
+        info "Installing Go to ${go_install_dir} (with root)..."
+        as_root rm -rf "${go_install_dir}"
+        as_root tar -C /usr/local -xzf "${tmp}/${tarball}"
     else
         go_install_dir="${HOME}/.local/go"
         info "Installing Go to ${go_install_dir} (no sudo)..."
