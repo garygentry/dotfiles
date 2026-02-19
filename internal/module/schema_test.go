@@ -280,6 +280,159 @@ files:
 	}
 }
 
+func TestValidateModule(t *testing.T) {
+	tests := []struct {
+		name     string
+		module   *Module
+		wantErrs []string // substrings that must appear in errors
+		wantOk   bool     // true = expect zero errors
+	}{
+		{
+			name: "valid module",
+			module: &Module{
+				Name:        "my-module",
+				Description: "A module",
+				Version:     "1.0.0",
+				Files:       []FileEntry{{Source: "f", Dest: "~/.f", Type: "symlink"}},
+				Prompts: []Prompt{
+					{Key: "theme", Type: "choice", Options: []string{"a", "b"}},
+				},
+				OS: []string{"macos", "ubuntu"},
+			},
+			wantOk: true,
+		},
+		{
+			name:     "missing description and version",
+			module:   &Module{Name: "git"},
+			wantErrs: []string{"description is required", "version is required"},
+		},
+		{
+			name:     "invalid name format",
+			module:   &Module{Name: "My Module", Description: "d", Version: "1"},
+			wantErrs: []string{"name"},
+		},
+		{
+			name: "invalid file type",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Files:       []FileEntry{{Type: "link"}},
+			},
+			wantErrs: []string{`files[0].type "link"`},
+		},
+		{
+			name: "choice prompt missing options",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Prompts:     []Prompt{{Key: "theme", Type: "choice"}},
+			},
+			wantErrs: []string{"prompts[0].options"},
+		},
+		{
+			name: "invalid show_when value",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Prompts:     []Prompt{{Key: "x", Type: "input", ShowWhen: "sometimes"}},
+			},
+			wantErrs: []string{"prompts[0].show_when"},
+		},
+		{
+			name: "depends_on references unknown key",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Prompts: []Prompt{
+					{Key: "a", Type: "input"},
+					{Key: "b", Type: "input", DependsOn: &PromptDependency{Key: "nonexistent", Value: "yes"}},
+				},
+			},
+			wantErrs: []string{"prompts[1].depends_on.key"},
+		},
+		{
+			name: "invalid OS value",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				OS:          []string{"windows"},
+			},
+			wantErrs: []string{`os[0] "windows"`},
+		},
+		{
+			name: "invalid timeout",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Timeout:     "not-a-duration",
+			},
+			wantErrs: []string{"timeout"},
+		},
+		{
+			name: "valid timeout",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Timeout:     "10m",
+			},
+			wantOk: true,
+		},
+		{
+			name: "depends_on references self (valid key)",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				Prompts: []Prompt{
+					{Key: "a", Type: "input"},
+					{Key: "b", Type: "input", DependsOn: &PromptDependency{Key: "a", Value: "yes"}},
+				},
+			},
+			wantOk: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := Validate(tt.module)
+
+			if tt.wantOk {
+				if len(errs) != 0 {
+					t.Errorf("expected no errors, got: %v", errs)
+				}
+				return
+			}
+
+			for _, want := range tt.wantErrs {
+				found := false
+				for _, e := range errs {
+					if len(e) >= len(want) {
+						for i := 0; i <= len(e)-len(want); i++ {
+							if e[i:i+len(want)] == want {
+								found = true
+								break
+							}
+						}
+					}
+					if found {
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing %q, got: %v", want, errs)
+				}
+			}
+		})
+	}
+}
+
 func TestDiscoverSortByNameWhenPriorityEqual(t *testing.T) {
 	dir := t.TempDir()
 

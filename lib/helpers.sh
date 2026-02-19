@@ -242,6 +242,81 @@ github_clone() {
 }
 
 # ===========================================================================
+# File downloads
+# ===========================================================================
+
+# download_file URL DEST [SHA256]
+#   Downloads URL to DEST using curl (with wget fallback).
+#   If SHA256 is provided, verifies the checksum after download and aborts on
+#   mismatch.  Idempotent: skips download if DEST already exists and the
+#   checksum matches (or no checksum is provided).
+#   Dry-run safe: logs what would happen without acting.
+download_file() {
+    local url="$1" dest="$2" expected_sha="${3:-}"
+
+    # Helper: compute sha256 of a file
+    _sha256() {
+        if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$1" | awk '{print $1}'
+        elif command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$1" | awk '{print $1}'
+        else
+            log_error "No sha256 tool found (tried sha256sum, shasum)"
+            return 1
+        fi
+    }
+
+    # If DEST already exists, check whether we can skip the download.
+    if [[ -f "$dest" ]]; then
+        if [[ -n "$expected_sha" ]]; then
+            local actual_sha
+            actual_sha="$(_sha256 "$dest")"
+            if [[ "$actual_sha" == "$expected_sha" ]]; then
+                log_info "Already downloaded (checksum ok): $dest"
+                return 0
+            else
+                log_info "Checksum mismatch on cached file, re-downloading: $dest"
+            fi
+        else
+            log_info "Already downloaded (no checksum): $dest"
+            return 0
+        fi
+    fi
+
+    if is_dry_run; then
+        log_info "[dry-run] Would download: $url -> $dest"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+
+    log_info "Downloading: $url"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$dest"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO "$dest" "$url"
+    else
+        log_error "No download tool found (tried curl, wget)"
+        return 1
+    fi
+
+    if [[ -n "$expected_sha" ]]; then
+        local actual_sha
+        actual_sha="$(_sha256 "$dest")"
+        if [[ "$actual_sha" != "$expected_sha" ]]; then
+            log_error "Checksum mismatch for $dest"
+            log_error "  expected: $expected_sha"
+            log_error "  got:      $actual_sha"
+            rm -f "$dest"
+            return 1
+        fi
+        log_info "Checksum verified: $dest"
+    fi
+
+    log_success "Downloaded: $dest"
+}
+
+# ===========================================================================
 # Templates and secrets (delegate to the Go binary)
 # ===========================================================================
 

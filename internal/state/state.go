@@ -10,17 +10,18 @@ import (
 
 // ModuleState represents the persisted state of a single dotfiles module.
 type ModuleState struct {
-	Name        string      `json:"name"`
-	Version     string      `json:"version"`
-	Status      string      `json:"status"` // installed, failed, removed
-	InstalledAt time.Time   `json:"installed_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	OS          string      `json:"os"`
-	Error       string      `json:"error,omitempty"`     // last error if failed
-	Checksum    string      `json:"checksum,omitempty"`  // SHA256 of module.yml + scripts
-	ConfigHash  string      `json:"config_hash,omitempty"` // Hash of user config for this module
-	FileStates  []FileState `json:"file_states,omitempty"` // Per-file deployment tracking
-	Operations  []Operation `json:"operations,omitempty"` // rollback metadata
+	SchemaVersion int         `json:"schema_version,omitempty"` // 0 = pre-versioning, 1 = current
+	Name          string      `json:"name"`
+	Version       string      `json:"version"`
+	Status        string      `json:"status"` // installed, failed, removed
+	InstalledAt   time.Time   `json:"installed_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+	OS            string      `json:"os"`
+	Error         string      `json:"error,omitempty"`       // last error if failed
+	Checksum      string      `json:"checksum,omitempty"`    // SHA256 of module.yml + scripts
+	ConfigHash    string      `json:"config_hash,omitempty"` // Hash of user config for this module
+	FileStates    []FileState `json:"file_states,omitempty"` // Per-file deployment tracking
+	Operations    []Operation `json:"operations,omitempty"`  // rollback metadata
 }
 
 // FileState tracks the deployment state of an individual file.
@@ -95,8 +96,12 @@ func (s *Store) Get(name string) (*ModuleState, error) {
 }
 
 // Set writes the module state to disk. UpdatedAt is always set to the
-// current time before persisting.
+// current time before persisting. SchemaVersion is initialised to 1 if not
+// already set, so all newly-written states carry a schema version.
 func (s *Store) Set(state *ModuleState) error {
+	if state.SchemaVersion == 0 {
+		state.SchemaVersion = 1
+	}
 	state.UpdatedAt = time.Now()
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -205,8 +210,9 @@ func (ms *ModuleState) CanRollback() bool {
 // NeedsMigration returns true if this state was written by an older version
 // and needs migration to the current schema (e.g., missing FileStates).
 func (ms *ModuleState) NeedsMigration() bool {
-	// If module is marked as installed but has no FileStates, it needs migration
-	return ms.Status == "installed" && len(ms.FileStates) == 0
+	// SchemaVersion == 0 means the state predates schema versioning.
+	// Combined with no FileStates on an installed module, migration is needed.
+	return ms.SchemaVersion == 0 && ms.Status == "installed" && len(ms.FileStates) == 0
 }
 
 // MigrateFileStatesFromOperations attempts to reconstruct FileStates from
@@ -244,4 +250,7 @@ func (ms *ModuleState) MigrateFileStatesFromOperations() {
 
 		ms.FileStates = append(ms.FileStates, fs)
 	}
+
+	// Mark as migrated so NeedsMigration() returns false going forward.
+	ms.SchemaVersion = 1
 }

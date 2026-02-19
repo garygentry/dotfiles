@@ -1,6 +1,7 @@
 package module
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,6 +31,18 @@ func Discover(modulesDir string) ([]*Module, error) {
 		m, err := ParseModuleYAML(ymlPath)
 		if err != nil {
 			return nil, err
+		}
+
+		// Warn about invalid modules but continue so a single bad module
+		// does not prevent the rest from loading.
+		if validErrs := validateModule(m); len(validErrs) > 0 {
+			for _, e := range validErrs {
+				log.Printf("WARN module %q: %s", m.Name, e)
+			}
+			// Skip modules with no name — we cannot safely reference them.
+			if m.Name == "" {
+				continue
+			}
 		}
 
 		modules = append(modules, m)

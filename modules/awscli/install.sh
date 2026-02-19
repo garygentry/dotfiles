@@ -14,7 +14,11 @@ if command -v aws &>/dev/null; then
         *)
             # Official installer with --update flag
             _aws_tmp="$(mktemp -d)"
-            curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "${_aws_tmp}/awscliv2.zip"
+            _aws_arch="x86_64"
+            [[ "${DOTFILES_ARCH:-}" == "arm64" ]] && _aws_arch="aarch64"
+            download_file \
+                "https://awscli.amazonaws.com/awscli-exe-linux-${_aws_arch}.zip" \
+                "${_aws_tmp}/awscliv2.zip"
             unzip -qo "${_aws_tmp}/awscliv2.zip" -d "${_aws_tmp}"
             sudo "${_aws_tmp}/aws/install" --update 2>/dev/null || true
             rm -rf "${_aws_tmp}"
@@ -37,7 +41,11 @@ case "${DOTFILES_PKG_MGR}" in
     *)
         # Official installer for Linux
         _aws_tmp="$(mktemp -d)"
-        curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "${_aws_tmp}/awscliv2.zip"
+        _aws_arch="x86_64"
+        [[ "${DOTFILES_ARCH:-}" == "arm64" ]] && _aws_arch="aarch64"
+        download_file \
+            "https://awscli.amazonaws.com/awscli-exe-linux-${_aws_arch}.zip" \
+            "${_aws_tmp}/awscliv2.zip"
         unzip -qo "${_aws_tmp}/awscliv2.zip" -d "${_aws_tmp}"
         sudo "${_aws_tmp}/aws/install"
         rm -rf "${_aws_tmp}"

@@ -11,7 +11,11 @@ fi
 pkg_install lazygit || {
     # Fallback to GitHub release
     LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
-    curl -Lo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+    LAZYGIT_ARCH="Linux_x86_64"
+    [[ "${DOTFILES_ARCH:-}" == "arm64" ]] && LAZYGIT_ARCH="Linux_arm64"
+    download_file \
+        "https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_${LAZYGIT_ARCH}.tar.gz" \
+        "/tmp/lazygit.tar.gz"
     tar xf /tmp/lazygit.tar.gz -C /tmp lazygit
     sudo install /tmp/lazygit /usr/local/bin
 }

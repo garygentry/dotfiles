@@ -277,6 +277,125 @@ func TestRollbackInstructions(t *testing.T) {
 	}
 }
 
+func TestSchemaVersionSetOnWrite(t *testing.T) {
+	store := tempStore(t)
+
+	ms := &ModuleState{
+		Name:   "git",
+		Status: "installed",
+		// SchemaVersion deliberately left at zero
+	}
+
+	if err := store.Set(ms); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	got, err := store.Get("git")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if got.SchemaVersion != 1 {
+		t.Errorf("SchemaVersion = %d, want 1 after Set()", got.SchemaVersion)
+	}
+}
+
+func TestNeedsMigrationOldFormat(t *testing.T) {
+	// Simulate an old state file: installed, no FileStates, SchemaVersion == 0.
+	ms := &ModuleState{
+		Name:   "git",
+		Status: "installed",
+		// SchemaVersion zero (default)
+		// FileStates nil
+	}
+
+	if !ms.NeedsMigration() {
+		t.Error("NeedsMigration() = false, want true for old-format state")
+	}
+}
+
+func TestNeedsMigrationNewFormat(t *testing.T) {
+	// A module installed with SchemaVersion 1 should not need migration even
+	// if it has no files to deploy.
+	ms := &ModuleState{
+		Name:          "git",
+		Status:        "installed",
+		SchemaVersion: 1,
+		// FileStates intentionally empty (module with no files)
+	}
+
+	if ms.NeedsMigration() {
+		t.Error("NeedsMigration() = true, want false for schema_version=1 state")
+	}
+}
+
+func TestMigrateFileStatesFromOperationsSetsSchemaVersion(t *testing.T) {
+	store := tempStore(t)
+
+	// Write an old-format state directly (bypassing Set's SchemaVersion stamp)
+	// by writing raw JSON.
+	oldJSON := `{
+		"name": "git",
+		"version": "1.0.0",
+		"status": "installed",
+		"installed_at": "2024-01-01T00:00:00Z",
+		"updated_at": "2024-01-01T00:00:00Z",
+		"os": "linux",
+		"operations": [
+			{
+				"type": "file_deploy",
+				"action": "created",
+				"path": "/home/user/.gitconfig",
+				"timestamp": "2024-01-01T00:00:00Z",
+				"metadata": {"source": "files/gitconfig", "type": "symlink"}
+			}
+		]
+	}`
+
+	stateFile := filepath.Join(store.Dir, "git.json")
+	if err := os.WriteFile(stateFile, []byte(oldJSON), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	ms, err := store.Get("git")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if ms == nil {
+		t.Fatal("expected non-nil state")
+	}
+
+	if !ms.NeedsMigration() {
+		t.Fatal("NeedsMigration() = false before migration, want true")
+	}
+
+	ms.MigrateFileStatesFromOperations()
+
+	if ms.NeedsMigration() {
+		t.Error("NeedsMigration() = true after migration, want false")
+	}
+	if ms.SchemaVersion != 1 {
+		t.Errorf("SchemaVersion = %d after migration, want 1", ms.SchemaVersion)
+	}
+	if len(ms.FileStates) == 0 {
+		t.Error("expected FileStates to be populated after migration")
+	}
+	if ms.FileStates[0].Dest != "/home/user/.gitconfig" {
+		t.Errorf("FileStates[0].Dest = %q, want /home/user/.gitconfig", ms.FileStates[0].Dest)
+	}
+
+	// Persist the migrated state and reload to confirm it doesn't need migration again.
+	if err := store.Set(ms); err != nil {
+		t.Fatalf("Set after migration failed: %v", err)
+	}
+	reloaded, err := store.Get("git")
+	if err != nil {
+		t.Fatalf("Get after migration failed: %v", err)
+	}
+	if reloaded.NeedsMigration() {
+		t.Error("NeedsMigration() = true after re-load, want false")
+	}
+}
+
 func TestCanRollback(t *testing.T) {
 	tests := []struct {
 		name       string
