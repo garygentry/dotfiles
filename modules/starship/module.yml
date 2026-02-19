@@ -12,13 +12,13 @@ requires:
 prompts:
   - key: starship_preset
     message: "Starship prompt preset (custom = dotfiles curated config)"
-    default: "nerd-font"
+    default: "nerd-font-symbols"
     type: choice
     options:
-      - nerd-font
+      - nerd-font-symbols
       - custom
       - no-nerd-font
-      - plain-text
+      - plain-text-symbols
       - pure-preset
       - tokyo-night
       - catppuccin-powerline
@@ -26,7 +26,7 @@ prompts:
       - jetpack
       - pastel-powerline
       - bracketed-segments
-      - no-runtimes
+      - no-runtime-versions
       - no-empty-icons
     show_when: explicit_install
 tags:
