@@ -6,10 +6,9 @@
 # =============================================================================
 
 alias ls='ls --color=auto'
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-alias lt='ls -ltrh'
+alias l='ls -lah'
+alias ll='ls -lh'
+alias la='ls -lAh'
 
 # =============================================================================
 # Navigation
@@ -27,7 +26,7 @@ alias -- -='cd -'
 alias rm='rm -i'
 alias cp='cp -i'
 alias mv='mv -i'
-alias mkdir='mkdir -pv'
+alias mkdir='mkdir -p'
 
 # =============================================================================
 # Grep
@@ -72,6 +71,7 @@ alias dprune='docker system prune -af'
 # =============================================================================
 
 alias cls='clear'
+alias reload='exec zsh'
 alias h='history'
 alias j='jobs -l'
 alias path='echo -e ${PATH//:/\\n}'

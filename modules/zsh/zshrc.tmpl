@@ -68,16 +68,19 @@ zinit light zsh-users/zsh-completions
 # Load completions
 autoload -Uz compinit && compinit
 zinit cdreplay -q
-
+{{ end }}
 # =============================================================================
 # Completion Settings
 # =============================================================================
 
+# Inline completion: complete common prefix, list matches on ambiguity (no menu)
+zstyle -d ':completion:*' menu
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'  # Case-insensitive
-zstyle ':completion:*' menu select                        # Menu selection
 zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"   # Colored completions
 zstyle ':completion:*' special-dirs true                   # Complete . and ..
-{{ end }}
+unsetopt MENU_COMPLETE         # Don't auto-insert first match
+setopt COMPLETE_IN_WORD        # Complete from cursor position
+setopt ALWAYS_TO_END           # Move cursor to end after completion
 # =============================================================================
 # History Configuration
 # =============================================================================
