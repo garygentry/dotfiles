@@ -14,7 +14,7 @@ import (
 
 // SystemInfo holds detected information about the host system.
 type SystemInfo struct {
-	OS            string // "macos", "ubuntu", "arch", "debian", etc.
+	OS            string // "macos", "ubuntu", "arch", etc. (debian is mapped to "ubuntu")
 	Arch          string // runtime.GOARCH value, e.g. "amd64", "arm64"
 	PkgMgr       string // "brew", "apt", "pacman", or ""
 	HasSudo             bool   // whether the sudo command exists and is usable
@@ -81,6 +81,11 @@ func detectOS() string {
 
 	if runtime.GOOS == "linux" {
 		if id := parseOSReleaseID("/etc/os-release"); id != "" {
+			// Treat Debian the same as Ubuntu — both use apt and
+			// share identical install scripts in our modules.
+			if id == "debian" {
+				return "ubuntu"
+			}
 			return id
 		}
 	}
