@@ -13,6 +13,7 @@ if [[ ! -d "$_starship_config_dir" ]]; then
 fi
 
 # Install Starship via official installer
+_starship_bin_dir="${DOTFILES_HOME}/.local/bin"
 if command -v starship &>/dev/null; then
     log_info "Starship is already installed ($(starship --version))"
 else
@@ -20,12 +21,14 @@ else
         log_info "[dry-run] Would install Starship via official installer"
     else
         log_info "Installing Starship..."
-        _starship_bin_dir="${DOTFILES_HOME}/.local/bin"
         mkdir -p "$_starship_bin_dir"
         curl -sS https://starship.rs/install.sh | sh -s -- -y -b "$_starship_bin_dir"
         log_success "Starship installed"
     fi
 fi
+
+# Resolve the starship binary — it may not be on PATH yet after a fresh install
+_starship_bin="$(command -v starship 2>/dev/null || echo "${_starship_bin_dir}/starship")"
 
 # Apply starship preset or custom config
 _preset="${DOTFILES_PROMPT_STARSHIP_PRESET:-custom}"
@@ -37,6 +40,6 @@ elif [[ "$_preset" == "custom" ]]; then
     cp "${DOTFILES_MODULE_DIR}/starship.toml" "$_starship_cfg"
     log_success "Applied custom starship config"
 else
-    starship preset "$_preset" > "$_starship_cfg"
+    "$_starship_bin" preset "$_preset" > "$_starship_cfg"
     log_success "Applied starship preset: ${_preset}"
 fi

@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 	"github.com/garygentry/dotfiles/internal/module"
 )
 
@@ -223,8 +225,20 @@ func (m *gridMultiSelect) View() string {
 func runGridMultiSelect(title string, options []module.MultiSelectOption, preSelected []string) ([]string, error) {
 	m := newGridMultiSelect(title, options, preSelected)
 
+	// Save terminal state before Bubble Tea puts stdin into raw mode.
+	// Restoring after Run() ensures flags like ICRNL are re-enabled even
+	// if Bubble Tea's own cleanup is incomplete (fixes post-BubbleTea hang).
+	fd := os.Stdin.Fd()
+	savedState, stateErr := term.GetState(fd)
+
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
+
+	// Restore terminal state as safety net.
+	if stateErr == nil && savedState != nil {
+		_ = term.Restore(fd, savedState)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("bubble tea error: %w", err)
 	}

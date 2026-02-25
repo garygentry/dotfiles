@@ -249,6 +249,25 @@ func (u *UI) DrainStdin() {
 	_, _ = os.Stdin.Read(buf)
 }
 
+// readLine reads a single line from r, treating both '\n' and '\r' as line
+// terminators. This is needed because after Bubble Tea exits, the terminal
+// ICRNL flag may not be restored, causing Enter to send '\r' instead of '\n'.
+// On Unix, Enter sends one or the other — never '\r\n' — so there is no
+// orphan-byte concern.
+func readLine(r *bufio.Reader) (string, error) {
+	var line []byte
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			return string(line), err
+		}
+		if b == '\n' || b == '\r' {
+			return string(line), nil
+		}
+		line = append(line, b)
+	}
+}
+
 // --- Prompt methods ---
 
 // PromptInput asks the user for text input. If the user enters nothing, the
@@ -266,7 +285,7 @@ func (u *UI) PromptInput(msg string, defaultVal string) (string, error) {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := readLine(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
 	}
@@ -293,7 +312,7 @@ func (u *UI) PromptConfirm(msg string, defaultVal bool) (bool, error) {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := readLine(reader)
 	if err != nil {
 		return false, fmt.Errorf("failed to read input: %w", err)
 	}
@@ -333,7 +352,7 @@ func (u *UI) PromptChoice(msg string, options []string) (string, error) {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := readLine(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
 	}

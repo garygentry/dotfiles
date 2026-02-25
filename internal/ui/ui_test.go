@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"bufio"
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -379,6 +381,52 @@ func TestPromptMultiSelectNonTTYEmptyPreselection(t *testing.T) {
 
 	if len(result) != 0 {
 		t.Errorf("expected empty result for nil preSelected, got: %v", result)
+	}
+}
+
+// --- readLine tests ---
+
+func TestReadLineNewline(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("hello\n"))
+	line, err := readLine(r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if line != "hello" {
+		t.Errorf("expected %q, got %q", "hello", line)
+	}
+}
+
+func TestReadLineCarriageReturn(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("world\r"))
+	line, err := readLine(r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if line != "world" {
+		t.Errorf("expected %q, got %q", "world", line)
+	}
+}
+
+func TestReadLineEOF(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("noterm"))
+	line, err := readLine(r)
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got: %v", err)
+	}
+	if line != "noterm" {
+		t.Errorf("expected %q, got %q", "noterm", line)
+	}
+}
+
+func TestReadLineEmpty(t *testing.T) {
+	r := bufio.NewReader(strings.NewReader("\n"))
+	line, err := readLine(r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if line != "" {
+		t.Errorf("expected empty string, got %q", line)
 	}
 }
 
