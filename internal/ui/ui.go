@@ -268,6 +268,19 @@ func readLine(r *bufio.Reader) (string, error) {
 	}
 }
 
+// openInputTTY opens /dev/tty for reading, returning a fresh file descriptor
+// that is not affected by Bubble Tea's cancelreader or Go runtime poller
+// state corruption on os.Stdin. Falls back to os.Stdin if /dev/tty is
+// unavailable (e.g. CI, Docker). The caller must close the returned file
+// when closeFn is non-nil.
+func openInputTTY() (f *os.File, closeFn func()) {
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		return os.Stdin, nil
+	}
+	return tty, func() { tty.Close() }
+}
+
 // --- Prompt methods ---
 
 // PromptInput asks the user for text input. If the user enters nothing, the
@@ -284,7 +297,11 @@ func (u *UI) PromptInput(msg string, defaultVal string) (string, error) {
 		fmt.Fprintf(u.writer, "[INPUT] %s: ", prompt)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	inputFile, closeFn := openInputTTY()
+	if closeFn != nil {
+		defer closeFn()
+	}
+	reader := bufio.NewReader(inputFile)
 	input, err := readLine(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
@@ -311,7 +328,11 @@ func (u *UI) PromptConfirm(msg string, defaultVal bool) (bool, error) {
 		fmt.Fprintf(u.writer, "[CONFIRM] %s [%s]: ", msg, hint)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	inputFile, closeFn := openInputTTY()
+	if closeFn != nil {
+		defer closeFn()
+	}
+	reader := bufio.NewReader(inputFile)
 	input, err := readLine(reader)
 	if err != nil {
 		return false, fmt.Errorf("failed to read input: %w", err)
@@ -351,7 +372,11 @@ func (u *UI) PromptChoice(msg string, options []string) (string, error) {
 		fmt.Fprintf(u.writer, "[CHOICE] Pick [1-%d]: ", len(options))
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	inputFile, closeFn := openInputTTY()
+	if closeFn != nil {
+		defer closeFn()
+	}
+	reader := bufio.NewReader(inputFile)
 	input, err := readLine(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
