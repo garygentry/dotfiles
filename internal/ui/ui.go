@@ -241,7 +241,7 @@ func (u *UI) DrainStdin() {
 		return
 	}
 	fd := int(os.Stdin.Fd())
-	n, err := unix.IoctlGetInt(fd, unix.FIONREAD)
+	n, err := unix.IoctlGetInt(fd, ioctlFIONREAD)
 	if err != nil || n <= 0 {
 		return
 	}
