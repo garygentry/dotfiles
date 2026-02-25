@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/garygentry/dotfiles/internal/config"
@@ -580,7 +581,7 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 	// Detect if script uses sudo (directly or via pkg_install on apt/pacman).
 	// Only stream output when sudo requires an interactive password prompt;
 	// passwordless sudo can run fine under the spinner without colliding.
-	usesSudo := scriptUsesSudo(scriptPath, cfg.SysInfo.PkgMgr)
+	usesSudo := scriptUsesSudo(scriptPath, cfg.SysInfo.PkgMgr, cfg.SysInfo.OS)
 	needsInteractiveSudo := usesSudo && cfg.SysInfo.HasSudo && !cfg.SysInfo.HasPasswordlessSudo
 
 	// Decide execution mode:
@@ -608,14 +609,12 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 		return nil
 	}
 
-	// Buffered mode with spinner: capture output and show compact progress
+	// Buffered mode with spinner: capture output and show compact progress.
+	// Stdin is intentionally left nil (reads get EOF) — scripts requiring
+	// interactive input (sudo, chsh) are routed to streaming mode above.
+	// Connecting stdin here would let subprocesses alter terminal settings
+	// (raw mode, non-blocking) which corrupts Go's subsequent stdin reads.
 	spinner = cfg.UI.StartSpinner(fmt.Sprintf("Installing %s...", mod.Name))
-
-	// Always provide stdin access in interactive mode so subprocesses that
-	// need terminal input (sudo, chsh, etc.) can read from it.
-	if !cfg.Unattended {
-		cmd.Stdin = os.Stdin
-	}
 
 	// Create pipes to capture and parse output in real-time
 	stdout, err := cmd.StdoutPipe()
@@ -639,16 +638,18 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 	done := make(chan bool)
 
 	// Read stdout and stderr concurrently
-	go streamOutput(stdout, outputChan, &outputBuf)
-	go streamOutput(stderr, outputChan, &outputBuf)
+	var readerWg sync.WaitGroup
+	readerWg.Add(2)
+	go streamOutput(stdout, outputChan, &readerWg)
+	go streamOutput(stderr, outputChan, &readerWg)
 
-	// Parse output and update spinner in background
+	// Parse output and update spinner in background; also accumulate into
+	// outputBuf (single writer — no data race).
 	go func() {
 		for line := range outputChan {
+			outputBuf.WriteString(line)
+			outputBuf.WriteString("\n")
 			if operation := extractOperation(line); operation != "" {
-				// Note: We can't easily update the spinner message here without
-				// stopping and restarting it, which would cause flicker.
-				// This is a placeholder for future enhancement.
 				cfg.UI.Debug(fmt.Sprintf("  %s", operation))
 			}
 		}
@@ -658,7 +659,9 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 	// Wait for command to complete
 	cmdErr := cmd.Wait()
 
-	// Close channels and wait for output processing
+	// Ensure reader goroutines finish before closing the channel so we
+	// never send on a closed channel.
+	readerWg.Wait()
 	close(outputChan)
 	<-done
 
@@ -686,13 +689,11 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 }
 
 // streamOutput reads from a reader line by line and sends to a channel.
-func streamOutput(reader io.Reader, outputChan chan<- string, buf *strings.Builder) {
+func streamOutput(reader io.Reader, outputChan chan<- string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		line := scanner.Text()
-		buf.WriteString(line)
-		buf.WriteString("\n")
-		outputChan <- line
+		outputChan <- scanner.Text()
 	}
 }
 
@@ -721,14 +722,20 @@ func extractOperation(line string) string {
 
 // scriptUsesSudo detects if a script uses sudo, either directly or indirectly
 // via pkg_install (which calls sudo for apt/pacman). pkgMgr is used to
-// determine whether pkg_install will require sudo.
-func scriptUsesSudo(scriptPath, pkgMgr string) bool {
+// determine whether pkg_install will require sudo. currentOS is used to skip
+// sudo references inside OS-guarded conditional blocks that won't execute on
+// the current platform (e.g. "if is_ubuntu; then sudo dpkg ... fi" on macOS).
+func scriptUsesSudo(scriptPath, pkgMgr, currentOS string) bool {
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
 		return false // If we can't read it, assume no sudo
 	}
 
 	pkgInstallUsesSudo := pkgMgr == "apt" || pkgMgr == "pacman"
+
+	// Track nesting of OS-guarded if/fi blocks. When depth > 0, we are
+	// inside a conditional that doesn't match the current OS.
+	guardedDepth := 0
 
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
@@ -737,6 +744,27 @@ func scriptUsesSudo(scriptPath, pkgMgr string) bool {
 		if strings.HasPrefix(trimmed, "#") {
 			continue
 		}
+
+		// Track OS-guarded if blocks
+		if osGuardedConditional(trimmed, currentOS) {
+			guardedDepth++
+			continue
+		}
+		// Track nested if blocks inside a guarded section
+		if guardedDepth > 0 && (strings.HasPrefix(trimmed, "if ") || strings.HasPrefix(trimmed, "if\t")) {
+			guardedDepth++
+			continue
+		}
+		if guardedDepth > 0 && (trimmed == "fi" || strings.HasPrefix(trimmed, "fi;") || strings.HasPrefix(trimmed, "fi ")) {
+			guardedDepth--
+			continue
+		}
+
+		// Skip sudo detection inside non-matching OS blocks
+		if guardedDepth > 0 {
+			continue
+		}
+
 		// Direct sudo call
 		if strings.Contains(trimmed, "sudo ") {
 			return true
@@ -747,6 +775,30 @@ func scriptUsesSudo(scriptPath, pkgMgr string) bool {
 		}
 	}
 
+	return false
+}
+
+// osGuardedConditional returns true if the line starts an if-block guarded by
+// an OS check that does NOT match currentOS (i.e. the block will not execute).
+func osGuardedConditional(line, currentOS string) bool {
+	// Match patterns like: if is_ubuntu; then / if is_macos; then
+	guards := map[string]string{
+		"is_ubuntu": "linux",
+		"is_macos":  "macos",
+		"is_arch":   "linux",
+	}
+
+	for funcName, matchOS := range guards {
+		if strings.Contains(line, funcName) &&
+			(strings.HasPrefix(line, "if ") || strings.HasPrefix(line, "if\t")) &&
+			strings.Contains(line, "then") {
+			// This is an OS-guarded if block — return true only if the
+			// guard doesn't match the current OS.
+			if matchOS != currentOS {
+				return true
+			}
+		}
+	}
 	return false
 }
 

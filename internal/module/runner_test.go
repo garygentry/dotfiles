@@ -661,6 +661,120 @@ func TestHandlePromptsZinitSkipsOMZQuestions(t *testing.T) {
 	}
 }
 
+func TestScriptUsesSudo(t *testing.T) {
+	tests := []struct {
+		name      string
+		script    string
+		pkgMgr    string
+		currentOS string
+		want      bool
+	}{
+		{
+			name:      "unguarded sudo detected on any OS",
+			script:    "#!/bin/bash\nsudo apt-get update\n",
+			pkgMgr:    "apt",
+			currentOS: "macos",
+			want:      true,
+		},
+		{
+			name:      "sudo inside is_ubuntu guard skipped on macOS",
+			script:    "#!/bin/bash\nif is_ubuntu; then\n  sudo dpkg -i foo.deb\nfi\n",
+			pkgMgr:    "brew",
+			currentOS: "macos",
+			want:      false,
+		},
+		{
+			name:      "sudo inside is_ubuntu guard detected on linux",
+			script:    "#!/bin/bash\nif is_ubuntu; then\n  sudo dpkg -i foo.deb\nfi\n",
+			pkgMgr:    "apt",
+			currentOS: "linux",
+			want:      true,
+		},
+		{
+			name:      "pkg_install with apt triggers sudo",
+			script:    "#!/bin/bash\npkg_install git\n",
+			pkgMgr:    "apt",
+			currentOS: "linux",
+			want:      true,
+		},
+		{
+			name:      "pkg_install with brew does not trigger sudo",
+			script:    "#!/bin/bash\npkg_install git\n",
+			pkgMgr:    "brew",
+			currentOS: "macos",
+			want:      false,
+		},
+		{
+			name:      "comment with sudo is ignored",
+			script:    "#!/bin/bash\n# sudo apt-get update\necho hello\n",
+			pkgMgr:    "apt",
+			currentOS: "linux",
+			want:      false,
+		},
+		{
+			name:      "no sudo at all",
+			script:    "#!/bin/bash\necho hello\n",
+			pkgMgr:    "apt",
+			currentOS: "linux",
+			want:      false,
+		},
+		{
+			name: "nested if inside guarded block",
+			script: `#!/bin/bash
+if is_ubuntu; then
+  if [ -f /tmp/foo ]; then
+    sudo dpkg -i bar.deb
+  fi
+fi
+`,
+			pkgMgr:    "apt",
+			currentOS: "macos",
+			want:      false,
+		},
+		{
+			name: "sudo after guarded block exits",
+			script: `#!/bin/bash
+if is_ubuntu; then
+  echo ubuntu only
+fi
+sudo something
+`,
+			pkgMgr:    "brew",
+			currentOS: "macos",
+			want:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			scriptPath := filepath.Join(tmpDir, "test.sh")
+			if err := os.WriteFile(scriptPath, []byte(tt.script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			got := scriptUsesSudo(scriptPath, tt.pkgMgr, tt.currentOS)
+			if got != tt.want {
+				t.Errorf("scriptUsesSudo() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScriptUsesSudoGitInstallOnMacOS(t *testing.T) {
+	// Test against the actual git/install.sh which has sudo inside an
+	// is_ubuntu guard — should return false on macOS with brew.
+	gitInstall := filepath.Join("../../modules/git/install.sh")
+	if _, err := os.Stat(gitInstall); os.IsNotExist(err) {
+		t.Skip("modules/git/install.sh not found")
+	}
+
+	got := scriptUsesSudo(gitInstall, "brew", "macos")
+	if got {
+		t.Error("scriptUsesSudo(git/install.sh, brew, macos) = true, want false; sudo is inside is_ubuntu guard")
+	}
+}
+
 func TestHandlePromptsOhmyzshShowsAllQuestions(t *testing.T) {
 	ui := &sequentialUI{choiceAnswers: []string{"ohmyzsh", "full", "robbyrussell"}}
 	cfg := newTestRunConfig(t)

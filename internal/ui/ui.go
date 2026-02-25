@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/garygentry/dotfiles/internal/module"
+	"golang.org/x/sys/unix"
 )
 
 // Catppuccin Mocha color palette as ANSI RGB escape sequences.
@@ -233,24 +233,20 @@ func (u *UI) stopSpinner(handle any) {
 // DrainStdin discards any residual bytes left in the stdin buffer. This is
 // called after Bubble Tea programs exit to prevent stale keypresses from being
 // read by subsequent prompts.
+//
+// Uses FIONREAD to query the number of buffered bytes without modifying the
+// file descriptor's blocking mode, which is safe for Go's runtime poller.
 func (u *UI) DrainStdin() {
 	if !u.IsTTY {
 		return
 	}
-	rawConn, err := os.Stdin.SyscallConn()
-	if err != nil {
+	fd := int(os.Stdin.Fd())
+	n, err := unix.IoctlGetInt(fd, unix.FIONREAD)
+	if err != nil || n <= 0 {
 		return
 	}
-	rawConn.Control(func(fd uintptr) {
-		syscall.SetNonblock(int(fd), true)
-		defer syscall.SetNonblock(int(fd), false)
-		buf := make([]byte, 256)
-		for {
-			if _, err := syscall.Read(int(fd), buf); err != nil {
-				break
-			}
-		}
-	})
+	buf := make([]byte, n)
+	_, _ = os.Stdin.Read(buf)
 }
 
 // --- Prompt methods ---
