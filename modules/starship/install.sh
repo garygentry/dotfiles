@@ -20,7 +20,9 @@ else
         log_info "[dry-run] Would install Starship via official installer"
     else
         log_info "Installing Starship..."
-        curl -sS https://starship.rs/install.sh | sh -s -- -y
+        _starship_bin_dir="${DOTFILES_HOME}/.local/bin"
+        mkdir -p "$_starship_bin_dir"
+        curl -sS https://starship.rs/install.sh | sh -s -- -y -b "$_starship_bin_dir"
         log_success "Starship installed"
     fi
 fi

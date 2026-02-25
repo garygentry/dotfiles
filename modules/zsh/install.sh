@@ -58,7 +58,11 @@ fi
 # Read from /etc/passwd rather than $SHELL: when the user has already run
 # 'exec zsh', $SHELL is set to zsh by the running process, which would
 # fool the check even though the login shell in /etc/passwd is still bash.
-_zsh_login_shell="$(basename "$(getent passwd "${USER:-$(whoami)}" | cut -d: -f7)")"
+if is_macos; then
+    _zsh_login_shell="$(basename "$(dscl . -read /Users/"${USER:-$(whoami)}" UserShell | awk '{print $2}')")"
+else
+    _zsh_login_shell="$(basename "$(getent passwd "${USER:-$(whoami)}" | cut -d: -f7)")"
+fi
 if [[ "$_zsh_login_shell" != "zsh" ]]; then
     _zsh_path="$(command -v zsh)"
     if [[ -n "$_zsh_path" ]]; then

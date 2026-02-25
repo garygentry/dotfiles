@@ -56,7 +56,7 @@ log_success() {
 # OS / environment checks
 # ===========================================================================
 
-is_macos()       { [[ "${DOTFILES_OS:-}" == "darwin" ]]; }
+is_macos()       { [[ "${DOTFILES_OS:-}" == "macos" ]]; }
 is_ubuntu()      { [[ "${DOTFILES_OS:-}" == "ubuntu" ]]; }
 is_arch()        { [[ "${DOTFILES_OS:-}" == "arch" ]]; }
 has_sudo()             { [[ "${DOTFILES_HAS_SUDO:-false}" == "true" ]]; }

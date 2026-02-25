@@ -131,6 +131,7 @@ resolution, module execution, and summary output.`,
 				}
 				return fmt.Errorf("module selection: %w", selErr)
 			}
+			u.DrainStdin()
 
 			if len(selected) == 0 {
 				u.Warn("No modules selected, nothing to do")

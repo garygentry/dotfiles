@@ -611,6 +611,12 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 	// Buffered mode with spinner: capture output and show compact progress
 	spinner = cfg.UI.StartSpinner(fmt.Sprintf("Installing %s...", mod.Name))
 
+	// Always provide stdin access in interactive mode so subprocesses that
+	// need terminal input (sudo, chsh, etc.) can read from it.
+	if !cfg.Unattended {
+		cmd.Stdin = os.Stdin
+	}
+
 	// Create pipes to capture and parse output in real-time
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
