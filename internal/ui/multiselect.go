@@ -231,7 +231,14 @@ func runGridMultiSelect(title string, options []module.MultiSelectOption, preSel
 	fd := os.Stdin.Fd()
 	savedState, stateErr := term.GetState(fd)
 
-	p := tea.NewProgram(m)
+	// Use WithInputTTY so BubbleTea opens its own /dev/tty instead of
+	// reading from os.Stdin. On macOS, the cancelreader uses kqueue when
+	// wrapping os.Stdin (named "/dev/stdin") but falls back to select(2)
+	// for files named "/dev/tty". The kqueue-based cancelreader can
+	// corrupt Go's runtime poller state for the terminal, causing
+	// subsequent reads from any terminal fd to hang. Using select avoids
+	// this entirely and leaves os.Stdin untouched.
+	p := tea.NewProgram(m, tea.WithInputTTY())
 	finalModel, err := p.Run()
 
 	// Restore terminal state as safety net.
