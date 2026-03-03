@@ -2,4 +2,7 @@
 set -euo pipefail
 command -v tmux >/dev/null 2>&1 || { log_error "tmux not found"; exit 1; }
 [ -d ~/.tmux/plugins/tpm ] || log_warn "TPM not found"
+if [[ "${DOTFILES_PROMPT_TMUX_CONFIG:-none}" == "custom" ]]; then
+    [ -f "${DOTFILES_HOME}/.tmux.conf" ] || log_warn "Custom tmux config not found at ~/.tmux.conf"
+fi
 log_success "tmux verification passed"

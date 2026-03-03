@@ -4,6 +4,15 @@ version: 1.0.0
 priority: 35
 dependencies: []
 os: []
+prompts:
+  - key: tmux_config
+    message: "Tmux configuration preset"
+    default: "none"
+    type: choice
+    options:
+      - none
+      - custom
+    show_when: explicit_install
 tags:
   - terminal
   - productivity
