@@ -6,12 +6,12 @@ dependencies: []
 os: []
 prompts:
   - key: tmux_config
-    message: "Tmux configuration preset"
-    default: "none"
+    message: "Tmux config preset (opinionated = prefix Ctrl-j/f, vi keys, theme)"
+    default: "skip"
     type: choice
     options:
-      - none
-      - custom
+      - skip
+      - opinionated
     show_when: explicit_install
 tags:
   - terminal
