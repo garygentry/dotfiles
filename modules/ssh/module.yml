@@ -8,10 +8,6 @@ os:
   - ubuntu
   - arch
 requires: []
-files:
-  - source: config
-    dest: "~/.ssh/config"
-    type: template
 prompts:
   - key: ssh_key_type
     message: "SSH key type"

@@ -4,6 +4,23 @@
 _ssh_dir="${DOTFILES_HOME}/.ssh"
 _ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
 
+# ---------------------------------------------------------------------------
+# Detect existing SSH keys
+# ---------------------------------------------------------------------------
+_ssh_detected_type=""
+if [[ -f "${_ssh_dir}/id_ed25519" ]]; then
+    _ssh_detected_type="ed25519"
+elif [[ -f "${_ssh_dir}/id_rsa" ]]; then
+    _ssh_detected_type="rsa"
+elif [[ -f "${_ssh_dir}/id_ecdsa" ]]; then
+    _ssh_detected_type="ecdsa"
+fi
+
+if [[ -n "$_ssh_detected_type" ]]; then
+    log_info "Detected existing ${_ssh_detected_type} SSH key at ${_ssh_dir}/id_${_ssh_detected_type}"
+    _ssh_key_type="$_ssh_detected_type"
+fi
+
 # Determine key file path based on type
 _ssh_key_file="${_ssh_dir}/id_${_ssh_key_type}"
 
@@ -69,3 +86,46 @@ if [[ ! -f "$_ssh_key_file" ]]; then
 else
     log_info "SSH key already exists at ${_ssh_key_file}"
 fi
+
+# ---------------------------------------------------------------------------
+# Handle GitHub config conflict
+# ---------------------------------------------------------------------------
+_ssh_github_key="~/.ssh/id_${_ssh_key_type}"
+_ssh_existing_github_key=""
+
+if [[ -f "${_ssh_dir}/config" ]]; then
+    # Extract IdentityFile from existing Host github.com block
+    _ssh_existing_github_key="$(awk '
+        /^[[:space:]]*Host[[:space:]]+github\.com[[:space:]]*$/ { found=1; next }
+        found && /^[[:space:]]*Host[[:space:]]/ { found=0 }
+        found && /^[[:space:]]*IdentityFile[[:space:]]/ { print $2; exit }
+    ' "${_ssh_dir}/config")"
+fi
+
+if [[ -n "$_ssh_existing_github_key" ]] && [[ "$_ssh_existing_github_key" != "$_ssh_github_key" ]]; then
+    log_info "Existing GitHub SSH config uses: ${_ssh_existing_github_key}"
+    log_info "Detected/chosen key is: ${_ssh_github_key}"
+
+    _ssh_github_choice="$(prompt_choice \
+        "GitHub SSH key conflict - which key should github.com use?" \
+        "Keep existing (${_ssh_existing_github_key})" \
+        "Use detected key (${_ssh_github_key})")"
+
+    if [[ "$_ssh_github_choice" == "Keep existing"* ]]; then
+        _ssh_github_key="$_ssh_existing_github_key"
+        log_info "Keeping existing GitHub key: ${_ssh_github_key}"
+    else
+        log_info "Using detected key for GitHub: ${_ssh_github_key}"
+    fi
+fi
+
+export DOTFILES_SSH_GITHUB_KEY="$_ssh_github_key"
+
+# ---------------------------------------------------------------------------
+# Back up existing config and render new one
+# ---------------------------------------------------------------------------
+if [[ -f "${_ssh_dir}/config" ]]; then
+    _backup_file "${_ssh_dir}/config"
+fi
+
+render_template "${DOTFILES_MODULE_DIR}/config" "${_ssh_dir}/config"

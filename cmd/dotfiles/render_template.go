@@ -25,6 +25,7 @@ var renderTemplateCmd = &cobra.Command{
 			Home:        os.Getenv("DOTFILES_HOME"),
 			DotfilesDir: os.Getenv("DOTFILES_DIR"),
 			Module:      make(map[string]any),
+			Env:         make(map[string]string),
 		}
 
 		// Set the module name if provided via environment.
@@ -32,13 +33,17 @@ var renderTemplateCmd = &cobra.Command{
 			ctx.Module["name"] = name
 		}
 
-		// Collect all DOTFILES_PROMPT_* environment variables into the
-		// Module map with lowercased keys (prefix stripped).
+		// Collect all DOTFILES_* environment variables into Env and
+		// DOTFILES_PROMPT_* variables into the Module map.
+		const dotfilesPrefix = "DOTFILES_"
 		const promptPrefix = "DOTFILES_PROMPT_"
 		for _, entry := range os.Environ() {
 			key, value, ok := strings.Cut(entry, "=")
 			if !ok {
 				continue
+			}
+			if strings.HasPrefix(key, dotfilesPrefix) {
+				ctx.Env[key] = value
 			}
 			if strings.HasPrefix(key, promptPrefix) {
 				mapKey := strings.ToLower(strings.TrimPrefix(key, promptPrefix))

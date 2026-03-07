@@ -30,9 +30,5 @@ Host *
 Host github.com
     HostName github.com
     User git
-{{- if eq (index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE") "rsa" }}
-    IdentityFile ~/.ssh/id_rsa
-{{- else }}
-    IdentityFile ~/.ssh/id_ed25519
-{{- end }}
+    IdentityFile {{ or (index .Env "DOTFILES_SSH_GITHUB_KEY") "~/.ssh/id_ed25519" }}
     IdentitiesOnly yes

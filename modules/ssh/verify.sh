@@ -36,6 +36,26 @@ else
     _ssh_errors=$((_ssh_errors + 1))
 fi
 
+# Check that the GitHub IdentityFile referenced in config actually exists
+if [[ -f "${_ssh_dir}/config" ]]; then
+    _ssh_github_identity="$(awk '
+        /^[[:space:]]*Host[[:space:]]+github\.com[[:space:]]*$/ { found=1; next }
+        found && /^[[:space:]]*Host[[:space:]]/ { found=0 }
+        found && /^[[:space:]]*IdentityFile[[:space:]]/ { print $2; exit }
+    ' "${_ssh_dir}/config")"
+
+    if [[ -n "$_ssh_github_identity" ]]; then
+        # Expand ~ to the actual home directory
+        _ssh_github_identity_expanded="${_ssh_github_identity/#\~/$DOTFILES_HOME}"
+        if [[ -f "$_ssh_github_identity_expanded" ]]; then
+            log_success "GitHub IdentityFile exists: ${_ssh_github_identity}"
+        else
+            log_warn "GitHub IdentityFile not found: ${_ssh_github_identity}"
+            _ssh_errors=$((_ssh_errors + 1))
+        fi
+    fi
+fi
+
 if [[ $_ssh_errors -gt 0 ]]; then
     log_warn "SSH verification completed with ${_ssh_errors} warning(s)"
 else
