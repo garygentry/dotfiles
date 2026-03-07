@@ -87,6 +87,17 @@ else
     log_info "SSH key already exists at ${_ssh_key_file}"
 fi
 
+# Ensure the public key exists (e.g. if only the private key was copied/restored)
+if [[ -f "$_ssh_key_file" ]] && [[ ! -f "${_ssh_key_file}.pub" ]]; then
+    if is_dry_run; then
+        log_info "[dry-run] Would regenerate public key from ${_ssh_key_file}"
+    else
+        ssh-keygen -y -f "$_ssh_key_file" > "${_ssh_key_file}.pub"
+        chmod 644 "${_ssh_key_file}.pub"
+        log_success "Regenerated public key: ${_ssh_key_file}.pub"
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Handle GitHub config conflict
 # ---------------------------------------------------------------------------
