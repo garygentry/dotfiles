@@ -10,10 +10,10 @@ log_info "Adding Google Cloud apt repository..."
 
 # Add Google Cloud keyring
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
-    | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg 2>/dev/null
+    | sudo_cmd gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg 2>/dev/null
 
 # Add apt source
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
-    | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
+    | sudo_cmd tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
 
-sudo apt-get update -qq
+sudo_cmd apt-get update -qq

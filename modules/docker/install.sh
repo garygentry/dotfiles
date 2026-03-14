@@ -12,7 +12,7 @@ fi
 pkg_install docker || pkg_install docker.io
 
 # Add user to docker group
-sudo usermod -aG docker "$USER"
+sudo_cmd usermod -aG docker "$USER"
 
 log_warn "You may need to log out and back in for docker group membership to take effect"
 log_success "Docker installed"

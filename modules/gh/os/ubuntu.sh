@@ -9,13 +9,13 @@ fi
 log_info "Adding GitHub CLI apt repository..."
 
 # Add GitHub CLI keyring
-sudo mkdir -p -m 755 /etc/apt/keyrings
+sudo_cmd mkdir -p -m 755 /etc/apt/keyrings
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    | sudo_cmd tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo_cmd chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
 
 # Add apt source
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    | sudo_cmd tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 
-sudo apt-get update -qq
+sudo_cmd apt-get update -qq

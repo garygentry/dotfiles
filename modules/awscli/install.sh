@@ -20,7 +20,7 @@ if command -v aws &>/dev/null; then
                 "https://awscli.amazonaws.com/awscli-exe-linux-${_aws_arch}.zip" \
                 "${_aws_tmp}/awscliv2.zip"
             unzip -qo "${_aws_tmp}/awscliv2.zip" -d "${_aws_tmp}"
-            sudo "${_aws_tmp}/aws/install" --update 2>/dev/null || true
+            sudo_cmd "${_aws_tmp}/aws/install" --update 2>/dev/null || true
             rm -rf "${_aws_tmp}"
             ;;
     esac
@@ -47,7 +47,7 @@ case "${DOTFILES_PKG_MGR}" in
             "https://awscli.amazonaws.com/awscli-exe-linux-${_aws_arch}.zip" \
             "${_aws_tmp}/awscliv2.zip"
         unzip -qo "${_aws_tmp}/awscliv2.zip" -d "${_aws_tmp}"
-        sudo "${_aws_tmp}/aws/install"
+        sudo_cmd "${_aws_tmp}/aws/install"
         rm -rf "${_aws_tmp}"
         ;;
 esac

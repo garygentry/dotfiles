@@ -12,13 +12,8 @@ if is_dry_run; then
 fi
 
 log_info "Adding Neovim PPA for latest version..."
-if has_sudo; then
-    sudo add-apt-repository -y ppa:neovim-ppa/unstable 2>/dev/null || \
-        log_warn "Failed to add Neovim PPA, falling back to default apt package"
-    sudo apt-get update -qq
-    sudo apt-get install -y neovim
-    log_success "Neovim installed on Ubuntu"
-else
-    log_error "sudo is required to install Neovim on Ubuntu"
-    return 1
-fi
+sudo_cmd add-apt-repository -y ppa:neovim-ppa/unstable 2>/dev/null || \
+    log_warn "Failed to add Neovim PPA, falling back to default apt package"
+sudo_cmd apt-get update -qq
+sudo_cmd apt-get install -y neovim
+log_success "Neovim installed on Ubuntu"

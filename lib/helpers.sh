@@ -65,6 +65,20 @@ is_root()              { [[ "${DOTFILES_IS_ROOT:-false}" == "true" ]]; }
 is_interactive()       { [[ "${DOTFILES_INTERACTIVE:-false}" == "true" ]]; }
 is_dry_run()     { [[ "${DOTFILES_DRY_RUN:-false}" == "true" ]]; }
 
+# sudo_cmd CMD [ARGS...]
+#   Run a command with elevated privileges. If already root, runs directly.
+#   If sudo is available, uses sudo. Otherwise errors.
+sudo_cmd() {
+    if is_root; then
+        "$@"
+    elif has_sudo; then
+        sudo "$@"
+    else
+        log_error "Root privileges required but not root and sudo is not available"
+        return 1
+    fi
+}
+
 # ===========================================================================
 # Package management
 # ===========================================================================
@@ -105,26 +119,8 @@ pkg_install() {
     local cmd
     case "${DOTFILES_PKG_MGR:-}" in
         brew)   cmd=(brew install) ;;
-        apt)
-            if is_root; then
-                cmd=(apt-get install -y)
-            elif has_sudo; then
-                cmd=(sudo apt-get install -y)
-            else
-                log_error "apt requires sudo but sudo is not available"
-                return 1
-            fi
-            ;;
-        pacman)
-            if is_root; then
-                cmd=(pacman -S --noconfirm)
-            elif has_sudo; then
-                cmd=(sudo pacman -S --noconfirm)
-            else
-                log_error "pacman requires sudo but sudo is not available"
-                return 1
-            fi
-            ;;
+        apt)    cmd=(sudo_cmd apt-get install -y) ;;
+        pacman) cmd=(sudo_cmd pacman -S --noconfirm) ;;
         *)
             log_error "Unknown package manager: ${DOTFILES_PKG_MGR:-<unset>}"
             return 1

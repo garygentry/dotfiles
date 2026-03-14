@@ -14,7 +14,7 @@ fi
 
 # Install required dependencies
 log_info "Installing Homebrew dependencies..."
-sudo pacman -Sy --needed --noconfirm base-devel procps-ng curl file git
+sudo_cmd pacman -Sy --needed --noconfirm base-devel procps-ng curl file git
 
 # Install Homebrew
 log_info "Installing Homebrew (this may take a few minutes)..."

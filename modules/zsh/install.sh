@@ -71,8 +71,8 @@ if [[ "$_zsh_login_shell" != "zsh" ]]; then
         else
             # Ensure zsh is in /etc/shells
             if ! grep -qF "$_zsh_path" /etc/shells 2>/dev/null; then
-                if has_sudo; then
-                    echo "$_zsh_path" | sudo tee -a /etc/shells >/dev/null
+                if is_root || has_sudo; then
+                    echo "$_zsh_path" | sudo_cmd tee -a /etc/shells >/dev/null
                     log_info "Added ${_zsh_path} to /etc/shells"
                 else
                     log_warn "Cannot add ${_zsh_path} to /etc/shells without sudo"

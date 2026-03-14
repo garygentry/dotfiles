@@ -88,7 +88,7 @@ install_delta() {
 
     if is_ubuntu; then
         # delta is not in Ubuntu's apt repos; install from GitHub releases
-        if ! is_interactive && ! has_sudo; then
+        if ! is_interactive && ! is_root && ! has_sudo; then
             log_warn "git-delta requires sudo to install via dpkg on Ubuntu (non-interactive mode)"
             return 1
         fi
@@ -98,7 +98,7 @@ install_delta() {
         local tmp
         tmp="$(mktemp -d)"
         if curl -sfL -o "${tmp}/git-delta.deb" "$url"; then
-            sudo dpkg -i "${tmp}/git-delta.deb"
+            sudo_cmd dpkg -i "${tmp}/git-delta.deb"
             rm -rf "$tmp"
         else
             rm -rf "$tmp"

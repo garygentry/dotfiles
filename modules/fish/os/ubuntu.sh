@@ -7,5 +7,5 @@ if apt-cache policy fish 2>/dev/null | grep -q "fish-shell"; then
 fi
 
 log_info "Adding Fish shell PPA..."
-sudo apt-add-repository -y ppa:fish-shell/release-4
-sudo apt-get update -qq
+sudo_cmd apt-add-repository -y ppa:fish-shell/release-4
+sudo_cmd apt-get update -qq

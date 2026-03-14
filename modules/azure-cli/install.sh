@@ -19,7 +19,7 @@ case "${DOTFILES_PKG_MGR}" in
         ;;
     apt)
         # Official Microsoft install script
-        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo_cmd bash
         ;;
     pacman)
         pkg_install azure-cli

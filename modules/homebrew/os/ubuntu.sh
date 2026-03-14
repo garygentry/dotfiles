@@ -14,8 +14,8 @@ fi
 
 # Install required dependencies
 log_info "Installing Homebrew dependencies..."
-sudo apt-get update
-sudo apt-get install -y build-essential procps curl file git
+sudo_cmd apt-get update
+sudo_cmd apt-get install -y build-essential procps curl file git
 
 # Install Homebrew
 log_info "Installing Homebrew (this may take a few minutes)..."

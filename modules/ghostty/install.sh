@@ -15,7 +15,7 @@ log_info "Installing Ghostty..."
 
 case "${DOTFILES_PKG_MGR}" in
     apt)
-        sudo snap install ghostty
+        sudo_cmd snap install ghostty
         ;;
     *)
         pkg_install ghostty

@@ -31,8 +31,8 @@ else
     curl -sSfL "https://cache.agilebits.com/dist/1P/op2/pkg/v2.24.0/op_linux_${_op_arch}_v2.24.0.zip" \
         -o "${_op_tmpdir}/op.zip"
     cd "${_op_tmpdir}" && unzip -o op.zip
-    if has_sudo; then
-        sudo install -m 0755 op /usr/local/bin/op
+    if is_root || has_sudo; then
+        sudo_cmd install -m 0755 op /usr/local/bin/op
     else
         install -m 0755 op "${DOTFILES_HOME}/.local/bin/op"
     fi
