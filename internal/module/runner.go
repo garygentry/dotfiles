@@ -237,8 +237,20 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	decision, reason := shouldRunModule(mod, existingState, cfg)
 
 	if decision == ExecutionSkip {
-		cfg.UI.Info(fmt.Sprintf("✓ %s (skipped: %s)", mod.Name, reason))
-		return RunResult{Module: mod, Success: true, Skipped: true, Duration: time.Since(start)}
+		// Run verify.sh to confirm module is actually functional before skipping.
+		// Catches cases where the binary was removed after a previous successful install.
+		verifyScript := filepath.Join(mod.Dir, "verify.sh")
+		if _, statErr := os.Stat(verifyScript); statErr == nil {
+			envVars := buildEnvVars(cfg, mod, nil)
+			if err := runScript(cfg, mod, verifyScript, envVars); err != nil {
+				decision = ExecutionInstallRetry
+				reason = "verify failed: module not functional"
+			}
+		}
+		if decision == ExecutionSkip {
+			cfg.UI.Info(fmt.Sprintf("✓ %s (skipped: %s)", mod.Name, reason))
+			return RunResult{Module: mod, Success: true, Skipped: true, Duration: time.Since(start)}
+		}
 	}
 
 	// Show a static progress line while scripts run (no animated spinner).
