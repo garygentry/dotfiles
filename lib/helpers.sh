@@ -353,7 +353,7 @@ get_secret() {
 prompt_input() {
     local message="$1" default="${2:-}"
 
-    if ! is_interactive; then
+    if ! is_interactive || [[ ! -t 0 ]]; then
         printf '%s' "$default"
         return 0
     fi
@@ -374,7 +374,7 @@ prompt_input() {
 prompt_confirm() {
     local message="$1" default_bool="${2:-true}"
 
-    if ! is_interactive; then
+    if ! is_interactive || [[ ! -t 0 ]]; then
         [[ "$default_bool" == "true" ]]
         return $?
     fi
@@ -417,7 +417,7 @@ prompt_choice() {
         return 1
     fi
 
-    if ! is_interactive; then
+    if ! is_interactive || [[ ! -t 0 ]]; then
         printf '%s' "${options[0]}"
         return 0
     fi
