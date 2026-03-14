@@ -19,6 +19,7 @@ type SystemInfo struct {
 	PkgMgr       string // "brew", "apt", "pacman", or ""
 	HasSudo             bool   // whether the sudo command exists and is usable
 	HasPasswordlessSudo bool   // whether sudo works without a password prompt
+	IsRoot              bool   // whether running as root (uid 0)
 	User          string // current username
 	HomeDir       string // user home directory
 	DotfilesDir   string // location of dotfiles repository
@@ -42,6 +43,9 @@ func Detect() (*SystemInfo, error) {
 	// --- HasSudo ---
 	info.HasSudo = detectSudoExists()
 	info.HasPasswordlessSudo = detectSudo()
+
+	// --- IsRoot ---
+	info.IsRoot = os.Getuid() == 0
 
 	// --- User ---
 	u, err := user.Current()

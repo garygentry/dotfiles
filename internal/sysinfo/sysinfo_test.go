@@ -183,6 +183,18 @@ func TestParseOSReleaseIDQuoted(t *testing.T) {
 	}
 }
 
+func TestDetectIsRoot(t *testing.T) {
+	info, err := Detect()
+	if err != nil {
+		t.Fatalf("Detect() returned unexpected error: %v", err)
+	}
+
+	want := os.Getuid() == 0
+	if info.IsRoot != want {
+		t.Errorf("IsRoot = %v; want %v (uid=%d)", info.IsRoot, want, os.Getuid())
+	}
+}
+
 func TestParseOSReleaseIDMissing(t *testing.T) {
 	got := parseOSReleaseID("/nonexistent/path/os-release")
 	if got != "" {

@@ -478,6 +478,7 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 		"DOTFILES_PKG_MGR":     cfg.SysInfo.PkgMgr,
 		"DOTFILES_HAS_SUDO":             boolToStr(cfg.SysInfo.HasSudo),
 		"DOTFILES_HAS_PASSWORDLESS_SUDO": boolToStr(cfg.SysInfo.HasPasswordlessSudo),
+		"DOTFILES_IS_ROOT":              boolToStr(cfg.SysInfo.IsRoot),
 		"DOTFILES_HOME":        cfg.SysInfo.HomeDir,
 		"DOTFILES_DIR":         cfg.SysInfo.DotfilesDir,
 		"DOTFILES_BIN":         binPath,

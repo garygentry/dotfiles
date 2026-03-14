@@ -7,7 +7,7 @@
 # secret retrieval, and interactive prompts.
 #
 # All behaviour is driven by environment variables injected by the Go runner:
-#   DOTFILES_OS, DOTFILES_ARCH, DOTFILES_PKG_MGR, DOTFILES_HAS_SUDO,
+#   DOTFILES_OS, DOTFILES_ARCH, DOTFILES_PKG_MGR, DOTFILES_HAS_SUDO, DOTFILES_IS_ROOT,
 #   DOTFILES_HOME, DOTFILES_DIR, DOTFILES_BIN, DOTFILES_MODULE_DIR,
 #   DOTFILES_MODULE_NAME, DOTFILES_INTERACTIVE, DOTFILES_DRY_RUN,
 #   DOTFILES_VERBOSE, DOTFILES_USER_NAME, DOTFILES_USER_EMAIL,
@@ -61,6 +61,7 @@ is_ubuntu()      { [[ "${DOTFILES_OS:-}" == "ubuntu" ]]; }
 is_arch()        { [[ "${DOTFILES_OS:-}" == "arch" ]]; }
 has_sudo()             { [[ "${DOTFILES_HAS_SUDO:-false}" == "true" ]]; }
 has_passwordless_sudo() { [[ "${DOTFILES_HAS_PASSWORDLESS_SUDO:-false}" == "true" ]]; }
+is_root()              { [[ "${DOTFILES_IS_ROOT:-false}" == "true" ]]; }
 is_interactive()       { [[ "${DOTFILES_INTERACTIVE:-false}" == "true" ]]; }
 is_dry_run()     { [[ "${DOTFILES_DRY_RUN:-false}" == "true" ]]; }
 
@@ -105,7 +106,9 @@ pkg_install() {
     case "${DOTFILES_PKG_MGR:-}" in
         brew)   cmd=(brew install) ;;
         apt)
-            if has_sudo; then
+            if is_root; then
+                cmd=(apt-get install -y)
+            elif has_sudo; then
                 cmd=(sudo apt-get install -y)
             else
                 log_error "apt requires sudo but sudo is not available"
@@ -113,7 +116,9 @@ pkg_install() {
             fi
             ;;
         pacman)
-            if has_sudo; then
+            if is_root; then
+                cmd=(pacman -S --noconfirm)
+            elif has_sudo; then
                 cmd=(sudo pacman -S --noconfirm)
             else
                 log_error "pacman requires sudo but sudo is not available"
