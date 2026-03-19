@@ -12,21 +12,29 @@ import (
 
 var moduleNameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// LegacyPath describes a legacy config file that may conflict with managed configs.
+type LegacyPath struct {
+	Path   string `yaml:"path"`   // e.g. "~/.tmux.conf"
+	Action string `yaml:"action"` // "backup" (default), "warn", "prompt"
+	Reason string `yaml:"reason"` // shown to user
+}
+
 // Module represents a single dotfiles module defined by a module.yml file.
 type Module struct {
-	Name         string      `yaml:"name"`
-	Description  string      `yaml:"description"`
-	Version      string      `yaml:"version"`
-	Priority     int         `yaml:"priority"`
-	Dependencies []string    `yaml:"dependencies"`
-	OS           []string    `yaml:"os"`
-	Requires     []string    `yaml:"requires"`
-	Files        []FileEntry `yaml:"files"`
-	Prompts      []Prompt    `yaml:"prompts"`
-	Tags         []string    `yaml:"tags"`
-	Timeout      string      `yaml:"timeout"` // e.g., "10m", parsed via time.ParseDuration
-	Notes        []string    `yaml:"notes"`   // Post-install messages displayed after run
-	Dir          string      `yaml:"-"`
+	Name         string       `yaml:"name"`
+	Description  string       `yaml:"description"`
+	Version      string       `yaml:"version"`
+	Priority     int          `yaml:"priority"`
+	Dependencies []string     `yaml:"dependencies"`
+	OS           []string     `yaml:"os"`
+	Requires     []string     `yaml:"requires"`
+	Files        []FileEntry  `yaml:"files"`
+	Prompts      []Prompt     `yaml:"prompts"`
+	LegacyPaths  []LegacyPath `yaml:"legacy_paths"`
+	Tags         []string     `yaml:"tags"`
+	Timeout      string       `yaml:"timeout"` // e.g., "10m", parsed via time.ParseDuration
+	Notes        []string     `yaml:"notes"`   // Post-install messages displayed after run
+	Dir          string       `yaml:"-"`
 }
 
 // FileEntry describes a single file to deploy as part of a module.
@@ -133,6 +141,17 @@ func validateModule(m *Module) []string {
 	for i, o := range m.OS {
 		if !validOS[o] {
 			errs = append(errs, fmt.Sprintf("os[%d] %q is not valid (must be macos, ubuntu, or arch)", i, o))
+		}
+	}
+
+	// legacy_paths
+	validLegacyActions := map[string]bool{"backup": true, "warn": true, "prompt": true, "": true}
+	for i, lp := range m.LegacyPaths {
+		if lp.Path == "" {
+			errs = append(errs, fmt.Sprintf("legacy_paths[%d].path is required", i))
+		}
+		if !validLegacyActions[lp.Action] {
+			errs = append(errs, fmt.Sprintf("legacy_paths[%d].action %q is not valid (must be backup, warn, or prompt)", i, lp.Action))
 		}
 	}
 

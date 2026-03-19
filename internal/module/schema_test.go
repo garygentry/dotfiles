@@ -385,6 +385,41 @@ func TestValidateModule(t *testing.T) {
 			wantOk: true,
 		},
 		{
+			name: "valid legacy_paths",
+			module: &Module{
+				Name:        "tmux",
+				Description: "d",
+				Version:     "1",
+				LegacyPaths: []LegacyPath{
+					{Path: "~/.tmux.conf", Action: "backup", Reason: "shadows XDG"},
+					{Path: "~/.vimrc", Action: "warn"},
+					{Path: "~/.config/nvim/init.vim", Action: "prompt"},
+					{Path: "~/.old-config"}, // empty action defaults to backup
+				},
+			},
+			wantOk: true,
+		},
+		{
+			name: "legacy_paths missing path",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				LegacyPaths: []LegacyPath{{Action: "backup"}},
+			},
+			wantErrs: []string{"legacy_paths[0].path is required"},
+		},
+		{
+			name: "legacy_paths invalid action",
+			module: &Module{
+				Name:        "git",
+				Description: "d",
+				Version:     "1",
+				LegacyPaths: []LegacyPath{{Path: "~/.foo", Action: "delete"}},
+			},
+			wantErrs: []string{`legacy_paths[0].action "delete"`},
+		},
+		{
 			name: "depends_on references self (valid key)",
 			module: &Module{
 				Name:        "git",
@@ -430,6 +465,45 @@ func TestValidateModule(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParseModuleYAML_LegacyPaths(t *testing.T) {
+	dir := t.TempDir()
+	moduleDir := filepath.Join(dir, "tmux")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	yml := `name: tmux
+description: Terminal multiplexer
+version: "1.0.0"
+legacy_paths:
+  - path: "~/.tmux.conf"
+    action: backup
+    reason: "Shadows XDG config"
+  - path: "~/.vimrc"
+    action: warn
+    reason: "Vim still uses it"
+`
+	ymlPath := filepath.Join(moduleDir, "module.yml")
+	if err := os.WriteFile(ymlPath, []byte(yml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := ParseModuleYAML(ymlPath)
+	if err != nil {
+		t.Fatalf("ParseModuleYAML returned error: %v", err)
+	}
+
+	if len(m.LegacyPaths) != 2 {
+		t.Fatalf("LegacyPaths length = %d, want 2", len(m.LegacyPaths))
+	}
+	if m.LegacyPaths[0].Path != "~/.tmux.conf" || m.LegacyPaths[0].Action != "backup" {
+		t.Errorf("LegacyPaths[0] = %+v, unexpected", m.LegacyPaths[0])
+	}
+	if m.LegacyPaths[1].Path != "~/.vimrc" || m.LegacyPaths[1].Action != "warn" {
+		t.Errorf("LegacyPaths[1] = %+v, unexpected", m.LegacyPaths[1])
 	}
 }
 

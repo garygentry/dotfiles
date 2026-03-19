@@ -13,6 +13,10 @@ prompts:
       - skip
       - opinionated
     show_when: explicit_install
+legacy_paths:
+  - path: "~/.tmux.conf"
+    action: backup
+    reason: "Shadows XDG config (~/.config/tmux/tmux.conf) on tmux 3.1+"
 tags:
   - terminal
   - productivity

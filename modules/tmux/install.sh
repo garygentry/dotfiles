@@ -14,9 +14,9 @@ else
 fi
 
 # Install catppuccin/tmux manually (used via 'run' in tmux.conf, not TPM)
-_catppuccin_dir="${DOTFILES_HOME}/.config/tmux/plugins/catppuccin/tmux"
+_catppuccin_dir="${DOTFILES_XDG_CONFIG_HOME}/tmux/plugins/catppuccin/tmux"
 if [ ! -d "$_catppuccin_dir" ]; then
-    mkdir -p "${DOTFILES_HOME}/.config/tmux/plugins/catppuccin"
+    mkdir -p "${DOTFILES_XDG_CONFIG_HOME}/tmux/plugins/catppuccin"
     git clone -b v2.1.3 --depth 1 \
         https://github.com/catppuccin/tmux.git \
         "$_catppuccin_dir"
@@ -33,20 +33,17 @@ if [[ "$_tmux_config" == "opinionated" ]]; then
         log_info "[dry-run] Would deploy opinionated tmux config to ~/.config/tmux/tmux.conf"
         log_info "[dry-run] Would install TPM plugins headlessly"
     else
-        # Back up and remove legacy ~/.tmux.conf (shadows XDG path on tmux 3.1+)
-        _backup_file "${DOTFILES_HOME}/.tmux.conf"
-
         # Back up any existing XDG config before overwriting
-        _backup_file "${DOTFILES_HOME}/.config/tmux/tmux.conf"
+        _backup_file "${DOTFILES_XDG_CONFIG_HOME}/tmux/tmux.conf"
 
         # Deploy to XDG path
-        mkdir -p "${DOTFILES_HOME}/.config/tmux"
-        cp "${DOTFILES_MODULE_DIR}/tmux.conf" "${DOTFILES_HOME}/.config/tmux/tmux.conf"
-        log_success "Deployed opinionated tmux config to ~/.config/tmux/tmux.conf"
+        mkdir -p "${DOTFILES_XDG_CONFIG_HOME}/tmux"
+        cp "${DOTFILES_MODULE_DIR}/tmux.conf" "${DOTFILES_XDG_CONFIG_HOME}/tmux/tmux.conf"
+        log_success "Deployed opinionated tmux config to ${DOTFILES_XDG_CONFIG_HOME}/tmux/tmux.conf"
 
         # Deploy cheatsheet
-        cp "${DOTFILES_MODULE_DIR}/tmux-cheatsheet.md" "${DOTFILES_HOME}/.config/tmux/tmux-cheatsheet.md"
-        log_success "Deployed tmux cheatsheet to ~/.config/tmux/tmux-cheatsheet.md"
+        cp "${DOTFILES_MODULE_DIR}/tmux-cheatsheet.md" "${DOTFILES_XDG_CONFIG_HOME}/tmux/tmux-cheatsheet.md"
+        log_success "Deployed tmux cheatsheet to ${DOTFILES_XDG_CONFIG_HOME}/tmux/tmux-cheatsheet.md"
 
         # Install TPM plugins headlessly (runs tpm's install script without an active session)
         log_info "Installing TPM plugins headlessly..."

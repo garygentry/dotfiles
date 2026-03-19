@@ -18,6 +18,10 @@ files:
     dest: "~/.gitmessage"
     type: symlink
 prompts: []
+legacy_paths:
+  - path: "~/.gitconfig"
+    action: warn
+    reason: "May contain settings that override managed git config"
 tags:
   - development
   - git

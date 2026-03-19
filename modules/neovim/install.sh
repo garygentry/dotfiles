@@ -11,7 +11,7 @@ else
 fi
 
 # Ensure the nvim config directory exists
-_nvim_config="${DOTFILES_HOME}/.config/nvim"
+_nvim_config="${DOTFILES_XDG_CONFIG_HOME}/nvim"
 if [[ ! -d "$_nvim_config" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would create directory: ${_nvim_config}"

@@ -22,6 +22,7 @@ type SystemInfo struct {
 	IsRoot              bool   // whether running as root (uid 0)
 	User          string // current username
 	HomeDir       string // user home directory
+	XDGConfigHome string // resolved XDG_CONFIG_HOME (env or default ~/.config)
 	DotfilesDir   string // location of dotfiles repository
 	IsInteractive bool   // true when stdin is a terminal
 }
@@ -60,6 +61,12 @@ func Detect() (*SystemInfo, error) {
 		return nil, err
 	}
 	info.HomeDir = home
+
+	// --- XDGConfigHome ---
+	info.XDGConfigHome = os.Getenv("XDG_CONFIG_HOME")
+	if info.XDGConfigHome == "" {
+		info.XDGConfigHome = filepath.Join(home, ".config")
+	}
 
 	// --- DotfilesDir ---
 	if dir := os.Getenv("DOTFILES_DIR"); dir != "" {

@@ -25,6 +25,9 @@ type Context struct {
 	// DotfilesDir is the root path of the dotfiles repository.
 	DotfilesDir string
 
+	// XDGConfigHome is the resolved XDG_CONFIG_HOME path (env or default ~/.config).
+	XDGConfigHome string
+
 	// Module holds module-specific settings passed during rendering.
 	Module map[string]any
 

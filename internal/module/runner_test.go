@@ -67,15 +67,18 @@ func newTestRunConfig(t *testing.T) *RunConfig {
 	stateDir := t.TempDir()
 	dotfilesDir := t.TempDir()
 
+	homeDir := t.TempDir()
+
 	return &RunConfig{
 		SysInfo: &sysinfo.SystemInfo{
-			OS:          "linux",
-			Arch:        "amd64",
-			PkgMgr:      "apt",
-			HasSudo:     true,
-			User:        "testuser",
-			HomeDir:     t.TempDir(),
-			DotfilesDir: dotfilesDir,
+			OS:            "linux",
+			Arch:          "amd64",
+			PkgMgr:        "apt",
+			HasSudo:       true,
+			User:          "testuser",
+			HomeDir:       homeDir,
+			XDGConfigHome: filepath.Join(homeDir, ".config"),
+			DotfilesDir:   dotfilesDir,
 		},
 		Config: &config.Config{
 			Profile:     "test",
@@ -118,8 +121,9 @@ func TestBuildEnvVars(t *testing.T) {
 		"DOTFILES_ARCH":        "amd64",
 		"DOTFILES_PKG_MGR":     "apt",
 		"DOTFILES_HAS_SUDO":    "true",
-		"DOTFILES_HOME":        cfg.SysInfo.HomeDir,
-		"DOTFILES_DIR":         cfg.SysInfo.DotfilesDir,
+		"DOTFILES_HOME":           cfg.SysInfo.HomeDir,
+		"DOTFILES_XDG_CONFIG_HOME": cfg.SysInfo.XDGConfigHome,
+		"DOTFILES_DIR":            cfg.SysInfo.DotfilesDir,
 		"DOTFILES_MODULE_DIR":  "/tmp/modules/test-module",
 		"DOTFILES_MODULE_NAME": "test-module",
 		"DOTFILES_INTERACTIVE": "false", // Unattended=true => interactive=false
@@ -285,25 +289,36 @@ func TestDeployCopy(t *testing.T) {
 	}
 }
 
-func TestExpandHome(t *testing.T) {
+func TestExpandPaths(t *testing.T) {
 	home := "/home/testuser"
+	xdgDefault := "/home/testuser/.config"
+	xdgCustom := "/tmp/xdg-config"
 
 	tests := []struct {
-		input string
-		want  string
+		name          string
+		input         string
+		xdgConfigHome string
+		want          string
 	}{
-		{"~/.bashrc", "/home/testuser/.bashrc"},
-		{"~/", "/home/testuser"},
-		{"~", "/home/testuser"},
-		{"/etc/config", "/etc/config"},
-		{"relative/path", "relative/path"},
+		{"home dir tilde", "~/.bashrc", xdgDefault, "/home/testuser/.bashrc"},
+		{"home dir trailing slash", "~/", xdgDefault, "/home/testuser"},
+		{"bare tilde", "~", xdgDefault, "/home/testuser"},
+		{"absolute path", "/etc/config", xdgDefault, "/etc/config"},
+		{"relative path", "relative/path", xdgDefault, "relative/path"},
+		{"xdg config default", "~/.config/tmux/tmux.conf", xdgDefault, "/home/testuser/.config/tmux/tmux.conf"},
+		{"xdg config custom", "~/.config/tmux/tmux.conf", xdgCustom, "/tmp/xdg-config/tmux/tmux.conf"},
+		{"xdg config nested", "~/.config/nvim/init.lua", xdgCustom, "/tmp/xdg-config/nvim/init.lua"},
+		{"xdg config root file", "~/.config/starship.toml", xdgCustom, "/tmp/xdg-config/starship.toml"},
+		{"non-config dot path", "~/.local/bin", xdgCustom, "/home/testuser/.local/bin"},
 	}
 
 	for _, tt := range tests {
-		got := expandHome(tt.input, home)
-		if got != tt.want {
-			t.Errorf("expandHome(%q, %q) = %q, want %q", tt.input, home, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got := expandPaths(tt.input, home, tt.xdgConfigHome)
+			if got != tt.want {
+				t.Errorf("expandPaths(%q, %q, %q) = %q, want %q", tt.input, home, tt.xdgConfigHome, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -772,6 +787,181 @@ func TestScriptUsesSudoGitInstallOnMacOS(t *testing.T) {
 	got := scriptUsesSudo(gitInstall, "brew", "macos")
 	if got {
 		t.Error("scriptUsesSudo(git/install.sh, brew, macos) = true, want false; sudo is inside is_ubuntu guard")
+	}
+}
+
+func TestHandleLegacyPathsBackup(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	// Create a legacy file
+	legacyFile := filepath.Join(cfg.SysInfo.HomeDir, ".tmux.conf")
+	if err := os.WriteFile(legacyFile, []byte("legacy-content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create backup directory
+	if err := os.MkdirAll(filepath.Join(cfg.SysInfo.DotfilesDir, ".backups"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name: "tmux",
+		Dir:  t.TempDir(),
+		LegacyPaths: []LegacyPath{
+			{Path: "~/.tmux.conf", Action: "backup", Reason: "Shadows XDG config"},
+		},
+	}
+
+	modState := &state.ModuleState{Name: mod.Name}
+
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		t.Fatalf("handleLegacyPaths: %v", err)
+	}
+
+	// Legacy file should be removed
+	if _, err := os.Stat(legacyFile); !os.IsNotExist(err) {
+		t.Error("expected legacy file to be removed after backup")
+	}
+
+	// Should have recorded a legacy_cleanup operation
+	found := false
+	for _, op := range modState.Operations {
+		if op.Type == "legacy_cleanup" && op.Path == legacyFile {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected legacy_cleanup operation to be recorded")
+	}
+}
+
+func TestHandleLegacyPathsWarn(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	ui := cfg.UI.(*testUI)
+
+	// Create a legacy file
+	legacyFile := filepath.Join(cfg.SysInfo.HomeDir, ".gitconfig")
+	if err := os.WriteFile(legacyFile, []byte("legacy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name: "git",
+		Dir:  t.TempDir(),
+		LegacyPaths: []LegacyPath{
+			{Path: "~/.gitconfig", Action: "warn", Reason: "May override managed config"},
+		},
+	}
+
+	modState := &state.ModuleState{Name: mod.Name}
+
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		t.Fatalf("handleLegacyPaths: %v", err)
+	}
+
+	// File should still exist
+	if _, err := os.Stat(legacyFile); err != nil {
+		t.Error("expected legacy file to still exist for warn action")
+	}
+
+	// Should have a warning
+	foundWarn := false
+	for _, w := range ui.warns {
+		if strings.Contains(w, ".gitconfig") {
+			foundWarn = true
+		}
+	}
+	if !foundWarn {
+		t.Errorf("expected warning about .gitconfig, got warns: %v", ui.warns)
+	}
+}
+
+func TestHandleLegacyPathsNonexistent(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	mod := &Module{
+		Name: "tmux",
+		Dir:  t.TempDir(),
+		LegacyPaths: []LegacyPath{
+			{Path: "~/.tmux.conf", Action: "backup"},
+		},
+	}
+
+	modState := &state.ModuleState{Name: mod.Name}
+
+	// Should succeed without error — file doesn't exist
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		t.Fatalf("handleLegacyPaths: %v", err)
+	}
+
+	if len(modState.Operations) != 0 {
+		t.Errorf("expected no operations for nonexistent file, got %d", len(modState.Operations))
+	}
+}
+
+func TestHandleLegacyPathsDryRun(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.DryRun = true
+
+	legacyFile := filepath.Join(cfg.SysInfo.HomeDir, ".tmux.conf")
+	if err := os.WriteFile(legacyFile, []byte("legacy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name: "tmux",
+		Dir:  t.TempDir(),
+		LegacyPaths: []LegacyPath{
+			{Path: "~/.tmux.conf", Action: "backup"},
+		},
+	}
+
+	modState := &state.ModuleState{Name: mod.Name}
+
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		t.Fatalf("handleLegacyPaths: %v", err)
+	}
+
+	// File should still exist in dry-run mode
+	if _, err := os.Stat(legacyFile); err != nil {
+		t.Error("expected legacy file to still exist in dry-run mode")
+	}
+}
+
+func TestHandleLegacyPathsPromptUnattended(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.Unattended = true
+
+	legacyFile := filepath.Join(cfg.SysInfo.HomeDir, ".config", "nvim", "init.vim")
+	if err := os.MkdirAll(filepath.Dir(legacyFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacyFile, []byte("set nocompatible"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create backup directory
+	if err := os.MkdirAll(filepath.Join(cfg.SysInfo.DotfilesDir, ".backups"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name: "neovim",
+		Dir:  t.TempDir(),
+		LegacyPaths: []LegacyPath{
+			{Path: "~/.config/nvim/init.vim", Action: "prompt", Reason: "Conflicts with Lua config"},
+		},
+	}
+
+	modState := &state.ModuleState{Name: mod.Name}
+
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		t.Fatalf("handleLegacyPaths: %v", err)
+	}
+
+	// In unattended mode, prompt falls back to backup — file should be removed
+	if _, err := os.Stat(legacyFile); !os.IsNotExist(err) {
+		t.Error("expected legacy file to be removed (prompt falls back to backup in unattended mode)")
 	}
 }
 

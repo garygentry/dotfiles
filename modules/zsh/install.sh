@@ -12,7 +12,7 @@ else
 fi
 
 # Create zsh config directory
-_zsh_config_dir="${DOTFILES_HOME}/.config/zsh"
+_zsh_config_dir="${DOTFILES_XDG_CONFIG_HOME}/zsh"
 if [[ ! -d "$_zsh_config_dir" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would create directory: ${_zsh_config_dir}"

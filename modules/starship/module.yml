@@ -29,6 +29,10 @@ prompts:
       - no-runtime-versions
       - no-empty-icons
     show_when: explicit_install
+legacy_paths:
+  - path: "~/.config/starship.toml"
+    action: backup
+    reason: "Will be replaced by managed starship config"
 tags:
   - shell
   - prompt

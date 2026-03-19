@@ -281,6 +281,23 @@ func TestRenderToFile_TemplateError(t *testing.T) {
 	}
 }
 
+func TestRenderString_XDGConfigHome(t *testing.T) {
+	ctx := &Context{
+		XDGConfigHome: "/custom/config",
+	}
+
+	tmpl := `config={{ .XDGConfigHome }}`
+	result, err := RenderString(tmpl, ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := "config=/custom/config"
+	if result != expected {
+		t.Errorf("got %q, want %q", result, expected)
+	}
+}
+
 func TestRenderString_SecretsAndEnv(t *testing.T) {
 	ctx := &Context{
 		Secrets: map[string]string{"api_key": "sk-12345"},

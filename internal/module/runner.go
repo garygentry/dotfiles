@@ -283,6 +283,12 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
 	}
 
+	// Step 1.5: Handle legacy path cleanup.
+	if err := handleLegacyPaths(cfg, mod, modState); err != nil {
+		cfg.UI.Error(fmt.Sprintf("Failed %s: legacy path cleanup: %v", mod.Name, err))
+		return handleInstallFailure(cfg, modState, mod, err, start)
+	}
+
 	// Step 2: Build environment variables.
 	envVars := buildEnvVars(cfg, mod, promptAnswers)
 
@@ -467,6 +473,82 @@ func handlePrompts(cfg *RunConfig, mod *Module) (map[string]string, error) {
 	return answers, nil
 }
 
+// handleLegacyPaths processes legacy_paths entries, backing up, warning, or
+// prompting for each legacy file that exists. This runs before scripts and
+// file deployment to prevent conflicts with XDG-compliant configs.
+func handleLegacyPaths(cfg *RunConfig, mod *Module, modState *state.ModuleState) error {
+	for _, lp := range mod.LegacyPaths {
+		path := expandPaths(lp.Path, cfg.SysInfo.HomeDir, cfg.SysInfo.XDGConfigHome)
+
+		// Check if the legacy file exists
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return fmt.Errorf("checking legacy path %s: %w", path, err)
+		}
+
+		action := lp.Action
+		if action == "" {
+			action = "backup"
+		}
+
+		reason := lp.Reason
+		if reason == "" {
+			reason = "legacy config file"
+		}
+
+		switch action {
+		case "warn":
+			cfg.UI.Warn(fmt.Sprintf("Legacy file found: %s — %s", path, reason))
+
+		case "prompt":
+			if cfg.Unattended {
+				// Fall back to backup in unattended mode
+				action = "backup"
+			} else {
+				cfg.UI.Warn(fmt.Sprintf("Legacy file found: %s — %s", path, reason))
+				confirmed, err := cfg.UI.PromptConfirm(
+					fmt.Sprintf("Back up and remove %s?", lp.Path), true)
+				if err != nil {
+					return fmt.Errorf("prompt for legacy path %s: %w", path, err)
+				}
+				if !confirmed {
+					cfg.UI.Info(fmt.Sprintf("Skipping legacy file: %s", path))
+					continue
+				}
+				action = "backup"
+			}
+		}
+
+		if action == "backup" {
+			if cfg.DryRun {
+				cfg.UI.Info(fmt.Sprintf("[dry-run] Would back up and remove legacy file: %s", path))
+				continue
+			}
+
+			if err := createBackup(path, cfg, mod.Name); err != nil {
+				return fmt.Errorf("backing up legacy file %s: %w", path, err)
+			}
+
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("removing legacy file %s: %w", path, err)
+			}
+
+			modState.RecordOperation(state.Operation{
+				Type:   "legacy_cleanup",
+				Action: "backed_up",
+				Path:   path,
+				Metadata: map[string]string{
+					"reason": reason,
+				},
+			})
+
+			cfg.UI.Success(fmt.Sprintf("Backed up and removed legacy file: %s", path))
+		}
+	}
+	return nil
+}
+
 // buildEnvVars constructs the full DOTFILES_* environment variable map
 // passed to scripts and available during module execution.
 func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) map[string]string {
@@ -479,8 +561,9 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 		"DOTFILES_HAS_SUDO":             boolToStr(cfg.SysInfo.HasSudo),
 		"DOTFILES_HAS_PASSWORDLESS_SUDO": boolToStr(cfg.SysInfo.HasPasswordlessSudo),
 		"DOTFILES_IS_ROOT":              boolToStr(cfg.SysInfo.IsRoot),
-		"DOTFILES_HOME":        cfg.SysInfo.HomeDir,
-		"DOTFILES_DIR":         cfg.SysInfo.DotfilesDir,
+		"DOTFILES_HOME":           cfg.SysInfo.HomeDir,
+		"DOTFILES_XDG_CONFIG_HOME": cfg.SysInfo.XDGConfigHome,
+		"DOTFILES_DIR":            cfg.SysInfo.DotfilesDir,
 		"DOTFILES_BIN":         binPath,
 		"DOTFILES_MODULE_DIR":  mod.Dir,
 		"DOTFILES_MODULE_NAME": mod.Name,
@@ -531,14 +614,15 @@ func buildTemplateContext(cfg *RunConfig, mod *Module, envVars map[string]string
 	secretsMap := make(map[string]string)
 
 	return &template.Context{
-		User:        userMap,
-		OS:          cfg.SysInfo.OS,
-		Arch:        cfg.SysInfo.Arch,
-		Home:        cfg.SysInfo.HomeDir,
-		DotfilesDir: cfg.SysInfo.DotfilesDir,
-		Module:      modSettings,
-		Secrets:     secretsMap,
-		Env:         envVars,
+		User:          userMap,
+		OS:            cfg.SysInfo.OS,
+		Arch:          cfg.SysInfo.Arch,
+		Home:          cfg.SysInfo.HomeDir,
+		DotfilesDir:   cfg.SysInfo.DotfilesDir,
+		XDGConfigHome: cfg.SysInfo.XDGConfigHome,
+		Module:        modSettings,
+		Secrets:       secretsMap,
+		Env:           envVars,
 	}
 }
 
@@ -887,7 +971,7 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 
 	for _, f := range mod.Files {
 		src := filepath.Join(mod.Dir, f.Source)
-		dest := expandHome(f.Dest, cfg.SysInfo.HomeDir)
+		dest := expandPaths(f.Dest, cfg.SysInfo.HomeDir, cfg.SysInfo.XDGConfigHome)
 
 		// Compute source hash for change detection
 		sourceHash, err := ComputeFileHash(src)
@@ -1146,10 +1230,15 @@ func recordStateWithChecksums(cfg *RunConfig, modState *state.ModuleState, mod *
 	}
 }
 
-// expandHome replaces a leading ~ in path with the provided home directory.
-func expandHome(path, homeDir string) string {
+// expandPaths replaces a leading ~ in path with the provided home directory.
+// Paths starting with ~/.config/ are redirected to xdgConfigHome, which
+// respects the $XDG_CONFIG_HOME environment variable.
+func expandPaths(path, homeDir, xdgConfigHome string) string {
 	if path == "~" {
 		return homeDir
+	}
+	if strings.HasPrefix(path, "~/.config/") {
+		return filepath.Join(xdgConfigHome, path[len("~/.config/"):])
 	}
 	if strings.HasPrefix(path, "~/") {
 		return filepath.Join(homeDir, path[2:])
@@ -1241,6 +1330,8 @@ func executeRollbackOp(cfg *RunConfig, op state.Operation) error {
 		return rollbackFileOp(op)
 	case "dir_create":
 		return rollbackDirOp(op)
+	case "legacy_cleanup":
+		return rollbackLegacyCleanup(cfg, op)
 	case "script_run":
 		// Scripts cannot be automatically rolled back
 		cfg.UI.Debug(fmt.Sprintf("Script rollback not supported: %s", op.Path))
@@ -1300,5 +1391,47 @@ func rollbackDirOp(op state.Operation) error {
 		}
 	}
 
+	return nil
+}
+
+// rollbackLegacyCleanup restores a backed-up legacy file. It searches the
+// backup directory for the most recent backup matching the original path.
+func rollbackLegacyCleanup(cfg *RunConfig, op state.Operation) error {
+	cfg.UI.Debug(fmt.Sprintf("Restoring legacy file: %s", op.Path))
+
+	// Find the backup in .backups/ — scan timestamped dirs in reverse order
+	backupRoot := filepath.Join(cfg.SysInfo.DotfilesDir, ".backups")
+	entries, err := os.ReadDir(backupRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg.UI.Warn(fmt.Sprintf("No backups directory found, cannot restore: %s", op.Path))
+			return nil
+		}
+		return fmt.Errorf("reading backup directory: %w", err)
+	}
+
+	relPath, err := filepath.Rel(cfg.SysInfo.HomeDir, op.Path)
+	if err != nil {
+		relPath = filepath.Base(op.Path)
+	}
+
+	// Search in reverse (most recent first)
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		if !entry.IsDir() {
+			continue
+		}
+		backupPath := filepath.Join(backupRoot, entry.Name(), relPath)
+		if _, statErr := os.Stat(backupPath); statErr == nil {
+			// Found the backup — restore it
+			if err := copyFile(backupPath, op.Path); err != nil {
+				return fmt.Errorf("restoring %s from backup: %w", op.Path, err)
+			}
+			cfg.UI.Success(fmt.Sprintf("Restored legacy file: %s", op.Path))
+			return nil
+		}
+	}
+
+	cfg.UI.Warn(fmt.Sprintf("No backup found for legacy file: %s", op.Path))
 	return nil
 }

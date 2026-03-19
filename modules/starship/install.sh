@@ -2,7 +2,7 @@
 # starship/install.sh - Install Starship cross-shell prompt
 
 # Ensure ~/.config exists for the config symlink
-_starship_config_dir="${DOTFILES_HOME}/.config"
+_starship_config_dir="${DOTFILES_XDG_CONFIG_HOME}"
 if [[ ! -d "$_starship_config_dir" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would create directory: ${_starship_config_dir}"
@@ -32,7 +32,7 @@ _starship_bin="$(command -v starship 2>/dev/null || echo "${_starship_bin_dir}/s
 
 # Apply starship preset or custom config
 _preset="${DOTFILES_PROMPT_STARSHIP_PRESET:-custom}"
-_starship_cfg="${DOTFILES_HOME}/.config/starship.toml"
+_starship_cfg="${DOTFILES_XDG_CONFIG_HOME}/starship.toml"
 
 if is_dry_run; then
     log_info "[dry-run] Would apply starship preset: ${_preset}"

@@ -195,6 +195,48 @@ func TestDetectIsRoot(t *testing.T) {
 	}
 }
 
+func TestXDGConfigHomeDefault(t *testing.T) {
+	orig := os.Getenv("XDG_CONFIG_HOME")
+	os.Unsetenv("XDG_CONFIG_HOME")
+	t.Cleanup(func() {
+		if orig != "" {
+			os.Setenv("XDG_CONFIG_HOME", orig)
+		}
+	})
+
+	info, err := Detect()
+	if err != nil {
+		t.Fatalf("Detect() returned unexpected error: %v", err)
+	}
+
+	want := info.HomeDir + "/.config"
+	if info.XDGConfigHome != want {
+		t.Errorf("XDGConfigHome = %q; want %q", info.XDGConfigHome, want)
+	}
+}
+
+func TestXDGConfigHomeEnvOverride(t *testing.T) {
+	customDir := "/tmp/xdg-test-config"
+	orig := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", customDir)
+	t.Cleanup(func() {
+		if orig != "" {
+			os.Setenv("XDG_CONFIG_HOME", orig)
+		} else {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	})
+
+	info, err := Detect()
+	if err != nil {
+		t.Fatalf("Detect() returned unexpected error: %v", err)
+	}
+
+	if info.XDGConfigHome != customDir {
+		t.Errorf("XDGConfigHome = %q; want %q", info.XDGConfigHome, customDir)
+	}
+}
+
 func TestParseOSReleaseIDMissing(t *testing.T) {
 	got := parseOSReleaseID("/nonexistent/path/os-release")
 	if got != "" {
