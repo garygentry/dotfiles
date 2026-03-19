@@ -8,8 +8,12 @@ if command -v fzf >/dev/null 2>&1; then
     exit 0
 fi
 
-# Install fzf
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install --key-bindings --completion --no-update-rc
-
-log_success "fzf installed with shell integration"
+# Try package manager first, fall back to git clone
+if pkg_install fzf 2>/dev/null; then
+    log_success "fzf installed via package manager"
+else
+    log_info "Package manager install failed, installing from git..."
+    git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+    ~/.fzf/install --key-bindings --completion --no-update-rc
+    log_success "fzf installed with shell integration"
+fi
