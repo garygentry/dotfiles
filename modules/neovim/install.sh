@@ -10,6 +10,14 @@ else
     log_info "Neovim is already installed"
 fi
 
+# Install ripgrep (required by Telescope live_grep)
+if ! command -v rg &>/dev/null; then
+    log_info "ripgrep not found, installing..."
+    pkg_install ripgrep
+else
+    log_info "ripgrep is already installed"
+fi
+
 # Ensure the nvim config directory exists
 _nvim_config="${DOTFILES_XDG_CONFIG_HOME}/nvim"
 if [[ ! -d "$_nvim_config" ]]; then

@@ -18,7 +18,7 @@ else
 fi
 
 # Check init.lua is linked
-_nvim_init_lua="${DOTFILES_HOME}/.config/nvim/init.lua"
+_nvim_init_lua="${DOTFILES_XDG_CONFIG_HOME}/nvim/init.lua"
 if [[ -L "$_nvim_init_lua" ]]; then
     log_success "init.lua is symlinked: ${_nvim_init_lua}"
 elif [[ -f "$_nvim_init_lua" ]]; then
@@ -29,7 +29,7 @@ else
 fi
 
 # Check nvim config directory exists
-_nvim_config="${DOTFILES_HOME}/.config/nvim"
+_nvim_config="${DOTFILES_XDG_CONFIG_HOME}/nvim"
 if [[ -d "$_nvim_config" ]]; then
     log_success "Neovim config directory exists: ${_nvim_config}"
 else
