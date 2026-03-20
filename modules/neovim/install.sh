@@ -24,6 +24,11 @@ if [[ ! -d "$_nvim_config" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would create directory: ${_nvim_config}"
     else
+        # Remove stale file/symlink if something non-directory exists
+        if [[ -e "$_nvim_config" || -L "$_nvim_config" ]]; then
+            log_warn "Removing non-directory at ${_nvim_config}"
+            rm -f "$_nvim_config"
+        fi
         mkdir -p "$_nvim_config"
         log_success "Created ${_nvim_config}"
     fi
