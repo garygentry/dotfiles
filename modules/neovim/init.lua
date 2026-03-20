@@ -301,31 +301,44 @@ require("lazy").setup({
       "hrsh7th/cmp-nvim-lsp",
     },
     config = function()
-      local lspconfig = require("lspconfig")
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-      -- Shared on_attach for all LSP servers
-      local on_attach = function(_, bufnr)
-        local map = function(keys, func, desc)
-          vim.keymap.set("n", keys, func, { buffer = bufnr, desc = "LSP: " .. desc })
-        end
+      -- LSP keybindings via LspAttach autocmd
+      vim.api.nvim_create_autocmd("LspAttach", {
+        callback = function(ev)
+          local map = function(keys, func, desc)
+            vim.keymap.set("n", keys, func, { buffer = ev.buf, desc = "LSP: " .. desc })
+          end
 
-        map("gd",         vim.lsp.buf.definition,       "Go to Definition")
-        map("gD",         vim.lsp.buf.declaration,      "Go to Declaration")
-        map("gr",         vim.lsp.buf.references,       "Go to References")
-        map("gi",         vim.lsp.buf.implementation,   "Go to Implementation")
-        map("gt",         vim.lsp.buf.type_definition,  "Go to Type Definition")
-        map("K",          vim.lsp.buf.hover,            "Hover Documentation")
-        map("<C-k>",      vim.lsp.buf.signature_help,   "Signature Help")
-        map("<leader>rn", vim.lsp.buf.rename,           "Rename Symbol")
-        map("<leader>ca", vim.lsp.buf.code_action,      "Code Action")
-        map("<leader>fs", require("telescope.builtin").lsp_document_symbols, "Document Symbols")
-      end
+          map("gd",         vim.lsp.buf.definition,       "Go to Definition")
+          map("gD",         vim.lsp.buf.declaration,      "Go to Declaration")
+          map("gr",         vim.lsp.buf.references,       "Go to References")
+          map("gi",         vim.lsp.buf.implementation,   "Go to Implementation")
+          map("gt",         vim.lsp.buf.type_definition,  "Go to Type Definition")
+          map("K",          vim.lsp.buf.hover,            "Hover Documentation")
+          map("<C-k>",      vim.lsp.buf.signature_help,   "Signature Help")
+          map("<leader>rn", vim.lsp.buf.rename,           "Rename Symbol")
+          map("<leader>ca", vim.lsp.buf.code_action,      "Code Action")
+          map("<leader>fs", require("telescope.builtin").lsp_document_symbols, "Document Symbols")
+
+          -- ESLint: fix on save
+          local client = vim.lsp.get_client_by_id(ev.data.client_id)
+          if client and client.name == "eslint" then
+            vim.api.nvim_create_autocmd("BufWritePre", {
+              buffer = ev.buf,
+              command = "EslintFixAll",
+            })
+          end
+        end,
+      })
+
+      -- Global capabilities for all servers
+      vim.lsp.config("*", {
+        capabilities = capabilities,
+      })
 
       -- TypeScript
-      lspconfig.ts_ls.setup({
-        capabilities = capabilities,
-        on_attach = on_attach,
+      vim.lsp.config("ts_ls", {
         settings = {
           typescript = {
             inlayHints = {
@@ -346,9 +359,7 @@ require("lazy").setup({
       })
 
       -- Lua (with Neovim globals awareness)
-      lspconfig.lua_ls.setup({
-        capabilities = capabilities,
-        on_attach = on_attach,
+      vim.lsp.config("lua_ls", {
         settings = {
           Lua = {
             diagnostics = { globals = { "vim" } },
@@ -361,21 +372,8 @@ require("lazy").setup({
         },
       })
 
-      -- ESLint (runs as LSP, applies fixes on save)
-      lspconfig.eslint.setup({
-        capabilities = capabilities,
-        on_attach = function(_, bufnr)
-          vim.api.nvim_create_autocmd("BufWritePre", {
-            buffer = bufnr,
-            command = "EslintFixAll",
-          })
-        end,
-      })
-
       -- Go
-      lspconfig.gopls.setup({
-        capabilities = capabilities,
-        on_attach = on_attach,
+      vim.lsp.config("gopls", {
         settings = {
           gopls = {
             analyses = { unusedparams = true },
@@ -384,13 +382,11 @@ require("lazy").setup({
         },
       })
 
-      -- Simple servers (defaults are fine)
-      for _, server in ipairs({ "html", "cssls", "jsonls", "yamlls" }) do
-        lspconfig[server].setup({
-          capabilities = capabilities,
-          on_attach = on_attach,
-        })
-      end
+      -- Enable all configured servers
+      vim.lsp.enable({
+        "ts_ls", "lua_ls", "eslint", "gopls",
+        "html", "cssls", "jsonls", "yamlls",
+      })
 
       -- Diagnostic display config
       vim.diagnostic.config({
@@ -399,14 +395,8 @@ require("lazy").setup({
         underline = true,
         update_in_insert = false,
         severity_sort = true,
-        float = { border = "rounded", source = "always" },
+        float = { border = "rounded", source = true },
       })
-
-      -- Rounded borders for hover/signature windows
-      vim.lsp.handlers["textDocument/hover"] =
-        vim.lsp.with(vim.lsp.handlers.hover, { border = "rounded" })
-      vim.lsp.handlers["textDocument/signatureHelp"] =
-        vim.lsp.with(vim.lsp.handlers.signature_help, { border = "rounded" })
     end,
   },
 
