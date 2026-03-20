@@ -237,15 +237,31 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	decision, reason := shouldRunModule(mod, existingState, cfg)
 
 	if decision == ExecutionSkip {
-		// Run verify.sh to confirm module is actually functional before skipping.
+		// Run verify.sh silently to confirm module is actually functional before skipping.
 		// Catches cases where the binary was removed after a previous successful install.
+		// Output is discarded since this is just an idempotence check — we only need the exit code.
 		verifyScript := filepath.Join(mod.Dir, "verify.sh")
-		if _, statErr := os.Stat(verifyScript); statErr == nil {
+		if _, statErr := os.Stat(verifyScript); statErr == nil && !cfg.DryRun {
+			helpersPath := filepath.Join(cfg.SysInfo.DotfilesDir, "lib", "helpers.sh")
+			var wrapper strings.Builder
+			wrapper.WriteString("set -euo pipefail\n")
+			wrapper.WriteString(fmt.Sprintf("if [ -f %q ]; then source %q; fi\n", helpersPath, helpersPath))
+			wrapper.WriteString(fmt.Sprintf("source %q\n", verifyScript))
+
+			vCtx, vCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			cmd := exec.CommandContext(vCtx, "bash", "-c", wrapper.String())
+			cmd.Env = os.Environ()
 			envVars := buildEnvVars(cfg, mod, nil)
-			if err := runScript(cfg, mod, verifyScript, envVars); err != nil {
+			for k, v := range envVars {
+				cmd.Env = append(cmd.Env, k+"="+v)
+			}
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			if err := cmd.Run(); err != nil {
 				decision = ExecutionInstallRetry
 				reason = "verify failed: module not functional"
 			}
+			vCancel()
 		}
 		if decision == ExecutionSkip {
 			cfg.UI.Info(fmt.Sprintf("✓ %s (skipped: %s)", mod.Name, reason))

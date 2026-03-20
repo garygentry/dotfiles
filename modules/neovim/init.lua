@@ -271,132 +271,27 @@ require("lazy").setup({
       require("mason").setup({
         ui = { border = "rounded" },
       })
-    end,
-  },
 
-  {
-    "williamboman/mason-lspconfig.nvim",
-    dependencies = { "williamboman/mason.nvim" },
-    config = function()
-      require("mason-lspconfig").setup({
-        ensure_installed = {
-          "ts_ls",        -- TypeScript / JavaScript
-          "lua_ls",       -- Lua
-          "gopls",        -- Go
-          "html",
-          "cssls",
-          "jsonls",
-          "yamlls",
-          "eslint",
-        },
-        automatic_installation = true,
-      })
-    end,
-  },
-
-  {
-    "neovim/nvim-lspconfig",
-    dependencies = {
-      "williamboman/mason-lspconfig.nvim",
-      "hrsh7th/cmp-nvim-lsp",
-    },
-    config = function()
-      local capabilities = require("cmp_nvim_lsp").default_capabilities()
-
-      -- LSP keybindings via LspAttach autocmd
-      vim.api.nvim_create_autocmd("LspAttach", {
-        callback = function(ev)
-          local map = function(keys, func, desc)
-            vim.keymap.set("n", keys, func, { buffer = ev.buf, desc = "LSP: " .. desc })
+      -- Auto-install LSP servers and tools via mason-registry
+      local ensure_installed = {
+        "typescript-language-server",
+        "lua-language-server",
+        "gopls",
+        "html-lsp",
+        "css-lsp",
+        "json-lsp",
+        "yaml-language-server",
+        "eslint-lsp",
+      }
+      local registry = require("mason-registry")
+      registry.refresh(function()
+        for _, name in ipairs(ensure_installed) do
+          local ok, pkg = pcall(registry.get_package, name)
+          if ok and not pkg:is_installed() then
+            pkg:install()
           end
-
-          map("gd",         vim.lsp.buf.definition,       "Go to Definition")
-          map("gD",         vim.lsp.buf.declaration,      "Go to Declaration")
-          map("gr",         vim.lsp.buf.references,       "Go to References")
-          map("gi",         vim.lsp.buf.implementation,   "Go to Implementation")
-          map("gt",         vim.lsp.buf.type_definition,  "Go to Type Definition")
-          map("K",          vim.lsp.buf.hover,            "Hover Documentation")
-          map("<C-k>",      vim.lsp.buf.signature_help,   "Signature Help")
-          map("<leader>rn", vim.lsp.buf.rename,           "Rename Symbol")
-          map("<leader>ca", vim.lsp.buf.code_action,      "Code Action")
-          map("<leader>fs", require("telescope.builtin").lsp_document_symbols, "Document Symbols")
-
-          -- ESLint: fix on save
-          local client = vim.lsp.get_client_by_id(ev.data.client_id)
-          if client and client.name == "eslint" then
-            vim.api.nvim_create_autocmd("BufWritePre", {
-              buffer = ev.buf,
-              command = "EslintFixAll",
-            })
-          end
-        end,
-      })
-
-      -- Global capabilities for all servers
-      vim.lsp.config("*", {
-        capabilities = capabilities,
-      })
-
-      -- TypeScript
-      vim.lsp.config("ts_ls", {
-        settings = {
-          typescript = {
-            inlayHints = {
-              includeInlayParameterNameHints = "all",
-              includeInlayFunctionParameterTypeHints = true,
-              includeInlayVariableTypeHints = true,
-              includeInlayPropertyDeclarationTypeHints = true,
-              includeInlayFunctionLikeReturnTypeHints = true,
-            },
-          },
-          javascript = {
-            inlayHints = {
-              includeInlayParameterNameHints = "all",
-              includeInlayFunctionParameterTypeHints = true,
-            },
-          },
-        },
-      })
-
-      -- Lua (with Neovim globals awareness)
-      vim.lsp.config("lua_ls", {
-        settings = {
-          Lua = {
-            diagnostics = { globals = { "vim" } },
-            workspace = {
-              library = vim.api.nvim_get_runtime_file("", true),
-              checkThirdParty = false,
-            },
-            telemetry = { enable = false },
-          },
-        },
-      })
-
-      -- Go
-      vim.lsp.config("gopls", {
-        settings = {
-          gopls = {
-            analyses = { unusedparams = true },
-            staticcheck = true,
-          },
-        },
-      })
-
-      -- Enable all configured servers
-      vim.lsp.enable({
-        "ts_ls", "lua_ls", "eslint", "gopls",
-        "html", "cssls", "jsonls", "yamlls",
-      })
-
-      -- Diagnostic display config
-      vim.diagnostic.config({
-        virtual_text = { prefix = "●" },
-        signs = true,
-        underline = true,
-        update_in_insert = false,
-        severity_sort = true,
-        float = { border = "rounded", source = true },
-      })
+        end
+      end)
     end,
   },
 
@@ -629,6 +524,106 @@ require("lazy").setup({
     end,
   },
 
+})
+
+-- =============================================================================
+-- LSP Configuration (native vim.lsp API, no lspconfig plugin needed)
+-- =============================================================================
+
+-- LSP keybindings via LspAttach autocmd
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(ev)
+    local map = function(keys, func, desc)
+      vim.keymap.set("n", keys, func, { buffer = ev.buf, desc = "LSP: " .. desc })
+    end
+
+    map("gd",         vim.lsp.buf.definition,       "Go to Definition")
+    map("gD",         vim.lsp.buf.declaration,      "Go to Declaration")
+    map("gr",         vim.lsp.buf.references,       "Go to References")
+    map("gi",         vim.lsp.buf.implementation,   "Go to Implementation")
+    map("gt",         vim.lsp.buf.type_definition,  "Go to Type Definition")
+    map("K",          vim.lsp.buf.hover,            "Hover Documentation")
+    map("<C-k>",      vim.lsp.buf.signature_help,   "Signature Help")
+    map("<leader>rn", vim.lsp.buf.rename,           "Rename Symbol")
+    map("<leader>ca", vim.lsp.buf.code_action,      "Code Action")
+    map("<leader>fs", require("telescope.builtin").lsp_document_symbols, "Document Symbols")
+
+    -- ESLint: fix on save
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    if client and client.name == "eslint" then
+      vim.api.nvim_create_autocmd("BufWritePre", {
+        buffer = ev.buf,
+        command = "EslintFixAll",
+      })
+    end
+  end,
+})
+
+-- Global capabilities for all servers
+local capabilities = require("cmp_nvim_lsp").default_capabilities()
+vim.lsp.config("*", {
+  capabilities = capabilities,
+})
+
+-- TypeScript
+vim.lsp.config("ts_ls", {
+  settings = {
+    typescript = {
+      inlayHints = {
+        includeInlayParameterNameHints = "all",
+        includeInlayFunctionParameterTypeHints = true,
+        includeInlayVariableTypeHints = true,
+        includeInlayPropertyDeclarationTypeHints = true,
+        includeInlayFunctionLikeReturnTypeHints = true,
+      },
+    },
+    javascript = {
+      inlayHints = {
+        includeInlayParameterNameHints = "all",
+        includeInlayFunctionParameterTypeHints = true,
+      },
+    },
+  },
+})
+
+-- Lua (with Neovim globals awareness)
+vim.lsp.config("lua_ls", {
+  settings = {
+    Lua = {
+      diagnostics = { globals = { "vim" } },
+      workspace = {
+        library = vim.api.nvim_get_runtime_file("", true),
+        checkThirdParty = false,
+      },
+      telemetry = { enable = false },
+    },
+  },
+})
+
+-- Go
+vim.lsp.config("gopls", {
+  settings = {
+    gopls = {
+      analyses = { unusedparams = true },
+      staticcheck = true,
+    },
+  },
+})
+
+-- Enable all configured servers
+vim.lsp.enable({
+  "ts_ls", "lua_ls", "eslint", "gopls",
+  "html", "cssls", "jsonls", "yamlls",
+})
+
+-- Diagnostic display config
+vim.diagnostic.config({
+  virtual_text = { prefix = "●" },
+  signs = true,
+  underline = true,
+  update_in_insert = false,
+  severity_sort = true,
+  float = { border = "rounded", source = true },
 })
 
 -- =============================================================================
