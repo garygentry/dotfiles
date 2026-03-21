@@ -172,22 +172,21 @@ require("lazy").setup({
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
-    config = function()
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = {
-          "lua", "vim", "vimdoc",
-          "go", "gomod",
-          "typescript", "tsx", "javascript",
-          "json", "jsonc", "yaml", "toml",
-          "html", "css",
-          "markdown", "markdown_inline",
-          "bash", "sql",
-        },
-        highlight = { enable = true },
-        indent = { enable = true },
-        auto_install = true,
-      })
-    end,
+    main = "nvim-treesitter.configs",
+    opts = {
+      ensure_installed = {
+        "lua", "vim", "vimdoc",
+        "go", "gomod",
+        "typescript", "tsx", "javascript",
+        "json", "jsonc", "yaml", "toml",
+        "html", "css",
+        "markdown", "markdown_inline",
+        "bash", "sql",
+      },
+      highlight = { enable = true },
+      indent = { enable = true },
+      auto_install = true,
+    },
   },
 
   -- ---------------------------------------------------------------------------
@@ -195,7 +194,7 @@ require("lazy").setup({
   -- ---------------------------------------------------------------------------
   {
     "nvim-lualine/lualine.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
+    dependencies = { "nvim-tree/nvim-web-devicons", "catppuccin" },
     config = function()
       require("lualine").setup({
         options = {
