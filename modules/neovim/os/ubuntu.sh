@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # neovim/os/ubuntu.sh - Install Neovim on Ubuntu
 
-_nvim_min_version="0.8.0"
+_nvim_min_version="0.11.0"
 
 # Check if an adequate version is already installed
 if command -v nvim &>/dev/null; then
