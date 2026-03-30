@@ -165,8 +165,10 @@ build_and_run() {
     info "Running: dotfiles install $*"
     # Redirect stdin from /dev/tty so the Go binary gets an interactive
     # terminal even when this script is piped from curl (curl | bash).
-    # Fall back to inherited stdin in headless environments (Docker, CI).
-    if [ -e /dev/tty ]; then
+    # Fall back to inherited stdin in headless environments (Docker, CI, cloud-init).
+    # Note: /dev/tty can exist as a device node but fail to open when there is
+    # no controlling terminal, so we test with an actual read attempt.
+    if (exec < /dev/tty) 2>/dev/null; then
         exec ./bin/dotfiles install "$@" < /dev/tty
     else
         exec ./bin/dotfiles install "$@"
