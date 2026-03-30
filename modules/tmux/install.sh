@@ -26,7 +26,7 @@ else
 fi
 
 # Deploy tmux configuration
-_tmux_config="${DOTFILES_PROMPT_TMUX_CONFIG:-skip}"
+_tmux_config="${DOTFILES_PROMPT_TMUX_CONFIG:-opinionated}"
 
 if [[ "$_tmux_config" == "opinionated" ]]; then
     if is_dry_run; then
@@ -54,7 +54,7 @@ if [[ "$_tmux_config" == "opinionated" ]]; then
         fi
     fi
 else
-    log_info "Skipping tmux config (preset: skip)"
+    log_info "Skipping config deployment (preset: minimal)"
 fi
 
 log_success "tmux installed"

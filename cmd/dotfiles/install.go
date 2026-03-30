@@ -22,6 +22,7 @@ var (
 	skipFailed         bool
 	updateOnly         bool
 	promptDependencies bool
+	profile            string
 )
 
 var installCmd = &cobra.Command{
@@ -51,6 +52,9 @@ resolution, module execution, and summary output.`,
 		cfg, err := config.Load(sys.DotfilesDir)
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
+		}
+		if profile != "" {
+			cfg.Profile = profile
 		}
 		u.Debug(fmt.Sprintf("Profile: %s", cfg.Profile))
 
@@ -266,5 +270,6 @@ func init() {
 	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")
 	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
 	installCmd.Flags().BoolVar(&promptDependencies, "prompt-dependencies", false, "Show prompts for auto-included dependency modules (default: use defaults)")
+	installCmd.Flags().StringVar(&profile, "profile", "", "Use a specific profile (e.g., minimal, developer)")
 	rootCmd.AddCommand(installCmd)
 }

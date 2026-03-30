@@ -7,11 +7,11 @@ os: []
 prompts:
   - key: tmux_config
     message: "Tmux config preset (opinionated = prefix Ctrl-j/f, vi keys, theme)"
-    default: "skip"
+    default: "opinionated"
     type: choice
     options:
-      - skip
       - opinionated
+      - minimal
     show_when: explicit_install
 legacy_paths:
   - path: "~/.tmux.conf"

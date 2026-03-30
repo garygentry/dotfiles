@@ -1,7 +1,5 @@
 modules:
-  - ssh
   - git
-  - zsh
   - starship
   - tmux
   - docker
