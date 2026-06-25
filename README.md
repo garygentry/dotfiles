@@ -1,4 +1,4 @@
-# Dotfiles Management System
+# dotfiles
 
 > A robust, modular dotfiles manager built with Go and shell scripts
 
@@ -30,6 +30,7 @@ curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.s
 ```
 
 This will:
+
 1. Install Git and Go (if needed)
 2. Clone the repository to `~/.dotfiles`
 3. Build the CLI tool
@@ -107,13 +108,13 @@ dotfiles status
 
 ## Available Modules
 
-| Module | Description | Dependencies |
-|--------|-------------|--------------|
-| **1password** | Install and configure 1Password CLI | - |
-| **ssh** | Configure SSH keys and settings | 1password |
-| **git** | Configure Git with SSH signing | ssh |
-| **zsh** | Install Zsh with Zinit plugin manager | git |
-| **neovim** | Install Neovim and symlink config | git |
+| Module        | Description                           | Dependencies |
+| ------------- | ------------------------------------- | ------------ |
+| **1password** | Install and configure 1Password CLI   | -            |
+| **ssh**       | Configure SSH keys and settings       | 1password    |
+| **git**       | Configure Git with SSH signing        | ssh          |
+| **zsh**       | Install Zsh with Zinit plugin manager | git          |
+| **neovim**    | Install Neovim and symlink config     | git          |
 
 [Creating modules guide →](docs/creating-modules.md)
 
@@ -151,6 +152,7 @@ modules:
 Profiles define module sets for different use cases:
 
 **Developer Profile** (`profiles/developer.yml`):
+
 ```yaml
 modules:
   - 1password
@@ -161,6 +163,7 @@ modules:
 ```
 
 **Minimal Profile** (`profiles/minimal.yml`):
+
 ```yaml
 modules:
   - git
@@ -174,6 +177,7 @@ modules:
 The system uses a **hybrid architecture** where Go handles orchestration and shell scripts handle system operations. Go provides type-safe dependency resolution, structured state tracking, and rollback capabilities that would be fragile in pure shell. Shell scripts keep the actual installation logic readable and modifiable without recompilation.
 
 **Key Features:**
+
 - **Topological Dependency Resolution** - Kahn's algorithm ensures correct order
 - **OS-Specific Logic** - Optional platform-specific scripts
 - **Template Rendering** - Go templates with custom functions
@@ -208,7 +212,7 @@ version: 1.0.0
 priority: 100
 dependencies:
   - git
-os: []  # Empty = all platforms
+os: [] # Empty = all platforms
 requires:
   - curl
 
@@ -223,7 +227,7 @@ prompts:
     type: choice
     options: [dark, light]
     default: dark
-    show_when: explicit_install  # Optional: only show if module explicitly selected
+    show_when: explicit_install # Optional: only show if module explicitly selected
 ```
 
 ### Example install.sh
@@ -307,11 +311,13 @@ make lint
 ### Testing
 
 **Unit Tests:**
+
 ```bash
 go test ./...
 ```
 
 **Integration Tests:**
+
 ```bash
 # Ubuntu
 make test-integration-ubuntu
@@ -328,6 +334,7 @@ Integration tests run in Docker containers with full installations to verify end
 ### CI/CD
 
 GitHub Actions CI runs on every push and PR:
+
 - Unit tests with race detector
 - Integration tests (Ubuntu + Arch)
 - Docker layer caching for faster builds
@@ -387,6 +394,7 @@ dotfiles install module-name
 ### Common Issues
 
 **Q: Module fails to install**
+
 ```bash
 # Check the state file for error details
 cat ~/.dotfiles/.state/module-name.json
@@ -397,6 +405,7 @@ dotfiles install module-name -v
 ```
 
 **Q: Permission denied errors**
+
 ```bash
 # Some operations require sudo
 # The system will prompt for password when needed
@@ -432,6 +441,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Author
 
 **Gary Gentry**
+
 - GitHub: [@garygentry](https://github.com/garygentry)
 - Email: gary@garygentry.net
 
