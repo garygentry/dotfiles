@@ -14,7 +14,7 @@
     "docs-site/rehype-base-links.mjs": "sha256:e30cad6562f33c42cf35e9a7b0a0226d3e23a6272936247af3aec53a52393795",
     "docs-site/setup-docs.sh": "sha256:6161b4553dbbecfd9af7fc0659679d1cead9be49d03bca1d3cc8c744cd72530e",
     "docs-site/src/content.config.ts": "sha256:1f8b206b5f7c0afb44c3715a3fe79954b448885fe9e753ba372dddf1210ecfd5",
-    "docs-site/src/content/docs/index.mdx": "sha256:1e77427581d364b6b0ea38fd30ea4d1cc3be18f14929450d8081af2d850db2aa",
+    "docs-site/src/content/docs/index.mdx": "sha256:9efce769b1b2b55276f95a9b9c8d0ea39ff394c2aedf03b32672b3997d1a22a2",
     "docs-site/src/styles/custom.css": "sha256:03149176f136ba5dfd544542e157a115a67c48d569966b0c68e5ac00252706dc",
     "docs-site/tsconfig.json": "sha256:974b0a3b37e52f3649d9df63e72e374794e9e797c8ae61eca4812f844406f7ef"
   }
