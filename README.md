@@ -3,8 +3,11 @@
 > A robust, modular dotfiles manager built with Go and shell scripts
 
 [![CI](https://github.com/garygentry/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/garygentry/dotfiles/actions/workflows/ci.yml)
+[![Docs](https://github.com/garygentry/dotfiles/actions/workflows/docs.yml/badge.svg)](https://github.com/garygentry/dotfiles/actions/workflows/docs.yml)
 [![Go Version](https://img.shields.io/badge/go-1.22%2B-blue)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+📖 **[Read the documentation →](https://garygentry.github.io/dotfiles/)**
 
 ## Features
 
