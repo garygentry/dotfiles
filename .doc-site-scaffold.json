@@ -5,7 +5,7 @@
   "files": {
     ".github/workflows/docs.yml": "sha256:b9ddfdbadfa1a268ebd0d91b238724804a6cf104b869a678c6e1f47d99efdbfa",
     "docs-site/.gitignore": "sha256:59db5d37ed071a555890db426359480bbcce503bbbb8bec868c83df17e626c69",
-    "docs-site/astro.config.mjs": "sha256:817c2ec36132cd37dac882bb7ad4a53d11e61b3c02472e773cbfab782c5f62f8",
+    "docs-site/astro.config.mjs": "sha256:176b2de82b5df8fc2611b78d1632cdad0baabecbf3f1b1bd512cc21dd9972547",
     "docs-site/check-docs.mjs": "sha256:7f5d5f07f49be8c3565dc26bbd6bbb1cff2cc38f580d0f95efc992bd8e4a08ee",
     "docs-site/docs.manifest.json": "sha256:a36194f2b9037a022672ae1f7c01ba8b383cf78d83282ce5fc5152cf3880f7b9",
     "docs-site/docs.manifest.schema.json": "sha256:6f528da63224ca2cdf2f312cb85b8f55f4de18f7c23169e0b2da67a709a3419c",
