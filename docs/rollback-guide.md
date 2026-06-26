@@ -1,3 +1,7 @@
+---
+title: "Rollback and Uninstall Guide"
+---
+
 # Rollback and Uninstall Guide
 
 This guide explains how the dotfiles system tracks operations and enables safe uninstallation and rollback of modules.

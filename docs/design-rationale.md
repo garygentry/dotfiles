@@ -1,3 +1,7 @@
+---
+title: "Design Rationale"
+---
+
 # Design Rationale
 
 This document explains the key technology choices behind the dotfiles management system — why Go was chosen for the CLI, why shell scripts handle the actual work, and why the system builds from source rather than distributing a pre-built binary.
@@ -50,7 +54,7 @@ Go was chosen over other scripting languages for several practical reasons:
 
 ## Why Build from Source?
 
-The bootstrap script ([bootstrap.sh](../bootstrap.sh)) downloads Go, clones the repo, and runs `go build`. This is deliberate, not a shortcoming.
+The bootstrap script ([bootstrap.sh](https://github.com/garygentry/dotfiles/blob/main/bootstrap.sh)) downloads Go, clones the repo, and runs `go build`. This is deliberate, not a shortcoming.
 
 ### The Binary Needs the Repository
 

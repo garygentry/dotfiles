@@ -1,3 +1,7 @@
+---
+title: "Installation"
+---
+
 # Installation
 
 This guide covers different ways to install the dotfiles management system.

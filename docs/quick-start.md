@@ -1,3 +1,7 @@
+---
+title: "Quick Start"
+---
+
 # Quick Start
 
 Get up and running with the dotfiles management system in minutes.
@@ -288,4 +292,4 @@ dotfiles install git
 
 - [Creating Modules](creating-modules.md) - Build your own modules
 - [CLI Reference](cli-reference.md) - Complete command documentation
-- [Idempotence](IDEMPOTENCE.md) - How re-runs are handled safely
+- [Idempotence](idempotence.md) - How re-runs are handled safely

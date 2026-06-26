@@ -1,3 +1,7 @@
+---
+title: "CLI Reference"
+---
+
 # CLI Reference
 
 Complete reference for the dotfiles command-line interface.

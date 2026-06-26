@@ -1,3 +1,7 @@
+---
+title: "Architecture"
+---
+
 # Architecture
 
 This document explains the design and architecture of the dotfiles management system.

@@ -1,3 +1,7 @@
+---
+title: "CI/CD and IaC Integration Guide"
+---
+
 # CI/CD and IaC Integration Guide
 
 This guide covers using the dotfiles system in automated environments: CI/CD pipelines, Infrastructure as Code (IaC), container images, and configuration management tools.
@@ -790,4 +794,4 @@ The `--unattended` flag makes the dotfiles system fully compatible with automate
 - ✅ Comprehensive error handling
 - ✅ Flexible profile system
 
-For questions or issues, see the [main README](../README.md) or [Troubleshooting Guide](./troubleshooting.md).
+For questions or issues, see the [main README](https://github.com/garygentry/dotfiles/blob/main/README.md) or [Troubleshooting Guide](./troubleshooting.md).

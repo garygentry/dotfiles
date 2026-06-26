@@ -1,0 +1,61 @@
+// astro.config.mjs — emitted into docs-site/
+// MANAGED by doc-site (tracked in .doc-site-scaffold.json). The `sidebar`
+// array is generated from docs.manifest.json — edit the manifest, not this file.
+import { defineConfig, passthroughImageService } from "astro/config";
+import starlight from "@astrojs/starlight";
+import rehypeBaseLinks from "./rehype-base-links.mjs";
+
+export default defineConfig({
+  // REQ-CORE-02: derive site/base from env so the SAME build works on a hosted
+  // subpath (GitHub Pages, BASE_PATH="/repo/") and at root (Vercel/static,
+  // BASE_PATH unset) with no code changes. Both are undefined-safe: Astro treats
+  // an undefined `base` as "/" and an undefined `site` as a relative build.
+  site: process.env.SITE,
+  base: process.env.BASE_PATH,
+  // REQ-CORE-03: SVG diagrams need no rasterization; the passthrough image
+  // service serves them as-is and keeps the install free of the Sharp dependency.
+  image: { service: passthroughImageService() },
+  // #24/#29 — Astro does NOT apply `base` to links written in Markdown/MDX
+  // content. Authors SHOULD write internal links as root-absolute slug URLs (see
+  // doc-site SKILL.md) and the drift-guard enforces it; this zero-dependency
+  // plugin is the runtime backstop. It (1) prepends BASE_PATH to root-absolute
+  // links so `/start-here/install/` → `/repo/start-here/install/` on a subpath
+  // deploy (no-op at root, #29), and (2) rewrites relative `.md`/`.mdx` links in
+  // dual-context symlinked docs to absolute base-aware slugs (#24), leaving the
+  // source files untouched so GitHub rendering stays correct.
+  markdown: {
+    rehypePlugins: [[rehypeBaseLinks, { base: process.env.BASE_PATH }]],
+  },
+  integrations: [
+    starlight({
+      title: "dotfiles",
+      description: "Documentation for dotfiles",
+      social: [
+        { icon: "github", label: "GitHub", href: "https://github.com/garygentry/dotfiles" },
+      ],
+      // <<SIDEBAR>> — replaced by the array generated in §7 from docs.manifest.json.
+      // REQ-CONTENT-03: single source of truth; never hand-kept in parallel.
+      sidebar: [
+        { label: "Overview", slug: "overview" },
+        {
+          label: "Guides",
+          items: [
+            { label: "Setup", slug: "guides/setup" },
+          ],
+        },
+        { label: "Installation", slug: "installation" },
+        { label: "Quick Start", slug: "quick-start" },
+        { label: "Creating Modules", slug: "creating-modules" },
+        { label: "Rollback Guide", slug: "rollback-guide" },
+        { label: "Troubleshooting", slug: "troubleshooting" },
+        { label: "Ci Cd Guide", slug: "ci-cd-guide" },
+        { label: "Cli Reference", slug: "cli-reference" },
+        { label: "Architecture", slug: "architecture" },
+        { label: "Idempotence", slug: "idempotence" },
+        { label: "Design Rationale", slug: "design-rationale" },
+        { label: "Ux Features", slug: "ux-features" },
+      ],
+      customCss: ["./src/styles/custom.css"],
+    }),
+  ],
+});

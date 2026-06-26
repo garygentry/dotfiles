@@ -104,7 +104,7 @@ dotfiles status
 
 > **🎯 Smart Prompts:** When installing modules, you'll only be prompted for configuration options for modules you explicitly selected. Auto-included dependencies use sensible defaults. Use `--prompt-dependencies` to configure dependencies interactively.
 
-> **💡 Tip:** The system is fully idempotent - run `dotfiles install` as many times as you want! Only modules and files that actually changed will be updated. [Learn more →](docs/IDEMPOTENCE.md)
+> **💡 Tip:** The system is fully idempotent - run `dotfiles install` as many times as you want! Only modules and files that actually changed will be updated. [Learn more →](docs/idempotence.md)
 
 ## Available Modules
 
@@ -348,7 +348,7 @@ GitHub Actions CI runs on every push and PR:
 - [UX Features](docs/ux-features.md) - Grid selector, progress tracking, smart output
 - [Architecture](docs/architecture.md) · [Design Rationale](docs/design-rationale.md)
 - [Creating Modules](docs/creating-modules.md)
-- [Idempotence](docs/IDEMPOTENCE.md)
+- [Idempotence](docs/idempotence.md)
 - [CLI Reference](docs/cli-reference.md)
 - [Rollback Guide](docs/rollback-guide.md)
 - [Troubleshooting](docs/troubleshooting.md)

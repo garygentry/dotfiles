@@ -1,3 +1,7 @@
+---
+title: "UX Features Guide"
+---
+
 # UX Features Guide
 
 This guide covers the modern terminal user experience features introduced in version 2.1.0.

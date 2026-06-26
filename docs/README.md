@@ -1,3 +1,7 @@
+---
+title: "Overview"
+---
+
 # Documentation
 
 Welcome to the dotfiles management system documentation.
@@ -14,7 +18,7 @@ Welcome to the dotfiles management system documentation.
 
 ### Module Development
 - [Creating Modules](creating-modules.md) - Step-by-step guide to creating new modules
-- [Idempotence](IDEMPOTENCE.md) - How the idempotence system works
+- [Idempotence](idempotence.md) - How the idempotence system works
 
 ### User Interface
 - [UX Features](ux-features.md) - Grid selector, progress bars, and smart output handling
@@ -25,4 +29,4 @@ Welcome to the dotfiles management system documentation.
 - [Rollback Guide](rollback-guide.md) - How to roll back module installations
 
 ### Contributing
-- [Contributing](../CONTRIBUTING.md) - How to contribute to the project
+- [Contributing](https://github.com/garygentry/dotfiles/blob/main/CONTRIBUTING.md) - How to contribute to the project

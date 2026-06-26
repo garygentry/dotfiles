@@ -1,3 +1,7 @@
+---
+title: "Idempotence System"
+---
+
 # Idempotence System
 
 The dotfiles system is fully idempotent - you can safely run `dotfiles install` multiple times without unnecessary work or data loss.

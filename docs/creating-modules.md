@@ -1,3 +1,7 @@
+---
+title: "Creating Modules"
+---
+
 # Creating Modules
 
 This guide walks you through creating a new module for the dotfiles management system.
@@ -746,14 +750,14 @@ prompts:
 ## Examples
 
 See existing modules for reference:
-- [ssh module](../modules/ssh/) - Simple module with templates and secrets
-- [git module](../modules/git/) - Module with OS-specific scripts
-- [zsh module](../modules/zsh/) - Complex module with external dependencies (Zinit)
-- [neovim module](../modules/neovim/) - Minimal module with symlinks
+- [ssh module](https://github.com/garygentry/dotfiles/tree/main/modules/ssh) - Simple module with templates and secrets
+- [git module](https://github.com/garygentry/dotfiles/tree/main/modules/git) - Module with OS-specific scripts
+- [zsh module](https://github.com/garygentry/dotfiles/tree/main/modules/zsh) - Complex module with external dependencies (Zinit)
+- [neovim module](https://github.com/garygentry/dotfiles/tree/main/modules/neovim) - Minimal module with symlinks
 
 ## Next Steps
 
 - [CLI Reference](cli-reference.md) - Full command documentation
-- [Idempotence](IDEMPOTENCE.md) - How re-runs and change detection work
+- [Idempotence](idempotence.md) - How re-runs and change detection work
 - [Rollback Guide](rollback-guide.md) - Uninstalling modules and reversing changes
 - [CI/CD Guide](ci-cd-guide.md) - Add integration tests for your module

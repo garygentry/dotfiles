@@ -1,0 +1,76 @@
+{
+  "$schema": "./docs.manifest.schema.json",
+  "site": {
+    "title": "dotfiles",
+    "description": "Documentation for dotfiles",
+    "social": {
+      "github": "https://github.com/garygentry/dotfiles"
+    }
+  },
+  "pages": [
+    {
+      "slug": "overview",
+      "source": "symlink",
+      "from": "docs/README.md"
+    },
+    {
+      "slug": "guides/setup",
+      "source": "native"
+    },
+    {
+      "slug": "installation",
+      "source": "symlink",
+      "from": "docs/installation.md"
+    },
+    {
+      "slug": "quick-start",
+      "source": "symlink",
+      "from": "docs/quick-start.md"
+    },
+    {
+      "slug": "creating-modules",
+      "source": "symlink",
+      "from": "docs/creating-modules.md"
+    },
+    {
+      "slug": "rollback-guide",
+      "source": "symlink",
+      "from": "docs/rollback-guide.md"
+    },
+    {
+      "slug": "troubleshooting",
+      "source": "symlink",
+      "from": "docs/troubleshooting.md"
+    },
+    {
+      "slug": "ci-cd-guide",
+      "source": "symlink",
+      "from": "docs/ci-cd-guide.md"
+    },
+    {
+      "slug": "cli-reference",
+      "source": "symlink",
+      "from": "docs/cli-reference.md"
+    },
+    {
+      "slug": "architecture",
+      "source": "symlink",
+      "from": "docs/architecture.md"
+    },
+    {
+      "slug": "idempotence",
+      "source": "symlink",
+      "from": "docs/idempotence.md"
+    },
+    {
+      "slug": "design-rationale",
+      "source": "symlink",
+      "from": "docs/design-rationale.md"
+    },
+    {
+      "slug": "ux-features",
+      "source": "symlink",
+      "from": "docs/ux-features.md"
+    }
+  ]
+}
