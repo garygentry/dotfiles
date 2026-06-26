@@ -3,7 +3,7 @@
   "astroPin": "7.0.3",
   "starlightPin": "0.41.1",
   "files": {
-    ".github/workflows/docs.yml": "sha256:9d78034307825e1a6e86ef318ebbda8ad36d7046838bbb6cbf3bccd38d6e93ea",
+    ".github/workflows/docs.yml": "sha256:b9ddfdbadfa1a268ebd0d91b238724804a6cf104b869a678c6e1f47d99efdbfa",
     "docs-site/.gitignore": "sha256:59db5d37ed071a555890db426359480bbcce503bbbb8bec868c83df17e626c69",
     "docs-site/astro.config.mjs": "sha256:817c2ec36132cd37dac882bb7ad4a53d11e61b3c02472e773cbfab782c5f62f8",
     "docs-site/check-docs.mjs": "sha256:7f5d5f07f49be8c3565dc26bbd6bbb1cff2cc38f580d0f95efc992bd8e4a08ee",
