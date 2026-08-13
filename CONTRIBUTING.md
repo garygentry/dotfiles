@@ -81,6 +81,34 @@ make test
 make test-integration
 ```
 
+### Developing dotfiles while using dotfiles
+
+Most contributors end up with two clones: the one dotfiles installed itself into
+(`~/.dotfiles`, whose modules your live symlinks point at) and a development checkout
+somewhere else. They are easy to confuse, because **`DOTFILES_DIR` decides which repo's
+modules, profiles and state are used — the binary's own location does not.**
+
+With `DOTFILES_DIR` unset it defaults to `~/.dotfiles`. So running `go run .` or
+`./bin/dotfiles` from your development checkout operates on the *installed* clone: you
+add a module, run it, and watch the old definitions execute while your new one is
+invisible. Two habits avoid this entirely:
+
+```bash
+make dev-install ARGS="mymodule"   # runs the working tree against itself
+make dev-list                      # lists the working tree's modules
+```
+
+and for anything that should be tested as a *fresh* install, use `make
+test-integration-ubuntu` / `make test-integration-arch`, which run in a container and
+cannot touch your real home directory.
+
+Treat the installed clone as read-only: make changes in your development checkout, push,
+then `git -C ~/.dotfiles pull`. An edit made directly in `~/.dotfiles` exists on exactly
+one machine and will not survive a rebuild.
+
+`~/.dotfiles/bin` is on `PATH` (via the `zsh` module), so a bare `dotfiles` always means
+the installed clone.
+
 ### Project Structure
 
 ```
