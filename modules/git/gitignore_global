@@ -72,3 +72,5 @@ Desktop.ini
 # Tags
 tags
 TAGS
+
+**/.claude/settings.local.json

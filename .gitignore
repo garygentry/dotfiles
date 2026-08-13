@@ -21,5 +21,6 @@ reference/
 bin/
 /dotfiles
 
-# Runtime module state, written by `dotfiles install`
+# Runtime data written into the repo directory by `dotfiles install`
 .state/
+.backups/
