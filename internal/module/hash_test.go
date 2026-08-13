@@ -142,6 +142,78 @@ description: test module`
 	}
 }
 
+func TestComputeModuleChecksum_DeployedFiles(t *testing.T) {
+	// A module whose only change is to a template it deploys must still register as
+	// changed. Otherwise the module is skipped as up-to-date and the stale template
+	// is never redeployed — the module reports success while the deployed file keeps
+	// its old content.
+	tmpDir := t.TempDir()
+	modDir := filepath.Join(tmpDir, "zsh")
+	if err := os.Mkdir(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(modDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("module.yml", "name: zsh\nversion: \"1.0.0\"")
+	write("install.sh", "#!/bin/bash\necho install")
+	write("zshrc.tmpl", "export PATH=/usr/bin\n")
+	write("aliases.zsh", "alias ll='ls -l'\n")
+
+	mod := &Module{
+		Name:    "zsh",
+		Version: "1.0.0",
+		Dir:     modDir,
+		Files: []FileEntry{
+			{Source: "zshrc.tmpl", Dest: "~/.zshrc", Type: "template"},
+			{Source: "aliases.zsh", Dest: "~/.config/zsh/aliases.zsh", Type: "symlink"},
+		},
+	}
+
+	before, err := ComputeModuleChecksum(mod)
+	if err != nil {
+		t.Fatalf("ComputeModuleChecksum failed: %v", err)
+	}
+
+	write("zshrc.tmpl", "export PATH=/usr/bin:/opt/bin\n")
+	afterTemplate, err := ComputeModuleChecksum(mod)
+	if err != nil {
+		t.Fatalf("ComputeModuleChecksum failed after template change: %v", err)
+	}
+	if before == afterTemplate {
+		t.Error("checksum didn't change after modifying a deployed template")
+	}
+
+	write("aliases.zsh", "alias ll='ls -la'\n")
+	afterSymlinkSource, err := ComputeModuleChecksum(mod)
+	if err != nil {
+		t.Fatalf("ComputeModuleChecksum failed after symlink source change: %v", err)
+	}
+	if afterTemplate == afterSymlinkSource {
+		t.Error("checksum didn't change after modifying a symlinked source")
+	}
+
+	// A declared source that does not exist is skipped, like the optional scripts —
+	// it must not turn checksum computation into an error.
+	mod.Files = append(mod.Files, FileEntry{Source: "absent.conf", Dest: "~/.absent", Type: "copy"})
+	if _, err := ComputeModuleChecksum(mod); err != nil {
+		t.Errorf("ComputeModuleChecksum failed on a missing declared source: %v", err)
+	}
+
+	// Nor must a directory source.
+	if err := os.Mkdir(filepath.Join(modDir, "confdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mod.Files = append(mod.Files, FileEntry{Source: "confdir", Dest: "~/.confdir", Type: "copy"})
+	if _, err := ComputeModuleChecksum(mod); err != nil {
+		t.Errorf("ComputeModuleChecksum failed on a directory source: %v", err)
+	}
+}
+
 func TestComputeConfigHash(t *testing.T) {
 	mod := &Module{
 		Name: "testmod",

@@ -15,15 +15,24 @@ import (
 
 // ComputeModuleChecksum calculates a SHA256 hash of the module's definition
 // and implementation files. This hash changes whenever the module.yml file,
-// install script, verify script, or any OS-specific scripts are modified.
+// install script, verify script, any OS-specific script, or any file the module
+// deploys is modified.
 //
 // Files included in the hash (if they exist):
 //   - module.yml
 //   - install.sh
 //   - verify.sh
 //   - os/<os_name>.sh (for all detected OS files)
+//   - every source listed under the module's files: entries
 //
 // This enables detection of module updates that require re-running installation.
+//
+// The deployed sources matter as much as the scripts. shouldDeployFile already
+// redeploys a file whose source has changed, but it never gets the chance if the
+// module is skipped as up-to-date first — so a module whose only change was to a
+// template or copied config would report success while leaving the old content in
+// place. Symlinked sources are live regardless of what this hash says; templates
+// and copies are not.
 func ComputeModuleChecksum(mod *Module) (string, error) {
 	h := sha256.New()
 
@@ -32,6 +41,21 @@ func ComputeModuleChecksum(mod *Module) (string, error) {
 		filepath.Join(mod.Dir, "module.yml"),
 		filepath.Join(mod.Dir, "install.sh"),
 		filepath.Join(mod.Dir, "verify.sh"),
+	}
+
+	// Add the sources of every file the module deploys
+	for _, f := range mod.Files {
+		if f.Source == "" {
+			continue
+		}
+		src := filepath.Join(mod.Dir, f.Source)
+		// A directory source would fail the copy below rather than be skipped as
+		// missing; no module has one today, but the hash should not be the thing
+		// that breaks when one appears.
+		if info, err := os.Stat(src); err == nil && info.IsDir() {
+			continue
+		}
+		filesToHash = append(filesToHash, src)
 	}
 
 	// Add OS-specific scripts
