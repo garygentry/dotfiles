@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`--profile` accepts a path to a profile file.** An argument containing a `/` or
+  ending in `.yml`/`.yaml` is read as a literal path (with `~` expanded and relative
+  paths resolved from the working directory); anything else is a bare name looked up in
+  `profiles/` exactly as before. This lets a project keep its own profile alongside its
+  own code instead of adding it to this repo.
+- **`uv` module** — the Python package and project manager from Astral, installed via
+  Homebrew on macOS, the distro package on Arch, and Astral's installer elsewhere.
+- **`ansible` module** — agentless configuration management, from the distribution
+  package so its Python interpreter matches the system's.
+
+### Changed
+
+- **A missing explicitly-requested profile is now a hard error.** Asking for a profile
+  with `--profile` or `DOTFILES_PROFILE` and not getting it exits non-zero instead of
+  silently falling back to installing *every* module — the previous behaviour turned a
+  typo into a full install. A profile named only in `config.yml` still falls back, since
+  that is a default rather than a request.
+
 ## [2.1.0] - 2026-02-16
 
 ### Added

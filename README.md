@@ -173,6 +173,18 @@ modules:
   - zsh
 ```
 
+`--profile` also accepts a **path to a profile file**, so a project can keep its own
+profile next to its own code instead of adding it to this repo:
+
+```bash
+dotfiles install --profile ~/projects/thing/profiles/thing.yml
+```
+
+An argument containing a `/` or ending in `.yml`/`.yaml` is read as a path; anything else
+is a name looked up in `profiles/`. A profile you ask for explicitly — via `--profile` or
+`DOTFILES_PROFILE` — must exist: if it cannot be loaded, the install stops rather than
+quietly falling back to installing every module.
+
 [Full documentation →](docs/README.md)
 
 ## Architecture

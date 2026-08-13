@@ -3,6 +3,7 @@ package dotfiles
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -53,20 +54,33 @@ resolution, module execution, and summary output.`,
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
+		// A profile named on the command line or in the environment was asked for
+		// deliberately; one that only comes from config.yml is a default. The
+		// difference matters below: falling back to *every module* is a reasonable
+		// default and a terrible answer to an explicit request.
+		explicitProfile := profile != "" || os.Getenv("DOTFILES_PROFILE") != ""
 		if profile != "" {
 			cfg.Profile = profile
 		}
-		u.Debug(fmt.Sprintf("Profile: %s", cfg.Profile))
+		u.Debug(fmt.Sprintf("Profile: %s (explicit: %t)", cfg.Profile, explicitProfile))
+
+		profileModules, profileErr := config.LoadProfile(sys.DotfilesDir, cfg.Profile)
+		if profileErr != nil {
+			if explicitProfile {
+				u.Error(fmt.Sprintf("Requested profile %q could not be loaded", cfg.Profile))
+				if errors.Is(profileErr, config.ErrProfileNotFound) && !config.ProfileIsPath(cfg.Profile) {
+					u.Info(fmt.Sprintf("Profiles live in %s; --profile also accepts a path to a profile file.",
+						filepath.Join(sys.DotfilesDir, "profiles")))
+				}
+				return profileErr
+			}
+			u.Debug(fmt.Sprintf("No profile %q found, using all modules", cfg.Profile))
+		}
 
 		// Determine requested modules: CLI args > profile > all.
 		requested := args
-		if len(requested) == 0 {
-			profileModules, err := config.LoadProfile(sys.DotfilesDir, cfg.Profile)
-			if err != nil {
-				u.Debug(fmt.Sprintf("No profile %q found, using all modules", cfg.Profile))
-			} else {
-				requested = profileModules
-			}
+		if len(requested) == 0 && profileErr == nil {
+			requested = profileModules
 		}
 
 		// Phase 2: Secrets authentication.
@@ -270,6 +284,6 @@ func init() {
 	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")
 	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
 	installCmd.Flags().BoolVar(&promptDependencies, "prompt-dependencies", false, "Show prompts for auto-included dependency modules (default: use defaults)")
-	installCmd.Flags().StringVar(&profile, "profile", "", "Use a specific profile (e.g., minimal, developer)")
+	installCmd.Flags().StringVar(&profile, "profile", "", "Use a specific profile: a name from profiles/ (e.g. minimal, developer) or a path to a profile file")
 	rootCmd.AddCommand(installCmd)
 }

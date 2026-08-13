@@ -33,7 +33,8 @@ dotfiles install [modules...] [flags]
 
 **Flags:**
 ```
---profile string      Use a specific profile (e.g., minimal, developer)
+--profile string      Use a specific profile: a name from profiles/ (e.g. minimal,
+                      developer) or a path to a profile file
 --unattended         Run without prompts, use default answers
 --fail-fast          Stop on first module failure (default: continue)
 -v, --verbose        Stream all script output in real-time (disables compact mode)
@@ -56,6 +57,9 @@ dotfiles install git zsh neovim
 # Use a profile
 dotfiles install --profile minimal
 
+# Use a profile file kept outside this repo
+dotfiles install --profile ~/projects/thing/profiles/thing.yml
+
 # Preview without changes
 dotfiles install --dry-run
 
@@ -68,6 +72,18 @@ dotfiles install -v
 # Stop on first error
 dotfiles install --fail-fast
 ```
+
+**Profile resolution:**
+
+A `--profile` argument that contains a `/` or ends in `.yml`/`.yaml` is treated as a path
+to a profile file — a leading `~` is expanded, and relative paths are taken from the
+working directory. Anything else is a bare name, resolved to
+`<dotfiles-dir>/profiles/<name>.yml` as before.
+
+A profile requested **explicitly** — through `--profile` or the `DOTFILES_PROFILE`
+environment variable — must load. If it is missing or malformed the command exits
+non-zero. Only the profile configured in `config.yml` falls back to installing all
+modules, since that one is a default rather than a request.
 
 **Interactive Module Selection (TTY mode):**
 

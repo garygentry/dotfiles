@@ -1,0 +1,17 @@
+name: uv
+description: "uv — fast Python package and project manager, with uvx and uv tool"
+version: "1.0.0"
+priority: 45
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files: []
+prompts: []
+tags:
+  - programming
+  - python
+notes:
+  - "uv installs tools into ~/.local/bin — if 'uv tool' binaries are not found, run 'uv tool update-shell' and restart your shell."

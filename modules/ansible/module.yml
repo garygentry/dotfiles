@@ -1,0 +1,16 @@
+name: ansible
+description: "Ansible — agentless configuration management over SSH"
+version: "1.0.0"
+priority: 55
+dependencies:
+  - python
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+files: []
+prompts: []
+tags:
+  - automation
+  - infrastructure

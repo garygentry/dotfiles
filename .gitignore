@@ -20,3 +20,6 @@ reference/
 # Build output
 bin/
 /dotfiles
+
+# Runtime module state, written by `dotfiles install`
+.state/

@@ -1,12 +1,18 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrProfileNotFound reports that a profile file does not exist. Callers use it to
+// distinguish "you asked for a profile that isn't there" from "the profile is broken".
+var ErrProfileNotFound = errors.New("profile not found")
 
 // SecretsConfig holds secrets provider settings.
 type SecretsConfig struct {
@@ -23,11 +29,11 @@ type UserConfig struct {
 
 // Config is the top-level dotfiles configuration.
 type Config struct {
-	Profile     string                       `yaml:"profile"`
-	DotfilesDir string                       `yaml:"-"`
-	Secrets     SecretsConfig                `yaml:"secrets"`
-	User        UserConfig                   `yaml:"user"`
-	Modules     map[string]map[string]any    `yaml:"modules"`
+	Profile     string                    `yaml:"profile"`
+	DotfilesDir string                    `yaml:"-"`
+	Secrets     SecretsConfig             `yaml:"secrets"`
+	User        UserConfig                `yaml:"user"`
+	Modules     map[string]map[string]any `yaml:"modules"`
 }
 
 // profileFile represents the YAML structure of a profile file.
@@ -73,18 +79,63 @@ func Load(dotfilesDir string) (*Config, error) {
 	return cfg, nil
 }
 
-// LoadProfile reads profiles/<name>.yml from dotfilesDir and returns the list
-// of module names defined under the "modules" key.
+// ProfileIsPath reports whether a profile argument should be read as a literal file
+// path rather than as the name of a profile in <dotfilesDir>/profiles.
+//
+// An argument is a path when it contains a separator or carries a YAML extension.
+// Bare names such as "minimal" keep their existing meaning, so nothing that worked
+// before changes. This lets a project outside the dotfiles repo keep its own profile
+// alongside its own code and hand it to the CLI directly.
+func ProfileIsPath(name string) bool {
+	if name == "" {
+		return false
+	}
+	if strings.ContainsRune(name, '/') || strings.ContainsRune(name, os.PathSeparator) {
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	return ext == ".yml" || ext == ".yaml"
+}
+
+// ResolveProfilePath returns the file that a profile argument refers to: the argument
+// itself when it is a path (with a leading ~ expanded and relative paths taken from the
+// working directory), otherwise <dotfilesDir>/profiles/<name>.yml.
+func ResolveProfilePath(dotfilesDir, name string) string {
+	if !ProfileIsPath(name) {
+		return filepath.Join(dotfilesDir, "profiles", name+".yml")
+	}
+
+	path := name
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+		}
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	return path
+}
+
+// LoadProfile reads a profile and returns the module names defined under its "modules"
+// key. The name is resolved by ResolveProfilePath, so it may be either a bare profile
+// name or a path to a profile file anywhere on disk.
+//
+// A missing file yields an error wrapping ErrProfileNotFound.
 func LoadProfile(dotfilesDir, name string) ([]string, error) {
-	profilePath := filepath.Join(dotfilesDir, "profiles", name+".yml")
+	profilePath := ResolveProfilePath(dotfilesDir, name)
+
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
-		return nil, fmt.Errorf("reading profile file: %w", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profilePath)
+		}
+		return nil, fmt.Errorf("reading profile file %s: %w", profilePath, err)
 	}
 
 	var pf profileFile
 	if err := yaml.Unmarshal(data, &pf); err != nil {
-		return nil, fmt.Errorf("parsing profile file: %w", err)
+		return nil, fmt.Errorf("parsing profile file %s: %w", profilePath, err)
 	}
 
 	return pf.Modules, nil
