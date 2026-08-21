@@ -2,6 +2,10 @@
 
 Go + Shell hybrid dotfiles manager. Go handles orchestration (CLI, config, dependency resolution, state tracking); shell scripts handle actual installation in `modules/*/install.sh`.
 
+## Active Architecture Work — read `plans/README.md` first
+
+An ongoing initiative is depersonalizing the engine and adding an optional **content overlay** (`$DOTFILES_CONTENT_DIR`: user `config.yml`/`profiles/`/`modules/` that overlay the repo), alongside re-run/rollback safety. **Before planning related work, read [`plans/README.md`](plans/README.md)** — it indexes the whole roadmap, phase status, releases, and the per-phase plans (`plans/phase3-content-modules.md` is next up, then `plans/phase4-acquisition-packaging.md`). Every change must stay backward-compatible: with no content dir set, behavior is identical to today. (The repo-root `ROADMAP.md` is a separate product-feature backlog.)
+
 ## Commands
 
 ```bash
