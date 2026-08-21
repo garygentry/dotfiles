@@ -18,7 +18,7 @@ modules:
     #             and the GitHub config avoids pinning IdentityFile/IdentitiesOnly
     #   1password retrieve the key from 1Password via the `op` CLI
     #   none      leave ~/.ssh keys and config untouched
-    key_source: generate
+    key_source: agent
   git:
     default_branch: main
   zsh:
