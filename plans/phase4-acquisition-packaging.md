@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 4 (Acquisition, Packaging & Cleanups)
 
-**Status:** NOT STARTED (do phase 3 first) · **Branch:** `track4/*` per task group
+**Status:** 4A IN REVIEW (branch `track4/acquisition`); 4B–4E not started · **Branch:** `track4/*` per task group
 **Tracks:** Content-overlay model, phase 4 of 4 (final). Multi-session plan — update
 checkboxes and the Status line as you go; commit the updated plan with the work.
 
@@ -42,24 +42,32 @@ core.
 Make `bootstrap.sh` able to fetch a content repo/path into the content dir, then
 run the engine against it. The engine core does NOT gain git/network logic.
 
-- [ ] Add bootstrap flags: `--content-repo <url>` (+ optional `--content-ref`),
+- [x] Add bootstrap flags: `--content-repo <url>` (+ optional `--content-ref`),
       `--content-path <local-or-network-path>`, and `--content-dir <dest>`
       (default `~/.config/dotfiles`). Resolve → materialize → `export
       DOTFILES_CONTENT_DIR`.
-- [ ] Source kinds: existing local dir (use in place), git repo (clone/pull),
+- [x] Source kinds: existing local dir (use in place), git repo (clone/pull),
       network/FS path (copy or use in place). Idempotent re-runs (pull if a clone
       already exists).
-- [ ] **Auth ordering** for private sources: run an optional pre-fetch auth step
+- [x] **Auth ordering** for private sources: run an optional pre-fetch auth step
       BEFORE the clone. Default is ambient (e.g. a running SSH/1Password agent);
       allow a configurable hook command and/or env credential. Document the
       chicken-and-egg honestly: it only bites when the auth material itself lives
       in the private content — recommend a **public, secret-free** content repo
       (real secrets stay in 1Password at runtime).
-- [ ] Persist `DOTFILES_CONTENT_DIR` for future shells (write to `~/.zshenv` or
+      (Implemented as `--content-auth-cmd`/`DOTFILES_CONTENT_AUTH_CMD`, run before
+      the clone; ambient agent is the no-hook default.)
+- [x] Persist `DOTFILES_CONTENT_DIR` for future shells (write to `~/.zshenv` or
       print the exact line to add). Don't bake it into a repo-managed file.
+      (Appends to `~/.zshenv` idempotently, prints the line, opt out with
+      `--no-persist-content-dir`.)
 - *Acceptance:* clean-machine flow works for (a) public repo, (b) local path;
       private-repo path documented + works when an agent is present. No-flags
       bootstrap is unchanged.
+      *Status:* acquisition paths proven hermetically (local dir + a local bare
+      "remote" git repo) in `test/bootstrap/acquire_test.sh` (11 cases, no root/
+      network); full clean-machine `scripts/testuser.sh` run needs root and is
+      deferred to a machine that has passwordless sudo.
 
 ### 4B — Parameterize the SSH secret reference
 The ssh module hardcodes `op://Personal/SSH Key/<type>` (`modules/ssh/install.sh`,

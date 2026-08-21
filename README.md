@@ -67,6 +67,40 @@ curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.s
 
 This installs all modules using defaults with zero interactive prompts. See the [CI/CD Guide](docs/ci-cd-guide.md) for Terraform, Docker, and Ansible examples.
 
+### Bootstrap with your own content (content overlay)
+
+Keep your personal `config.yml`, `profiles/`, and `modules/` in a separate
+**content directory** that overlays this generic engine — no fork required. The
+bootstrap can materialize that directory from a git repo or a local/network path
+and point the engine at it via `DOTFILES_CONTENT_DIR`:
+
+```bash
+# From a (public, secret-free) content repo
+curl -sfL .../bootstrap.sh | bash -s -- --content-repo https://github.com/you/my-dotfiles.git
+
+# Pin a branch/tag, and choose where it lands (default ~/.config/dotfiles)
+curl -sfL .../bootstrap.sh | bash -s -- \
+  --content-repo https://github.com/you/my-dotfiles.git \
+  --content-ref v1 --content-dir ~/.config/dotfiles
+
+# Or use an existing local/network directory in place
+curl -sfL .../bootstrap.sh | bash -s -- --content-path ~/my-dotfiles
+```
+
+The bootstrap resolves the source → materializes the content dir → exports
+`DOTFILES_CONTENT_DIR` and appends it to `~/.zshenv` for future shells (opt out
+with `--no-persist-content-dir`). Re-runs are idempotent (a git source is pulled,
+not re-cloned). With **no** content flags and no pre-set `DOTFILES_CONTENT_DIR`,
+behavior is exactly as before.
+
+**Private content repos.** The clone happens before the engine runs, so any auth
+material must already be present — an ambient agent (SSH or the 1Password agent)
+is enough, or run a setup step first with `--content-auth-cmd '<cmd>'` (executed
+before the clone). Because of this ordering, prefer a **public, secret-free**
+content repo: real secrets stay in 1Password and are fetched at install time,
+never committed to the content repo. See
+[`config.overlay.example.yml`](config.overlay.example.yml) for the layout.
+
 ### Usage
 
 ```bash
