@@ -661,38 +661,83 @@ func settingToStr(v any) string {
 	}
 }
 
-// buildTemplateContext creates a template.Context from the current run
-// configuration and environment variables for rendering template files.
-func buildTemplateContext(cfg *RunConfig, mod *Module, envVars map[string]string) *template.Context {
-	// Build module-specific settings map.
+// TemplateInputs are the resolved values needed to build a template rendering
+// context. Both the in-process runner and the `render-template` subcommand
+// assemble these — from the SAME layered config (base config.yml + optional
+// content overlay) — so a template renders identically no matter which path
+// invokes it. See NewTemplateContext.
+type TemplateInputs struct {
+	Config        *config.Config
+	ModuleName    string
+	OS            string
+	Arch          string
+	Home          string
+	DotfilesDir   string
+	XDGConfigHome string
+	Env           map[string]string
+}
+
+// NewTemplateContext builds the template.Context shared by the in-process
+// runner and the render-template subcommand. Keeping a single builder means
+// the two rendering paths cannot drift: a template using {{ .User.email }} or
+// {{ .Module.key_source }} sees the same values whether it is rendered from Go
+// or from a module's install.sh via `render_template`.
+//
+// .Secrets is intentionally an empty (non-nil) map: secrets never travel
+// through the template context. Scripts obtain them at runtime via get_secret
+// (the get-secret subcommand), which resolves them through the configured
+// provider on demand.
+func NewTemplateContext(in TemplateInputs) *template.Context {
+	// Build module-specific settings map from config.yml modules.<name>.*
+	// (including any content-overlay values, since Config is the merged config).
 	modSettings := make(map[string]any)
-	if settings, ok := cfg.Config.Modules[mod.Name]; ok {
-		for k, v := range settings {
-			modSettings[k] = v
+	if in.Config != nil {
+		if settings, ok := in.Config.Modules[in.ModuleName]; ok {
+			for k, v := range settings {
+				modSettings[k] = v
+			}
 		}
 	}
 
 	// Build user map from config.
-	userMap := map[string]string{
-		"name":        cfg.Config.User.Name,
-		"email":       cfg.Config.User.Email,
-		"github_user": cfg.Config.User.GithubUser,
+	userMap := map[string]string{}
+	if in.Config != nil {
+		userMap["name"] = in.Config.User.Name
+		userMap["email"] = in.Config.User.Email
+		userMap["github_user"] = in.Config.User.GithubUser
 	}
 
-	// Build secrets map if provider is available.
-	secretsMap := make(map[string]string)
+	env := in.Env
+	if env == nil {
+		env = make(map[string]string)
+	}
 
 	return &template.Context{
 		User:          userMap,
+		OS:            in.OS,
+		Arch:          in.Arch,
+		Home:          in.Home,
+		DotfilesDir:   in.DotfilesDir,
+		XDGConfigHome: in.XDGConfigHome,
+		Module:        modSettings,
+		Secrets:       make(map[string]string),
+		Env:           env,
+	}
+}
+
+// buildTemplateContext creates a template.Context from the current run
+// configuration and environment variables for rendering template files.
+func buildTemplateContext(cfg *RunConfig, mod *Module, envVars map[string]string) *template.Context {
+	return NewTemplateContext(TemplateInputs{
+		Config:        cfg.Config,
+		ModuleName:    mod.Name,
 		OS:            cfg.SysInfo.OS,
 		Arch:          cfg.SysInfo.Arch,
 		Home:          cfg.SysInfo.HomeDir,
 		DotfilesDir:   cfg.SysInfo.DotfilesDir,
 		XDGConfigHome: cfg.SysInfo.XDGConfigHome,
-		Module:        modSettings,
-		Secrets:       secretsMap,
 		Env:           envVars,
-	}
+	})
 }
 
 // runScript executes a shell script with the set -euo pipefail preamble
