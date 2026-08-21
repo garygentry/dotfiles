@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Content overlay (phase 4A: acquisition & bootstrap).** `bootstrap.sh` can now
+  materialize a content overlay directory and point the engine at it before installing,
+  via new flags: `--content-repo <git-url>` (with optional `--content-ref <ref>`) clones
+  or idempotently pulls a content repo, `--content-path <dir>` uses an existing
+  local/network directory in place, and `--content-dir <dest>` chooses where a repo lands
+  (default `~/.config/dotfiles`). The resolved directory is exported as
+  `DOTFILES_CONTENT_DIR` and appended to `~/.zshenv` for future shells (opt out with
+  `--no-persist-content-dir`). Private sources are supported through an ambient SSH/1Password
+  agent or an optional `--content-auth-cmd` hook run before the clone; a public, secret-free
+  content repo is recommended. All acquisition lives in the bootstrap/shell layer — the Go
+  core gains no git/network/auth logic — and with no content flags (and no pre-set
+  `DOTFILES_CONTENT_DIR`) bootstrap behaves exactly as before. Every non-content argument is
+  still forwarded verbatim to `dotfiles install`.
 - **Content overlay (phase 3: modules).** Modules are now discovered from your content
   directory's `modules/` in addition to the engine's built-in `modules/`, with **same-name
   content-wins precedence**: drop a `modules/<name>/` in your content dir to add a custom
