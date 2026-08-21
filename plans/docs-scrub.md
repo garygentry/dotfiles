@@ -2,14 +2,24 @@
 
 **Status:** 📋 PLANNED — not started · **Branch:** `docs/scrub-*` per work group
 **Scope:** All human-facing docs (repo markdown + the Astro/Starlight docs site) brought
-into line with the merged content-overlay initiative (phases 1–4) and current engine
-behavior. **Docs-only — no engine/behavior changes.** Multi-session; update the
+into line with the merged content-overlay initiative (phases 1–4), a new **Extensibility
+guide + tutorial** (§4.G), and one **deliberate default change** (ssh `key_item`, §4.H).
+Mostly docs; the single engine change is called out explicitly. Multi-session; update the
 checkboxes and Status line as you go and commit them with the work.
 
 > **Execute this in a clean session.** It is self-contained: §2 is the authoritative
 > "current truth" to align docs to; §4 is the itemized work with file:line anchors;
 > §5 is the docs-site mechanics you must respect; §7 is the definition of done. Read
 > `plans/README.md` first for the initiative context and the shared Workflow section.
+
+> **Guiding principle (maintainer directive, 2026-08-21):** choose defaults by what is
+> **genuinely best**, NOT by preserving backward compatibility. Where a default is
+> suboptimal (personal-flavored, legacy), change it to the better one and accept the
+> back-compat break (with a CHANGELOG note). This deliberately loosens the "strictly
+> backward-compatible at defaults" constraint that governed phases 1–4 — it is not a
+> license for churn; keep changes minimal and in the right layer. (The overlay's opt-in
+> property — no content dir ⇒ engine still works — is correctness, not a "default", and
+> still holds.)
 
 ---
 
@@ -37,9 +47,11 @@ this section, the doc is wrong.
 - `secrets.provider: **noop**` (NOT 1password). 1Password/any provider is **opt-in**,
   via the overlay or `DOTFILES_SECRETS_PROVIDER`.
 - `modules.ssh.key_source: **generate**`. Values: `generate | agent | 1password | none`.
-- `modules.ssh.key_item` default `op://Personal/SSH Key` (used only when
-  `key_source: 1password`; key type appended as the field). **Leave the code default as
-  is** — changing it is a behavior change, out of scope for a docs scrub (see §6 D1).
+- `modules.ssh.key_item` default is being **changed** from the personal-flavored
+  `op://Personal/SSH Key` to a neutral generic (recommended `op://Private/SSH Key` —
+  1Password's current default personal-vault name). Used only when `key_source: 1password`
+  (key type appended as the field). Deliberate back-compat break per the guiding principle
+  (§4.H, §6-D1). Docs must describe whatever value ships as the new default.
 - `modules.git.default_branch: main` — **live** (git module reads
   `DOTFILES_SETTING_DEFAULT_BRANCH`).
 - `modules.zsh.theme` — **REMOVED** (was dead). zsh prompt/theme comes from the
@@ -116,13 +128,17 @@ mega-diff. Recommended order (each independently mergeable):
    user impact.
 2. **`docs/scrub-template-context`** — §4.C (fix the template-context block in the 3 docs
    + troubleshooting). Small, surgical, one canonical block.
-3. **`docs/scrub-site`** — §4.D (rewrite the two native docs-site pages + site metadata).
-   Respect §5. This is the only group touching `docs-site/`.
-4. **`docs/scrub-artifacts`** — §4.E (top-level artifact cleanup, ROADMAP genericize,
-   CONTRIBUTING check). Resolve the §6 decisions first.
+3. **`docs/scrub-site`** — §4.D (rewrite the two native docs-site pages + site metadata)
+   and the new **Extensibility guide/tutorial page** §4.G (also a docs-site page). Respect
+   §5. This is the only group touching `docs-site/`.
+4. **`docs/scrub-artifacts`** — §4.E (delete the two stale summaries, ROADMAP genericize,
+   CONTRIBUTING check).
+5. **`fix/ssh-key-item-default`** — §4.H: the deliberate ssh `key_item` default change
+   (NOT docs-only — code + comments + docs + test + CHANGELOG "breaking default" note).
+   Ship this first or standalone; the doc groups then describe the new default value.
 
-Do §6 decisions up front (some gate the work). Update this plan's checkboxes + Status and
-add a CHANGELOG `[Unreleased]` entry per PR.
+The §6 decisions are now resolved (see §6). Update this plan's checkboxes + Status and add
+a CHANGELOG `[Unreleased]` entry per PR.
 
 ---
 
@@ -200,22 +216,25 @@ if you ship the template-context PR separately, do these four together.)
 - [ ] Replace the placeholder description "Documentation for dotfiles" in all three synced
       spots: `docs-site/docs.manifest.json:4`, `docs-site/astro.config.mjs:32`,
       `index.mdx` frontmatter — with one real one-line description.
+- [ ] Register the new **Extensibility** page (§4.G) as a docs-site page — manifest +
+      `setup-docs.sh` + sidebar + `.gitignore`, in order (§5).
 - [ ] (Optional) Consider a docs-site nav grouping so Overview/Installation/Quick
-      Start/**Content Overlay** read as a "Getting started" cluster. If you touch the
-      sidebar, keep manifest↔sidebar parity + order (§5).
+      Start/**Content Overlay**/**Extending** read as a "Getting started" cluster. If you
+      touch the sidebar, keep manifest↔sidebar parity + order (§5).
 
-### E. Top-level artifacts, ROADMAP, CONTRIBUTING (resolve §6 first)
-- [ ] `DOCUMENTATION_UPDATES.md` (376 lines) and `UX_ENHANCEMENT_SUMMARY.md` (288 lines):
-      one-off v2.1.0 summaries whose content is already in `CHANGELOG.md`. Per §6-D2:
-      delete (or move under a `docs/history/` archive). Remove any inbound links.
+### E. Top-level artifacts, ROADMAP, CONTRIBUTING
+- [ ] **DELETE** `DOCUMENTATION_UPDATES.md` (376 lines) and `UX_ENHANCEMENT_SUMMARY.md`
+      (288 lines) — one-off v2.1.0 summaries whose content is already in `CHANGELOG.md`
+      (§6-D2, decided: delete). Remove any inbound links (grep first).
 - [ ] `ROADMAP.md`: `:308` genericize `dotfiles add garygentry/my-module` →
       `you/my-module`. Re-verify statuses against what shipped (uninstall/rollback-history,
       schema validation partially advanced — see `plans/README.md` "Overlap" note); mark
-      accordingly. Optionally add a one-line pointer to the content-overlay docs.
+      accordingly. Optionally add a one-line pointer to the content-overlay/extending docs.
 - [ ] `CONTRIBUTING.md`: quick pass for stale build/test commands and to mention the
       overlay/plans workflow; no known hard errors — verify.
-- [ ] `config.yml` / `config.overlay.example.yml` / `modules/ssh/install.sh` comments: per
-      §6-D1 decision on the `op://Personal/SSH Key` default wording.
+- [ ] `config.yml` / `config.overlay.example.yml` / `modules/ssh/install.sh` comments: fold
+      the new ssh `key_item` default wording (§4.H) into these — they must show the new
+      generic default, not `op://Personal/SSH Key`.
 
 ### F. Cross-file consistency sweeps (grep-driven; do once, repo-wide)
 - [ ] **Provider default**: no doc shows `provider: 1password` or `provider: ""` as the
@@ -228,11 +247,67 @@ if you ship the template-context PR separately, do these four together.)
       dependency claims; ssh deps are `[]`.
 - [ ] **developer profile**: every listing matches `profiles/developer.yml`.
 - [ ] **Go version**: `rg -n "1\.22|golang:1\.22"` → standardize on ≥1.23.
-- [ ] **repo URL placeholder**: pick ONE — replace `USER` in
-      `installation.md`/`quick-start.md` raw URLs with `garygentry` (real repo) OR make
-      everything a clearly-marked `<your-fork>`; be consistent.
+- [ ] **repo URL placeholder** (D4 → `garygentry`): replace `USER` in
+      `installation.md`/`quick-start.md` raw URLs with `garygentry`; reserve
+      `<your-fork>` only where a doc is explicitly about forking.
 - [ ] **template context**: `rg -n "\.User\.Name|\.Secrets\.|Module settings + prompts"` →
       reconciled with §2.4.
+
+### G. Extensibility guide + hands-on tutorial (NEW page)
+Create a dedicated, task-oriented page for building your own setup — the "how do I make
+this mine?" companion to the conceptual `docs/content-overlay.md`. Proposed
+`docs/extending.md`, slug `extending`, sidebar label "Extending". Register as a docs-site
+page (§5 four-place sync + `.gitignore` + rerun `setup-docs.sh` + `check-docs.mjs`).
+
+- [ ] **Concept intro** — what extensibility means here: a personal **content repo**
+      (`my-dotfiles`) overlaying the generic engine; the three extension points (config
+      overlay, content **profiles**, content **modules**: custom + override); secrets stay
+      in a provider, never committed. Link `docs/content-overlay.md` for the deep model and
+      `docs/creating-modules.md` for module-authoring reference (don't duplicate them).
+- [ ] **Tutorial — build a `my-dotfiles` repo from scratch** (numbered, copy-pasteable,
+      ending in a working `--dry-run`). Steps:
+      1. `git init my-dotfiles`; create the layout (`config.yml`, `profiles/`, `modules/`).
+      2. **Overlay `config.yml`** — set identity (`user.*`), opt into a provider if wanted
+         (`secrets.provider`), tweak a module setting (e.g. `modules.git.default_branch`).
+         Show the deep-merge (only changed keys needed).
+      3. **A content profile** (`profiles/mine.yml`) selecting built-in + your own modules
+         by name; set `profile: mine`. Note content-wins over a same-name built-in profile.
+      4. **A CUSTOM module** — new `modules/hello/` (`module.yml` + `install.sh`) using
+         `lib/helpers.sh` (`log_*`, `is_dry_run`, `pkg_install`) and the `DOTFILES_*` env;
+         optionally a `files/` template showing `{{ .User.name }}` / `{{ .Module.<key> }}`
+         / `index .Env "DOTFILES_PROMPT_*"` (correct per §2.4). Appears as tag **custom**.
+      5. **An OVERRIDE module** — `modules/git/` with `name: git` to replace the built-in
+         wholesale (precedence keyed on `name`, not dir); explain when to override vs
+         customize, and that it's whole-module replacement (reproduce what you still want).
+         Appears as tag **override**.
+      6. **Point the engine at it**: `export DOTFILES_CONTENT_DIR=$PWD/my-dotfiles`, then
+         `dotfiles list` (see custom/override tags) and `dotfiles install --profile mine
+         --dry-run`. Show expected output.
+      7. **Clean-machine bootstrap** from the repo:
+         `curl … bootstrap.sh | bash -s -- --content-repo https://github.com/you/my-dotfiles.git`
+         (public/secret-free recommended; private via agent/`--content-auth-cmd`). Link
+         `docs/content-overlay.md#private-content-repos`.
+      8. **Verify & troubleshoot**: the override-name gotcha (`name` must match), overlay
+         not applied (`DOTFILES_CONTENT_DIR` unset), `dotfiles status` tags.
+- [ ] Reuse the shipped example `docs/examples/content-repo/` as the tutorial's finished
+      artifact — reference/link it (via a GitHub tree URL for docs-site link-safety, §5)
+      rather than re-pasting all files. Keep the two in sync.
+- [ ] Cross-link the new page from `docs/README.md` (index), root `README.md`,
+      `docs/content-overlay.md`, and `docs/creating-modules.md`.
+
+### H. ssh `key_item` default change (NOT docs-only — deliberate back-compat break)
+Per the guiding principle + §6-D1. Ship as its own PR (`fix/ssh-key-item-default`).
+- [ ] Change the code default in `modules/ssh/install.sh:27`
+      (`${DOTFILES_SETTING_KEY_ITEM:-op://Personal/SSH Key}`) to the new generic
+      (recommended `op://Private/SSH Key`). Update the comments at
+      `modules/ssh/install.sh:14-15,24` too.
+- [ ] Update `config.yml:30-31` comment and `config.overlay.example.yml:49` example to the
+      new default; update `test/bootstrap/ssh_key_item_test.sh` (the "unset → default"
+      cases assert `op://Personal/SSH Key/…`) to the new value.
+- [ ] CHANGELOG `[Unreleased]` **Changed** entry explicitly flagging the changed default
+      as a **breaking default** (only affects users of `key_source: 1password` who relied
+      on the old default vault name; fix: set `modules.ssh.key_item`).
+- [ ] `go test -race ./...` + the hermetic ssh test green; shellcheck-clean.
 
 ---
 
@@ -273,22 +348,20 @@ Then run `sh docs-site/setup-docs.sh && node docs-site/check-docs.mjs`.
 
 ---
 
-## 6. Decisions to make first (confirm with the maintainer)
+## 6. Decisions (resolved 2026-08-21)
 
-- **D1 — `op://Personal/SSH Key` default.** It's the committed fallback for
-  `key_source: 1password` (`modules/ssh/install.sh:27`, mirrored in `config.yml:31`
-  comment + `config.overlay.example.yml:54`). *Recommendation:* **do not change the code
-  default** (backward-compat for existing 1Password users; only matters when
-  `key_source: 1password`). Optionally reword the doc/comment to call it a
-  personal-flavored **placeholder** users should override. Decide: reword-only vs
-  leave-as-is vs (out-of-scope) change the default.
-- **D2 — Fate of `DOCUMENTATION_UPDATES.md` & `UX_ENHANCEMENT_SUMMARY.md`.**
-  *Recommendation:* delete both (content lives in `CHANGELOG.md`), or move to
-  `docs/history/`. Decide delete vs archive.
-- **D3 — Author block** (`README.md:495-498`, real name/email). It's legitimate
-  attribution on the maintainer's own repo. *Recommendation:* keep; genericize only if the
-  maintainer wants a public-facing generic engine.
-- **D4 — Repo-URL placeholder** (`USER` vs `garygentry`). Pick one convention (§4.F).
+- **D1 — `op://Personal/SSH Key` default → CHANGE IT (decided).** Per the guiding
+  principle, replace the personal-flavored default with a neutral generic
+  (recommended `op://Private/SSH Key` — 1Password's current default personal-vault name).
+  This is a deliberate back-compat break, executed in §4.H (code + comments + docs + test +
+  CHANGELOG). Confirm the exact new value during execution.
+- **D2 — `DOCUMENTATION_UPDATES.md` & `UX_ENHANCEMENT_SUMMARY.md` → DELETE (decided).**
+  Content already lives in `CHANGELOG.md`; remove both (not archived). See §4.E.
+- **D3 — Author block** (`README.md:495-498`, real name/email). *Keep* — legitimate
+  attribution on the maintainer's own repo. (Revisit only if the repo is ever handed off.)
+- **D4 — Repo-URL placeholder** (`USER` vs `garygentry`). Standardize on **`garygentry`**
+  (the real engine repo); reserve a clearly-marked `<your-fork>` only where a doc is
+  explicitly about forking. Applied in §4.F.
 
 ---
 
@@ -306,11 +379,21 @@ Then run `sh docs-site/setup-docs.sh && node docs-site/check-docs.mjs`.
 - Architecture/creating-modules cover the overlay (config layering, content-wins
   discovery, unified render context).
 - docs-site: the two native pages describe the real product; placeholder description
-  replaced; `node docs-site/check-docs.mjs` reports **OK — no drift**; a Node-22
-  `npm run build` succeeds (or is confirmed green post-merge on the docs workflow).
-- Top-level artifacts resolved per §6; ROADMAP genericized and status-checked.
+  replaced; the new **Extending** page is registered and renders; `node
+  docs-site/check-docs.mjs` reports **OK — no drift**; a Node-22 `npm run build` succeeds
+  (or is confirmed green post-merge on the docs workflow).
+- **Extensibility page (§4.G) exists**: a new user can follow the tutorial end-to-end to
+  build a `my-dotfiles` repo with a custom module and an override, ending in a working
+  `--dry-run`; the shipped `docs/examples/content-repo/` is referenced as the finished result.
+- **ssh `key_item` default changed (§4.H)**: the new generic default ships in code +
+  comments + `config.yml`/example, the hermetic ssh test asserts the new value, and the
+  CHANGELOG flags the deliberate breaking-default change. No doc shows `op://Personal/SSH Key`
+  as the default any more.
+- Top-level artifacts resolved: the two stale summaries deleted; ROADMAP genericized and
+  status-checked.
 - Each PR: CHANGELOG `[Unreleased]` updated; this plan's checkboxes/Status current;
-  `go test ./...` + `go vet` still green (docs-only, but CI runs on every PR).
+  `go test -race ./...` + `go vet` still green (docs PRs are trivially green; the §4.H PR
+  must pass the ssh test).
 
 ## 8. Verification commands
 ```bash
@@ -319,6 +402,8 @@ rg -n "provider: *1password|provider: *\"\"" README.md docs/
 rg -n "dotfiles rollback|dotfiles version" docs/
 rg -n "\.User\.Name" docs/
 rg -n "1\.22|golang:1\.22" docs/
+rg -n "op://Personal/SSH Key" .        # §4.H: none after the default change (except CHANGELOG note)
+ls DOCUMENTATION_UPDATES.md UX_ENHANCEMENT_SUMMARY.md 2>/dev/null   # §4.E: expect "No such file"
 # docs-site guard (runs on Node 18; materialize symlinks first)
 sh docs-site/setup-docs.sh && node docs-site/check-docs.mjs
 # full site build (needs Node >=22)
