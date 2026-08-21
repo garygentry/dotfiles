@@ -34,9 +34,9 @@ installed on your system and when it was set up.`,
 			cfg = &config.Config{} // Use empty config if loading fails
 		}
 
-		// Discover available modules
-		modulesDir := filepath.Join(sys.DotfilesDir, "modules")
-		allModules, err := module.Discover(modulesDir)
+		// Discover available modules across the engine and content overlay roots.
+		roots := module.ModuleRoots(sys.DotfilesDir, cfg.ContentDir)
+		allModules, err := module.DiscoverRoots(roots)
 		if err != nil {
 			u.Debug(fmt.Sprintf("Module discovery failed: %v", err))
 			allModules = nil

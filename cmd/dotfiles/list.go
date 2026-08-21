@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/garygentry/dotfiles/internal/config"
 	"github.com/garygentry/dotfiles/internal/module"
 	"github.com/garygentry/dotfiles/internal/state"
 	"github.com/garygentry/dotfiles/internal/sysinfo"
@@ -23,14 +24,23 @@ var listCmd = &cobra.Command{
 			return fmt.Errorf("system detection: %w", err)
 		}
 
-		modulesDir := filepath.Join(sys.DotfilesDir, "modules")
-		modules, err := module.Discover(modulesDir)
+		// Content dir (if any) contributes overlay modules; a failed config load
+		// falls back to the engine-only root.
+		var contentDir string
+		if cfg, cerr := config.Load(sys.DotfilesDir); cerr == nil {
+			contentDir = cfg.ContentDir
+		} else {
+			u.Debug(fmt.Sprintf("Could not load config: %v", cerr))
+		}
+
+		roots := module.ModuleRoots(sys.DotfilesDir, contentDir)
+		modules, err := module.DiscoverRoots(roots)
 		if err != nil {
 			return fmt.Errorf("module discovery: %w", err)
 		}
 
 		if len(modules) == 0 {
-			u.Warn("No modules found in " + modulesDir)
+			u.Warn("No modules found in " + strings.Join(roots, ", "))
 			return nil
 		}
 

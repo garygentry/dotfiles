@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 3 (Modules)
 
-**Status:** IN PROGRESS (T1 done) · **Branch:** `track3/content-modules` (from `main`)
+**Status:** IN PROGRESS (T1–T3 done) · **Branch:** `track3/content-modules` (from `main`)
 **Tracks:** Content-overlay model, phase 3 of 4. Multi-session plan — update the
 checkboxes and the Status line as you go, and commit the updated plan with the work.
 
@@ -112,11 +112,11 @@ Small column or tag. If it balloons, split to its own task/PR.
       Unit tests: two roots, override by name, content-only module, missing
       content root = engine only, malformed content module errors. Keep
       `Discover` behavior intact. *Acceptance:* `go test ./internal/module/`.
-- [ ] **T2 — Wire `install`.** `cmd/dotfiles/install.go` discovers via
+- [x] **T2 — Wire `install`.** `cmd/dotfiles/install.go` discovers via
       `ModuleRoots(sys.DotfilesDir, cfg.ContentDir)`. A content profile can now
       reference a content module end to end. *Acceptance:* dry-run install of a
       content profile that lists a content-only module shows it in the plan.
-- [ ] **T3 — Wire `list`, `status`, `validate`.** Same `ModuleRoots` source in
+- [x] **T3 — Wire `list`, `status`, `validate`.** Same `ModuleRoots` source in
       `cmd/dotfiles/list.go`, `status.go`, `validate.go`. *Acceptance:* `list`
       shows content + override modules; `validate` checks them.
 - [ ] **T4 — Override visibility.** `list`/`status` tag built-in / override /
