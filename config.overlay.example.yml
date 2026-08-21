@@ -14,6 +14,21 @@
 # per key (so you can change one modules.<name>.<key> without redefining the
 # whole module). When no content directory exists, the engine behaves exactly as
 # it does with the committed config.yml alone.
+#
+# The content directory can also carry its own profiles/ and modules/, laid out
+# just like the repo:
+#
+#   ~/.config/dotfiles/
+#     config.yml            # this file
+#     profiles/mine.yml     # a content profile (wins over a same-name built-in)
+#     modules/mymod/        # a CUSTOM module (module.yml, install.sh, ...)
+#     modules/git/          # an OVERRIDE of the built-in git module (same name)
+#
+# Module discovery scans the engine's modules/ then your content modules/, with
+# same-name CONTENT-WINS precedence: a content module.yml of the same name
+# replaces the built-in one wholesale (whole-module replacement, not merging).
+# A content profile can then list custom or overridden modules by name, and
+# `dotfiles list`/`status` tag each module built-in / override / custom.
 
 # Personal identity used by modules like git and ssh.
 user:

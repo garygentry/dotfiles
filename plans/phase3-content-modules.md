@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 3 (Modules)
 
-**Status:** IN PROGRESS (T1–T4 done) · **Branch:** `track3/content-modules` (from `main`)
+**Status:** IN PROGRESS (T1–T5 done) · **Branch:** `track3/content-modules` (from `main`)
 **Tracks:** Content-overlay model, phase 3 of 4. Multi-session plan — update the
 checkboxes and the Status line as you go, and commit the updated plan with the work.
 
@@ -122,7 +122,7 @@ Small column or tag. If it balloons, split to its own task/PR.
 - [x] **T4 — Override visibility.** `list`/`status` tag built-in / override /
       custom. *Acceptance:* a content `git` override shows as "override"; a
       content-only module shows as "custom". (Split out if large.)
-- [ ] **T5 — Docs + example + CHANGELOG.** Add a `modules/` note to
+- [x] **T5 — Docs + example + CHANGELOG.** Add a `modules/` note to
       `config.overlay.example.yml` (or a short `docs/` note) showing a content
       module and an override. CHANGELOG under `[Unreleased]` → "Content overlay
       (phase 3: modules)". *Acceptance:* docs build / render fine.
