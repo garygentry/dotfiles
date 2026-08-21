@@ -43,12 +43,14 @@ else
     _git_errors=$((_git_errors + 1))
 fi
 
-# Check init.defaultBranch is set
+# Check init.defaultBranch matches the configured value (modules.git.default_branch,
+# exposed as DOTFILES_SETTING_DEFAULT_BRANCH; defaults to 'main').
+_git_expected_branch="${DOTFILES_SETTING_DEFAULT_BRANCH:-main}"
 _git_default_branch="$(git config --global init.defaultBranch 2>/dev/null || true)"
-if [[ "$_git_default_branch" == "main" ]]; then
-    log_success "git init.defaultBranch is set to 'main'"
+if [[ "$_git_default_branch" == "$_git_expected_branch" ]]; then
+    log_success "git init.defaultBranch is set to '${_git_expected_branch}'"
 else
-    log_warn "git init.defaultBranch is '${_git_default_branch}', expected 'main'"
+    log_warn "git init.defaultBranch is '${_git_default_branch}', expected '${_git_expected_branch}'"
     _git_errors=$((_git_errors + 1))
 fi
 

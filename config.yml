@@ -30,8 +30,8 @@ modules:
     # "<key_item>/<key_type>". Defaults to "op://Personal/SSH Key" when unset.
     # key_item: op://Personal/SSH Key
   git:
+    # Value for `git config --global init.defaultBranch`, applied by the git
+    # module. Defaults to 'main'.
     default_branch: main
-  zsh:
-    theme: powerlevel10k
   neovim:
     colorscheme: catppuccin

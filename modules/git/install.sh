@@ -7,6 +7,11 @@ _git_user_email="${DOTFILES_USER_EMAIL:-}"
 _git_ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
 _git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_${_git_ssh_key_type}"
 
+# init.defaultBranch is configurable via config.yml -> modules.git.default_branch,
+# exposed as DOTFILES_SETTING_DEFAULT_BRANCH. Defaults to 'main' so unset config
+# behaves exactly as before.
+_git_default_branch="${DOTFILES_SETTING_DEFAULT_BRANCH:-main}"
+
 # Configure git user identity
 if [[ -n "$_git_user_name" ]]; then
     if is_dry_run; then
@@ -47,10 +52,10 @@ fi
 
 # Configure useful defaults
 if is_dry_run; then
-    log_info "[dry-run] Would set git defaults (defaultBranch, push, pull, aliases)"
+    log_info "[dry-run] Would set git init.defaultBranch to '${_git_default_branch}' (and push, pull, aliases)"
 else
     # Branch defaults
-    git config --global init.defaultBranch main
+    git config --global init.defaultBranch "$_git_default_branch"
 
     # Push/pull behavior
     git config --global push.autoSetupRemote true

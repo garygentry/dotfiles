@@ -209,6 +209,21 @@ func TestBuildEnvVarsModuleSettings(t *testing.T) {
 	}
 }
 
+// TestBuildEnvVarsGitDefaultBranch is the positive counterpart to the leak check
+// above: the git module's own default_branch setting must reach its install
+// script as DOTFILES_SETTING_DEFAULT_BRANCH (config key that 4D made live).
+func TestBuildEnvVarsGitDefaultBranch(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.Config.Modules["git"] = map[string]any{"default_branch": "trunk"}
+
+	gitMod := &Module{Name: "git", Dir: "/tmp/modules/git"}
+	env := buildEnvVars(cfg, gitMod, nil)
+
+	if got := env["DOTFILES_SETTING_DEFAULT_BRANCH"]; got != "trunk" {
+		t.Errorf("env[DOTFILES_SETTING_DEFAULT_BRANCH] = %q, want %q", got, "trunk")
+	}
+}
+
 // setupCopyModule creates a module with a single copy-type file under the
 // config's dotfiles dir and returns the module plus the absolute source/dest.
 func setupCopyModule(t *testing.T, cfg *RunConfig, content string) (*Module, string, string) {
