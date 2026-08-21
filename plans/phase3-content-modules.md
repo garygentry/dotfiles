@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 3 (Modules)
 
-**Status:** NOT STARTED · **Branch:** `track3/content-modules` (create from `main`)
+**Status:** IN PROGRESS (T1 done) · **Branch:** `track3/content-modules` (from `main`)
 **Tracks:** Content-overlay model, phase 3 of 4. Multi-session plan — update the
 checkboxes and the Status line as you go, and commit the updated plan with the work.
 
@@ -106,7 +106,7 @@ Small column or tag. If it balloons, split to its own task/PR.
 
 ## 3. Task breakdown (each is a small, self-contained commit)
 
-- [ ] **T1 — Multi-root discovery + tests.** Add `DiscoverRoots(roots)` and
+- [x] **T1 — Multi-root discovery + tests.** Add `DiscoverRoots(roots)` and
       `ModuleRoots(dotfilesDir, contentDir)` in `internal/module`. Content-wins
       precedence; missing roots skipped; malformed module.yml errors with path.
       Unit tests: two roots, override by name, content-only module, missing

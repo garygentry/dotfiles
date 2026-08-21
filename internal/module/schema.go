@@ -12,6 +12,15 @@ import (
 
 var moduleNameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// Module source classifications, set by DiscoverRoots to record where a module
+// came from relative to the ordered discovery roots. Used for override
+// visibility in `list`/`status`. Single-root Discover leaves Source empty.
+const (
+	SourceBuiltin  = "built-in" // only defined in the engine (first) root
+	SourceOverride = "override" // a later root shadows an earlier same-name module
+	SourceCustom   = "custom"   // defined only in a later (content) root
+)
+
 // LegacyPath describes a legacy config file that may conflict with managed configs.
 type LegacyPath struct {
 	Path   string `yaml:"path"`   // e.g. "~/.tmux.conf"
@@ -35,6 +44,7 @@ type Module struct {
 	Timeout      string       `yaml:"timeout"` // e.g., "10m", parsed via time.ParseDuration
 	Notes        []string     `yaml:"notes"`   // Post-install messages displayed after run
 	Dir          string       `yaml:"-"`
+	Source       string       `yaml:"-"` // discovery classification: built-in, override, or custom
 }
 
 // FileEntry describes a single file to deploy as part of a module.
