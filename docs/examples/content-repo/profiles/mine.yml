@@ -1,0 +1,11 @@
+# A content profile: the set of modules to install on this machine. It lists
+# built-in engine modules AND your own content modules by name (see modules/).
+#
+# Referenced by config.yml's `profile: mine`. Because a content profile of the
+# same name wins over a built-in one, naming this `developer.yml` would override
+# the engine's developer profile instead of adding a new one.
+modules:
+  - ssh
+  - git        # overridden by modules/git/ below (same-name content-wins)
+  - zsh
+  - hello      # a custom content module (new name the engine doesn't ship)

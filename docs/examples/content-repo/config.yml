@@ -1,0 +1,28 @@
+# Example content overlay — the config.yml of a personal "my-dotfiles" repo.
+#
+# This file is deep-merged OVER the engine's committed config.yml, so it only
+# needs the keys you want to change. With no content dir set, the engine ignores
+# this entirely and behaves as shipped.
+#
+# See docs/content-overlay.md for the full two-repo story and first-install flow.
+
+# Use the content profile defined in profiles/mine.yml (see below). A bare name
+# resolves from THIS content dir's profiles/ first (content-wins), then the
+# engine's built-in profiles/.
+profile: mine
+
+# Personal identity, consumed by modules like git and ssh. Keep real values
+# here only if this repo is private; a public content repo can leave these blank
+# and rely on interactive prompts or DOTFILES_USER_* env vars.
+user:
+  name: "Ada Lovelace"
+  email: "ada@example.com"
+  github_user: "ada"
+
+modules:
+  # Per-key merge: this changes one git setting without redefining the module.
+  git:
+    default_branch: main
+  ssh:
+    # Use an external SSH agent (e.g. the 1Password agent) — no local key.
+    key_source: agent

@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Content-overlay packaging docs (phase 4E).** New [`docs/content-overlay.md`](docs/content-overlay.md)
+  documents the two-repo model (generic engine + your `my-dotfiles` content repo) and
+  the clean-machine first-install flow end to end: bootstrapping from a public
+  (recommended, secret-free) content repo, a local/network path, and the private-repo
+  path via an ambient SSH/1Password agent or `--content-auth-cmd` — with the
+  chicken-and-egg called out honestly. A minimal, verified example content repo lives at
+  [`docs/examples/content-repo/`](docs/examples/content-repo/) (overlay `config.yml`, a
+  profile, a custom `hello` module, and an override of the built-in `git` module),
+  referenced from `config.overlay.example.yml`. Docs-only; no engine behavior change.
 - **Configurable SSH 1Password item (phase 4B).** The `ssh` module no longer hardcodes
   `op://Personal/SSH Key` for `key_source: 1password`. Set `modules.ssh.key_item` in
   `config.yml` (or a content overlay) to point at your own item; the key type

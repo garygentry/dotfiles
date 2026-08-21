@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 4 (Acquisition, Packaging & Cleanups)
 
-**Status:** 4A ✅ merged (#8); 4B ✅ merged (#9); 4C ✅ merged (#10); 4D IN REVIEW (branch `track4/dead-config`); 4E not started · **Branch:** `track4/*` per task group
+**Status:** 4A ✅ merged (#8); 4B ✅ merged (#9); 4C ✅ merged (#10); 4D ✅ merged (#11); 4E IN REVIEW (branch `track4/packaging-docs`) · **Branch:** `track4/*` per task group — **final task group**
 **Tracks:** Content-overlay model, phase 4 of 4 (final). Multi-session plan — update
 checkboxes and the Status line as you go; commit the updated plan with the work.
 
@@ -137,12 +137,25 @@ Some `config.yml` settings look wired but aren't consumed.
       separate dead key outside 4D's scope — flagged for a follow-up.
 
 ### 4E — Packaging docs
-- [ ] Document the two-repo model and the clean-machine first-install flow
-      (engine + `my-dotfiles` content repo; public/secret-free recommended; the
-      1Password-agent private path). A `docs/` page or README section.
-- [ ] A minimal example content repo layout (config.yml + profiles/ + a sample
-      custom module + an override), referenced from `config.overlay.example.yml`.
+- [x] Documented the two-repo model and the clean-machine first-install flow in a
+      new [`docs/content-overlay.md`](../docs/content-overlay.md) page (engine +
+      `my-dotfiles` content repo; public/secret-free recommended; the
+      1Password-agent private path + `--content-auth-cmd`; the chicken-and-egg
+      called out honestly). Registered as a docs-site page (manifest + symlinker
+      + sidebar) and cross-linked from `docs/README.md`, `README.md`, and
+      `docs/creating-modules.md`.
+- [x] Added a minimal, verified example content repo at
+      [`docs/examples/content-repo/`](../docs/examples/content-repo/): overlay
+      `config.yml` + `profiles/mine.yml` + a **custom** `hello` module + an
+      **override** of the built-in `git` module, with its own README.
+      Referenced from `config.overlay.example.yml` (and the new doc).
 - *Acceptance:* a new user can follow the doc end to end.
+      *Status:* done. The example is proven against the built engine:
+      `DOTFILES_CONTENT_DIR=docs/examples/content-repo ./bin/dotfiles install
+      --profile mine --dry-run` plans ssh→hello→git→zsh, with `dotfiles list`
+      tagging `hello` **custom** and `git` **override**. Docs drift guard
+      (`docs-site/check-docs.mjs`) passes locally; the full Astro build runs in
+      CI on Node 22 (the docs workflow triggers on push to `main`, not on PRs).
 
 ---
 

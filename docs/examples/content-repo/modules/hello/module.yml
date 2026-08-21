@@ -1,0 +1,12 @@
+name: hello
+description: "Example custom module shipped from a content overlay"
+version: "1.0.0"
+priority: 50
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires: []
+tags:
+  - example
