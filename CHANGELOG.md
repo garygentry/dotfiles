@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Module config settings are now available to shell scripts** as
   `DOTFILES_SETTING_<KEY>` (from `config.yml` → `modules.<name>.*`). Previously scripts
   could only see prompt answers, so a module could not read its own configured settings.
+- **Content overlay (phase 1: config).** Point `DOTFILES_CONTENT_DIR` at a directory and
+  its `config.yml` is deep-merged over the repo's — scalars override when set, and
+  `modules.<name>.*` merges per key, so you can change one setting without redefining a
+  module. This lets personal or machine-specific settings live outside the generic repo
+  in your own content directory (the same layout the engine uses: `config.yml`,
+  `profiles/`, `modules/` — later phases wire up profiles and modules). When
+  `DOTFILES_CONTENT_DIR` is unset the engine behaves exactly as before. See
+  `config.overlay.example.yml`.
 
 ### Changed
 
@@ -40,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently falling back to installing *every* module — the previous behaviour turned a
   typo into a full install. A profile named only in `config.yml` still falls back, since
   that is a default rather than a request.
+- **The committed `config.yml` now ships conservative, unopinionated defaults** for the
+  widest audience: no secret provider (`noop`) and `ssh.key_source: generate`. Personal
+  or machine-specific choices (e.g. `1password` + `key_source: agent`) belong in your
+  content overlay rather than the shared repo.
 
 ### Fixed
 

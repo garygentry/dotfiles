@@ -1,8 +1,14 @@
+# Generic, conservative defaults meant to work for the widest audience out of
+# the box. Personal or machine-specific settings belong in your content overlay
+# (an optional ~/.config/dotfiles/config.yml), NOT here — see
+# config.overlay.example.yml. The overlay is deep-merged over this file, so it
+# only needs the keys you want to change.
 profile: developer
 
 secrets:
-  provider: 1password
-  account: my.1password.com
+  # No secret provider by default, so installs need no external tooling. Opt in
+  # from your overlay (e.g. provider: 1password) or DOTFILES_SECRETS_PROVIDER.
+  provider: noop
 
 user:
   name: ""
@@ -18,7 +24,7 @@ modules:
     #             and the GitHub config avoids pinning IdentityFile/IdentitiesOnly
     #   1password retrieve the key from 1Password via the `op` CLI
     #   none      leave ~/.ssh keys and config untouched
-    key_source: agent
+    key_source: generate
   git:
     default_branch: main
   zsh:

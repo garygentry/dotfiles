@@ -31,6 +31,7 @@ type UserConfig struct {
 type Config struct {
 	Profile     string                    `yaml:"profile"`
 	DotfilesDir string                    `yaml:"-"`
+	ContentDir  string                    `yaml:"-"` // resolved user overlay dir, "" if none
 	Secrets     SecretsConfig             `yaml:"secrets"`
 	User        UserConfig                `yaml:"user"`
 	Modules     map[string]map[string]any `yaml:"modules"`
@@ -63,6 +64,19 @@ func Load(dotfilesDir string) (*Config, error) {
 	// Ensure DotfilesDir is always the passed-in value, not from YAML.
 	cfg.DotfilesDir = dotfilesDir
 
+	// Overlay an optional user content directory's config.yml on top of the
+	// base. When no content dir is present this is a no-op and the engine
+	// behaves exactly as it does with only the committed config.yml.
+	cfg.ContentDir = ResolveContentDir()
+	if cfg.ContentDir != "" {
+		overlayPath := filepath.Join(cfg.ContentDir, "config.yml")
+		if overlay, oerr := loadOverlay(overlayPath); oerr != nil {
+			return nil, oerr
+		} else if overlay != nil {
+			mergeConfig(cfg, overlay)
+		}
+	}
+
 	// Re-apply default profile if YAML left it empty.
 	if cfg.Profile == "" {
 		cfg.Profile = "developer"
@@ -77,6 +91,86 @@ func Load(dotfilesDir string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// ResolveContentDir returns the optional user content directory that overlays the
+// generic repo, or "" when none is configured. It is opt-in via the
+// DOTFILES_CONTENT_DIR environment variable (a leading ~ is expanded); a later
+// --content-root flag can override it by setting the same variable.
+//
+// Opt-in is deliberate: auto-detecting a conventional path would make every
+// process (tests, CI, any machine that happens to have such a directory) pick it
+// up as global state. Requiring an explicit pointer keeps behavior predictable
+// and existing single-repo installs completely unaffected.
+func ResolveContentDir() string {
+	if v := os.Getenv("DOTFILES_CONTENT_DIR"); v != "" {
+		return expandHomePath(v)
+	}
+	return ""
+}
+
+// expandHomePath expands a leading ~ to the user's home directory.
+func expandHomePath(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+		}
+	}
+	return path
+}
+
+// loadOverlay reads and parses an overlay config.yml. A missing file is not an
+// error (returns nil, nil) — the overlay is simply absent.
+func loadOverlay(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading overlay config %s: %w", path, err)
+	}
+	var overlay Config
+	if err := yaml.Unmarshal(data, &overlay); err != nil {
+		return nil, fmt.Errorf("parsing overlay config %s: %w", path, err)
+	}
+	return &overlay, nil
+}
+
+// mergeConfig applies an overlay onto base in place. Scalars override only when
+// the overlay sets a non-empty value, so an overlay that omits a field leaves the
+// base value intact. Module settings merge per key, so an overlay can change a
+// single modules.<name>.<key> without redefining the whole module's settings.
+// DotfilesDir/ContentDir are engine-resolved and never taken from an overlay.
+func mergeConfig(base, overlay *Config) {
+	if overlay.Profile != "" {
+		base.Profile = overlay.Profile
+	}
+	if overlay.Secrets.Provider != "" {
+		base.Secrets.Provider = overlay.Secrets.Provider
+	}
+	if overlay.Secrets.Account != "" {
+		base.Secrets.Account = overlay.Secrets.Account
+	}
+	if overlay.User.Name != "" {
+		base.User.Name = overlay.User.Name
+	}
+	if overlay.User.Email != "" {
+		base.User.Email = overlay.User.Email
+	}
+	if overlay.User.GithubUser != "" {
+		base.User.GithubUser = overlay.User.GithubUser
+	}
+	if base.Modules == nil {
+		base.Modules = make(map[string]map[string]any)
+	}
+	for mod, settings := range overlay.Modules {
+		if base.Modules[mod] == nil {
+			base.Modules[mod] = make(map[string]any)
+		}
+		for k, v := range settings {
+			base.Modules[mod][k] = v
+		}
+	}
 }
 
 // ProfileIsPath reports whether a profile argument should be read as a literal file

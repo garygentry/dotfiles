@@ -8,6 +8,145 @@ import (
 	"testing"
 )
 
+// TestMain clears DOTFILES_CONTENT_DIR so an ambient overlay on the developer's
+// machine cannot leak into tests that don't set it explicitly.
+func TestMain(m *testing.M) {
+	os.Unsetenv("DOTFILES_CONTENT_DIR")
+	os.Exit(m.Run())
+}
+
+func TestMergeConfig(t *testing.T) {
+	base := &Config{
+		Profile: "developer",
+		Secrets: SecretsConfig{Provider: "noop"},
+		User:    UserConfig{Name: "Base"},
+		Modules: map[string]map[string]any{
+			"ssh": {"key_type": "ed25519", "key_source": "generate"},
+		},
+	}
+	overlay := &Config{
+		Secrets: SecretsConfig{Account: "acct.example.com"},
+		User:    UserConfig{Email: "e@x"},
+		Modules: map[string]map[string]any{
+			"ssh": {"key_source": "agent"},     // per-key override
+			"git": {"default_branch": "trunk"}, // new module
+		},
+	}
+	mergeConfig(base, overlay)
+
+	if base.Profile != "developer" {
+		t.Errorf("Profile = %q, want unchanged developer", base.Profile)
+	}
+	if base.Secrets.Provider != "noop" {
+		t.Errorf("Provider = %q, want unchanged noop", base.Secrets.Provider)
+	}
+	if base.Secrets.Account != "acct.example.com" {
+		t.Errorf("Account = %q, want overlay value", base.Secrets.Account)
+	}
+	if base.User.Name != "Base" || base.User.Email != "e@x" {
+		t.Errorf("User = %+v, want Name preserved + Email overlaid", base.User)
+	}
+	if base.Modules["ssh"]["key_type"] != "ed25519" {
+		t.Errorf("ssh.key_type = %v, want preserved ed25519", base.Modules["ssh"]["key_type"])
+	}
+	if base.Modules["ssh"]["key_source"] != "agent" {
+		t.Errorf("ssh.key_source = %v, want agent", base.Modules["ssh"]["key_source"])
+	}
+	if base.Modules["git"]["default_branch"] != "trunk" {
+		t.Errorf("git.default_branch = %v, want trunk", base.Modules["git"]["default_branch"])
+	}
+}
+
+func TestResolveContentDir(t *testing.T) {
+	if got := ResolveContentDir(); got != "" {
+		t.Errorf("ResolveContentDir with no env = %q, want empty", got)
+	}
+	t.Setenv("DOTFILES_CONTENT_DIR", "/tmp/my-content")
+	if got := ResolveContentDir(); got != "/tmp/my-content" {
+		t.Errorf("ResolveContentDir = %q, want /tmp/my-content", got)
+	}
+}
+
+func TestLoad_ContentOverlay(t *testing.T) {
+	dir := t.TempDir()
+	base := `
+profile: developer
+secrets:
+  provider: noop
+modules:
+  ssh:
+    key_type: ed25519
+    key_source: generate
+  git:
+    default_branch: main
+`
+	if err := os.WriteFile(filepath.Join(dir, "config.yml"), []byte(base), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	content := t.TempDir()
+	overlay := `
+secrets:
+  provider: 1password
+  account: my.1password.com
+user:
+  email: ada@example.com
+modules:
+  ssh:
+    key_source: agent
+`
+	if err := os.WriteFile(filepath.Join(content, "config.yml"), []byte(overlay), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DOTFILES_CONTENT_DIR", content)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.ContentDir != content {
+		t.Errorf("ContentDir = %q, want %q", cfg.ContentDir, content)
+	}
+	// Overlay wins where it sets a value.
+	if cfg.Secrets.Provider != "1password" || cfg.Secrets.Account != "my.1password.com" {
+		t.Errorf("secrets = %+v, want overlay 1password/my.1password.com", cfg.Secrets)
+	}
+	if cfg.User.Email != "ada@example.com" {
+		t.Errorf("User.Email = %q, want overlay value", cfg.User.Email)
+	}
+	if cfg.Modules["ssh"]["key_source"] != "agent" {
+		t.Errorf("ssh.key_source = %v, want agent (overlay)", cfg.Modules["ssh"]["key_source"])
+	}
+	// Base preserved where the overlay is silent.
+	if cfg.Profile != "developer" {
+		t.Errorf("Profile = %q, want developer (base)", cfg.Profile)
+	}
+	if cfg.Modules["ssh"]["key_type"] != "ed25519" {
+		t.Errorf("ssh.key_type = %v, want ed25519 (base)", cfg.Modules["ssh"]["key_type"])
+	}
+	if cfg.Modules["git"]["default_branch"] != "main" {
+		t.Errorf("git.default_branch = %v, want main (base)", cfg.Modules["git"]["default_branch"])
+	}
+}
+
+func TestLoad_NoOverlayWhenUnset(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yml"), []byte("profile: minimal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.ContentDir != "" {
+		t.Errorf("ContentDir = %q, want empty when DOTFILES_CONTENT_DIR unset", cfg.ContentDir)
+	}
+	if cfg.Profile != "minimal" {
+		t.Errorf("Profile = %q, want minimal", cfg.Profile)
+	}
+}
+
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 
