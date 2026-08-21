@@ -10,10 +10,22 @@
 #              (e.g. the 1Password agent). The rendered config avoids pinning
 #              an IdentityFile / IdentitiesOnly so agent keys are offered.
 #   none       leave ~/.ssh keys and config entirely untouched
+#
+# For key_source=1password the item is configurable via modules.ssh.key_item
+# (DOTFILES_SETTING_KEY_ITEM), defaulting to "op://Personal/SSH Key".
 
 _ssh_dir="${DOTFILES_HOME}/.ssh"
 _ssh_key_source="${DOTFILES_SETTING_KEY_SOURCE:-generate}"
 _ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
+
+# 1Password item holding the SSH key (key_source=1password). Configurable via
+# config.yml -> modules.ssh.key_item, exposed as DOTFILES_SETTING_KEY_ITEM. The
+# key type is appended as the field, so the full secret reference is
+# "<key_item>/<key_type>" (e.g. op://Personal/SSH Key/ed25519). Defaults to the
+# historical hardcoded item so unset config behaves exactly as before. A single
+# trailing slash is tolerated so "op://Vault/Item/" doesn't double up.
+_ssh_key_item="${DOTFILES_SETTING_KEY_ITEM:-op://Personal/SSH Key}"
+_ssh_key_item="${_ssh_key_item%/}"
 
 case "$_ssh_key_source" in
     generate|1password|agent|none) ;;
@@ -89,10 +101,10 @@ case "$_ssh_key_source" in
             log_error "key_source=1password but the 1Password CLI (op) is not available"
             exit 1
         else
-            log_info "Retrieving SSH key from 1Password..."
-            _ssh_op_key="$(get_secret "op://Personal/SSH Key/${_ssh_key_type}" 2>/dev/null || true)"
+            log_info "Retrieving SSH key from 1Password (${_ssh_key_item}/${_ssh_key_type})..."
+            _ssh_op_key="$(get_secret "${_ssh_key_item}/${_ssh_key_type}" 2>/dev/null || true)"
             if [[ -z "$_ssh_op_key" ]]; then
-                log_error "key_source=1password but no key found at op://Personal/SSH Key/${_ssh_key_type}"
+                log_error "key_source=1password but no key found at ${_ssh_key_item}/${_ssh_key_type}"
                 exit 1
             fi
             if is_dry_run; then

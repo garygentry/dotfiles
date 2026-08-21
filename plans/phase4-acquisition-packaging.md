@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 4 (Acquisition, Packaging & Cleanups)
 
-**Status:** 4A IN REVIEW (branch `track4/acquisition`); 4B–4E not started · **Branch:** `track4/*` per task group
+**Status:** 4A ✅ merged (#8); 4B IN REVIEW (branch `track4/ssh-key-item`); 4C–4E not started · **Branch:** `track4/*` per task group
 **Tracks:** Content-overlay model, phase 4 of 4 (final). Multi-session plan — update
 checkboxes and the Status line as you go; commit the updated plan with the work.
 
@@ -73,12 +73,18 @@ run the engine against it. The engine core does NOT gain git/network logic.
 The ssh module hardcodes `op://Personal/SSH Key/<type>` (`modules/ssh/install.sh`,
 ~line 93). Make it configurable so it isn't personal-specific.
 
-- [ ] Read the 1Password item reference from a module setting (e.g.
+- [x] Read the 1Password item reference from a module setting (e.g.
       `modules.ssh.key_item: "op://Personal/SSH Key"`), exposed to the script as
       `DOTFILES_SETTING_KEY_ITEM` (the `DOTFILES_SETTING_*` plumbing already
       exists). Fall back to the current default if unset.
 - *Acceptance:* `key_source: 1password` uses the configured ref; default preserved;
       unit/e2e as feasible.
+      *Status:* done. `modules/ssh/install.sh` reads `DOTFILES_SETTING_KEY_ITEM`
+      (default `op://Personal/SSH Key`, trailing slash tolerated) and appends the key
+      type as the field. Documented in `config.yml` + `config.overlay.example.yml`.
+      Proven hermetically in `test/bootstrap/ssh_key_item_test.sh` (default, custom,
+      trailing-slash cases); no root/network needed. `key_source: generate` (the
+      committed default) never touches 1Password, so the default path is unchanged.
 
 ### 4C — Unify the two template contexts
 The shell-invoked `render-template` subcommand (`cmd/dotfiles/render_template.go`)
