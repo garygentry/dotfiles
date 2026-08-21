@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable SSH 1Password item (phase 4B).** The `ssh` module no longer hardcodes
+  `op://Personal/SSH Key` for `key_source: 1password`. Set `modules.ssh.key_item` in
+  `config.yml` (or a content overlay) to point at your own item; the key type
+  (`ed25519`/`rsa`) is still appended as the field, so the full reference is
+  `<key_item>/<key_type>`. When unset it defaults to `op://Personal/SSH Key`, so existing
+  configs behave exactly as before.
 - **Content overlay (phase 4A: acquisition & bootstrap).** `bootstrap.sh` can now
   materialize a content overlay directory and point the engine at it before installing,
   via new flags: `--content-repo <git-url>` (with optional `--content-ref <ref>`) clones

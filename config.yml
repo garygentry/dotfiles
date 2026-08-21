@@ -25,6 +25,10 @@ modules:
     #   1password retrieve the key from 1Password via the `op` CLI
     #   none      leave ~/.ssh keys and config untouched
     key_source: generate
+    # 1Password item holding the key when key_source=1password. The key type
+    # (ed25519/rsa) is appended as the field, so the full secret reference is
+    # "<key_item>/<key_type>". Defaults to "op://Personal/SSH Key" when unset.
+    # key_item: op://Personal/SSH Key
   git:
     default_branch: main
   zsh:
