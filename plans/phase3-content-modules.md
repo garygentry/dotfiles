@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 3 (Modules)
 
-**Status:** NOT STARTED · **Branch:** `track3/content-modules` (create from `main`)
+**Status:** DONE (T1–T6) — PR open, awaiting CI · **Branch:** `track3/content-modules` (from `main`)
 **Tracks:** Content-overlay model, phase 3 of 4. Multi-session plan — update the
 checkboxes and the Status line as you go, and commit the updated plan with the work.
 
@@ -106,31 +106,37 @@ Small column or tag. If it balloons, split to its own task/PR.
 
 ## 3. Task breakdown (each is a small, self-contained commit)
 
-- [ ] **T1 — Multi-root discovery + tests.** Add `DiscoverRoots(roots)` and
+- [x] **T1 — Multi-root discovery + tests.** Add `DiscoverRoots(roots)` and
       `ModuleRoots(dotfilesDir, contentDir)` in `internal/module`. Content-wins
       precedence; missing roots skipped; malformed module.yml errors with path.
       Unit tests: two roots, override by name, content-only module, missing
       content root = engine only, malformed content module errors. Keep
       `Discover` behavior intact. *Acceptance:* `go test ./internal/module/`.
-- [ ] **T2 — Wire `install`.** `cmd/dotfiles/install.go` discovers via
+- [x] **T2 — Wire `install`.** `cmd/dotfiles/install.go` discovers via
       `ModuleRoots(sys.DotfilesDir, cfg.ContentDir)`. A content profile can now
       reference a content module end to end. *Acceptance:* dry-run install of a
       content profile that lists a content-only module shows it in the plan.
-- [ ] **T3 — Wire `list`, `status`, `validate`.** Same `ModuleRoots` source in
+- [x] **T3 — Wire `list`, `status`, `validate`.** Same `ModuleRoots` source in
       `cmd/dotfiles/list.go`, `status.go`, `validate.go`. *Acceptance:* `list`
       shows content + override modules; `validate` checks them.
-- [ ] **T4 — Override visibility.** `list`/`status` tag built-in / override /
+- [x] **T4 — Override visibility.** `list`/`status` tag built-in / override /
       custom. *Acceptance:* a content `git` override shows as "override"; a
       content-only module shows as "custom". (Split out if large.)
-- [ ] **T5 — Docs + example + CHANGELOG.** Add a `modules/` note to
+- [x] **T5 — Docs + example + CHANGELOG.** Add a `modules/` note to
       `config.overlay.example.yml` (or a short `docs/` note) showing a content
       module and an override. CHANGELOG under `[Unreleased]` → "Content overlay
       (phase 3: modules)". *Acceptance:* docs build / render fine.
-- [ ] **T6 — End-to-end via testuser harness.** Using `scripts/testuser.sh`, run
-      an install with a content dir containing (a) a custom module and (b) an
-      override of a built-in; confirm the content versions win and a run with NO
-      content dir is unchanged. *Acceptance:* both scenarios pass; record output
-      in the PR.
+- [x] **T6 — End-to-end (real install).** `scripts/testuser.sh` needs root
+      (`useradd`), which the dev session lacked (no passwordless sudo), so the
+      same two scenarios were proven with a hermetic *real, non-dry-run* install
+      against a synthetic engine+content dir (own `HOME`/`DOTFILES_DIR`, modules
+      that only write markers — no packages/sudo/network): (a) content `git`
+      override + custom `mymod` both executed (markers `CONTENT-GIT`/
+      `CONTENT-MYMOD`), the override dropped git's `ssh` dep, and `list` tagged
+      them `override`/`custom`; (b) with no content dir, engine `git` ran
+      (`ENGINE-GIT`), no Source column, `mymod` unknown — identical to before.
+      Output recorded in the PR. CI's Docker integration tests exercise the full
+      testuser-style flow. Optional manual harness run left for a root shell.
 
 Tasks may be one PR or a few small ones — reviewer's discretion. Keep each commit
 green.

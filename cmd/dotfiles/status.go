@@ -34,9 +34,9 @@ installed on your system and when it was set up.`,
 			cfg = &config.Config{} // Use empty config if loading fails
 		}
 
-		// Discover available modules
-		modulesDir := filepath.Join(sys.DotfilesDir, "modules")
-		allModules, err := module.Discover(modulesDir)
+		// Discover available modules across the engine and content overlay roots.
+		roots := module.ModuleRoots(sys.DotfilesDir, cfg.ContentDir)
+		allModules, err := module.DiscoverRoots(roots)
 		if err != nil {
 			u.Debug(fmt.Sprintf("Module discovery failed: %v", err))
 			allModules = nil
@@ -68,13 +68,18 @@ installed on your system and when it was set up.`,
 		u.Info(fmt.Sprintf("Dotfiles directory: %s", sys.DotfilesDir))
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
+		// Only show the Source column when the overlay actually contributed a
+		// modules root (len(roots) > 1); otherwise every module is built-in and
+		// the output stays as before.
+		showSource := len(roots) > 1
+
 		// Build table data
 		type row struct {
-			name, version, status, updateStatus, installedAt, os string
+			name, version, status, updateStatus, installedAt, source, os string
 		}
 
 		rows := make([]row, 0, len(states))
-		maxName, maxVersion, maxStatus, maxUpdate, maxTime := 4, 7, 6, 6, 10 // header widths
+		maxName, maxVersion, maxStatus, maxUpdate, maxTime, maxSource := 4, 7, 6, 6, 10, 6 // header widths
 		var needsUpdate, userModified int
 
 		for _, ms := range states {
@@ -131,30 +136,59 @@ installed on your system and when it was set up.`,
 				maxTime = len(timeStr)
 			}
 
+			// Source is known only for modules still present in discovery; an
+			// installed module no longer on disk shows "-".
+			source := "-"
+			if mod, exists := modulesByName[ms.Name]; exists {
+				if mod.Source != "" {
+					source = mod.Source
+				} else {
+					source = module.SourceBuiltin
+				}
+			}
+			if len(source) > maxSource {
+				maxSource = len(source)
+			}
+
 			rows = append(rows, row{
 				name:         ms.Name,
 				version:      ms.Version,
 				status:       ms.Status,
 				updateStatus: updateStatus,
 				installedAt:  timeStr,
+				source:       source,
 				os:           ms.OS,
 			})
 		}
 
 		// Print table
-		fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxVersion, maxStatus, maxUpdate, maxTime)
-
-		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Version", "Status", "Update", "Installed", "OS")
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s  %s  %s\n",
-			strings.Repeat("-", maxName),
-			strings.Repeat("-", maxVersion),
-			strings.Repeat("-", maxStatus),
-			strings.Repeat("-", maxUpdate),
-			strings.Repeat("-", maxTime),
-			strings.Repeat("-", 10))
-
-		for _, r := range rows {
-			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, r.version, r.status, r.updateStatus, r.installedAt, r.os)
+		if showSource {
+			fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxVersion, maxStatus, maxUpdate, maxTime, maxSource)
+			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Version", "Status", "Update", "Installed", "Source", "OS")
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s  %s  %s  %s\n",
+				strings.Repeat("-", maxName),
+				strings.Repeat("-", maxVersion),
+				strings.Repeat("-", maxStatus),
+				strings.Repeat("-", maxUpdate),
+				strings.Repeat("-", maxTime),
+				strings.Repeat("-", maxSource),
+				strings.Repeat("-", 10))
+			for _, r := range rows {
+				fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, r.version, r.status, r.updateStatus, r.installedAt, r.source, r.os)
+			}
+		} else {
+			fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxVersion, maxStatus, maxUpdate, maxTime)
+			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Version", "Status", "Update", "Installed", "OS")
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s  %s  %s\n",
+				strings.Repeat("-", maxName),
+				strings.Repeat("-", maxVersion),
+				strings.Repeat("-", maxStatus),
+				strings.Repeat("-", maxUpdate),
+				strings.Repeat("-", maxTime),
+				strings.Repeat("-", 10))
+			for _, r := range rows {
+				fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, r.version, r.status, r.updateStatus, r.installedAt, r.os)
+			}
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")

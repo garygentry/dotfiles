@@ -122,14 +122,16 @@ resolution, module execution, and summary output.`,
 			}
 		}
 
-		// Phase 3: Module discovery and dependency resolution.
-		modulesDir := filepath.Join(sys.DotfilesDir, "modules")
-		allModules, err := module.Discover(modulesDir)
+		// Phase 3: Module discovery and dependency resolution. Discover across the
+		// engine's modules and the content overlay's modules/ (content wins on
+		// same-name modules). With no content dir this is exactly the engine root.
+		roots := module.ModuleRoots(sys.DotfilesDir, cfg.ContentDir)
+		allModules, err := module.DiscoverRoots(roots)
 		if err != nil {
 			return fmt.Errorf("module discovery: %w", err)
 		}
 		if len(allModules) == 0 {
-			u.Warn("No modules found in " + modulesDir)
+			u.Warn("No modules found in " + strings.Join(roots, ", "))
 			return nil
 		}
 

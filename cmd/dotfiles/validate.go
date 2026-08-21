@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
+	"github.com/garygentry/dotfiles/internal/config"
 	"github.com/garygentry/dotfiles/internal/module"
 	"github.com/garygentry/dotfiles/internal/sysinfo"
 	"github.com/spf13/cobra"
@@ -38,8 +40,15 @@ Exit code is 0 when all modules pass, 1 when any module fails.`,
 			return fmt.Errorf("system detection: %w", err)
 		}
 
-		modulesDir := filepath.Join(sys.DotfilesDir, "modules")
-		allModules, strictErrs, err := loadModulesForValidate(modulesDir, validateStrict)
+		// Content dir (if any) contributes overlay modules to validate; a failed
+		// config load falls back to the engine-only root.
+		var contentDir string
+		if cfg, cerr := config.Load(sys.DotfilesDir); cerr == nil {
+			contentDir = cfg.ContentDir
+		}
+
+		roots := module.ModuleRoots(sys.DotfilesDir, contentDir)
+		allModules, strictErrs, err := loadModulesForValidate(roots, validateStrict)
 		if err != nil {
 			return fmt.Errorf("module discovery: %w", err)
 		}
@@ -112,51 +121,65 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 }
 
-// loadModulesForValidate reads all modules from modulesDir. When strict is
-// true each module.yml is additionally decoded with KnownFields(true); any
-// unknown-key errors are returned in the strictErrs map keyed by module name.
-func loadModulesForValidate(modulesDir string, strict bool) ([]*module.Module, map[string]string, error) {
-	entries, err := os.ReadDir(modulesDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil, nil
-		}
-		return nil, nil, err
-	}
-
-	var modules []*module.Module
+// loadModulesForValidate reads all modules across the ordered roots, applying
+// content-wins precedence (a later root's same-name module replaces an earlier
+// one, so validation checks the module that would actually be used). Missing
+// roots are skipped. When strict is true each module.yml is additionally
+// decoded with KnownFields(true); any unknown-key errors are returned in the
+// strictErrs map keyed by module name.
+func loadModulesForValidate(roots []string, strict bool) ([]*module.Module, map[string]string, error) {
+	byName := make(map[string]*module.Module)
 	strictErrs := make(map[string]string)
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		ymlPath := filepath.Join(modulesDir, entry.Name(), "module.yml")
-		if _, err := os.Stat(ymlPath); os.IsNotExist(err) {
-			continue
-		}
-
-		m, err := module.ParseModuleYAML(ymlPath)
+	for _, root := range roots {
+		entries, err := os.ReadDir(root)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parsing %s: %w", ymlPath, err)
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, nil, err
 		}
 
-		if strict {
-			data, err := os.ReadFile(ymlPath)
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			ymlPath := filepath.Join(root, entry.Name(), "module.yml")
+			if _, err := os.Stat(ymlPath); os.IsNotExist(err) {
+				continue
+			}
+
+			m, err := module.ParseModuleYAML(ymlPath)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("parsing %s: %w", ymlPath, err)
 			}
-			dec := yaml.NewDecoder(bytes.NewReader(data))
-			dec.KnownFields(true)
-			var raw map[string]interface{}
-			if err := dec.Decode(&raw); err != nil {
-				strictErrs[m.Name] = err.Error()
-			}
-		}
 
+			// Content-wins: a later root replaces the earlier module and its
+			// strict result, so a stale engine strictErr never lingers.
+			delete(strictErrs, m.Name)
+			if strict {
+				data, err := os.ReadFile(ymlPath)
+				if err != nil {
+					return nil, nil, err
+				}
+				dec := yaml.NewDecoder(bytes.NewReader(data))
+				dec.KnownFields(true)
+				var raw map[string]interface{}
+				if err := dec.Decode(&raw); err != nil {
+					strictErrs[m.Name] = err.Error()
+				}
+			}
+
+			byName[m.Name] = m
+		}
+	}
+
+	modules := make([]*module.Module, 0, len(byName))
+	for _, m := range byName {
 		modules = append(modules, m)
 	}
+	sort.Slice(modules, func(i, j int) bool { return modules[i].Name < modules[j].Name })
 
 	return modules, strictErrs, nil
 }

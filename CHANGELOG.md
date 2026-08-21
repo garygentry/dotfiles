@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Content overlay (phase 3: modules).** Modules are now discovered from your content
+  directory's `modules/` in addition to the engine's built-in `modules/`, with **same-name
+  content-wins precedence**: drop a `modules/<name>/` in your content dir to add a custom
+  module, or a same-named directory to override a built-in one wholesale (whole-module
+  replacement, not merging). `install`, `list`, `status`, and `validate` all discover
+  across both roots, and a content profile can reference custom or overridden modules by
+  name. `list` and `status` add a `Source` column (`built-in` / `override` / `custom`) when
+  a content overlay is active so overrides are never silent. With no `DOTFILES_CONTENT_DIR`
+  set, discovery and output are exactly as before.
 - **Content overlay (phase 2: profiles).** Bare profile names now resolve from your
   content directory's `profiles/` before the engine's built-in `profiles/`, so a content
   profile of the same name overrides a built-in one and content-only profiles work by
