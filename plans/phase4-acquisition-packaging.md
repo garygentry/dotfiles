@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 4 (Acquisition, Packaging & Cleanups)
 
-**Status:** 4A ✅ merged (#8); 4B ✅ merged (#9); 4C IN REVIEW (branch `track4/template-context`); 4D–4E not started · **Branch:** `track4/*` per task group
+**Status:** 4A ✅ merged (#8); 4B ✅ merged (#9); 4C ✅ merged (#10); 4D IN REVIEW (branch `track4/dead-config`); 4E not started · **Branch:** `track4/*` per task group
 **Tracks:** Content-overlay model, phase 4 of 4 (final). Multi-session plan — update
 checkboxes and the Status line as you go; commit the updated plan with the work.
 
@@ -115,13 +115,26 @@ silently gets empty values for those. Make the two paths equivalent.
 ### 4D — Dead-config cleanup
 Some `config.yml` settings look wired but aren't consumed.
 
-- [ ] `modules.git.default_branch` — either make `modules/git/install.sh` read
-      `DOTFILES_SETTING_DEFAULT_BRANCH` (falling back to `main`) or remove the
-      config key. Prefer making it live.
-- [ ] `modules.zsh.theme` — consume it in `modules/zsh/zshrc.tmpl` (via
-      `DOTFILES_SETTING_THEME` / `.Module.theme`, needs 4C) or remove it.
+- [x] `modules.git.default_branch` — made live. `modules/git/install.sh` now
+      reads `DOTFILES_SETTING_DEFAULT_BRANCH` (default `main`) for
+      `git config --global init.defaultBranch`, and `modules/git/verify.sh`
+      checks against the same configured value. Default preserves today's
+      behavior exactly.
+- [x] `modules.zsh.theme` — removed. It was silently ignored, its committed
+      default (`powerlevel10k`) isn't a supported/installed option, and it
+      overlapped the existing `zsh_prompt` prompt that already drives
+      `ZSH_THEME`. Making it live at that default would have changed behavior at
+      defaults (breaking backward compat), so removal was the honest, plan-
+      sanctioned choice. Dropped from `config.yml`, `README.md`, and
+      `docs/quick-start.md`.
 - *Acceptance:* no committed config key is silently ignored; changing it changes
       behavior (or it's gone).
+      *Status:* done. `default_branch` proven live by a positive Go unit test
+      (`TestBuildEnvVarsGitDefaultBranch`, runner_test.go) and a hermetic shell
+      test (`test/bootstrap/git_default_branch_test.sh`, 3 cases: default `main`,
+      `trunk`, `develop`; no root/network). `zsh.theme` gone. Note:
+      `modules.neovim.colorscheme` (init.lua hardcodes `catppuccin`) is a
+      separate dead key outside 4D's scope — flagged for a follow-up.
 
 ### 4E — Packaging docs
 - [ ] Document the two-repo model and the clean-machine first-install flow

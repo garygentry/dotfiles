@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Dead-config cleanup (phase 4D).** Two committed `config.yml` keys that looked wired
+  but were silently ignored are now either live or gone. `modules.git.default_branch` is
+  now live: `modules/git/install.sh` applies it via
+  `git config --global init.defaultBranch` (and `verify.sh` checks against the same
+  value), defaulting to `main` so unset config behaves exactly as before.
+  `modules.zsh.theme` is removed: its committed default (`powerlevel10k`) was never a
+  supported or installed option and overlapped the existing `zsh_prompt` prompt that
+  already drives `ZSH_THEME`, so it was dropped from `config.yml`, `README.md`, and
+  `docs/quick-start.md` rather than made live (which would have changed default
+  behavior). No behavior change at defaults.
+
 ### Fixed
 
 - **Unified template contexts (phase 4C).** Templates rendered from a shell script via

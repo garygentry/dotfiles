@@ -219,8 +219,6 @@ modules:
     key_type: ed25519
   git:
     default_branch: main
-  zsh:
-    theme: powerlevel10k
 ```
 
 ### Module-Specific Settings
