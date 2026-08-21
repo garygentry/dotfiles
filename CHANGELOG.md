@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Homebrew on macOS, the distro package on Arch, and Astral's installer elsewhere.
 - **`ansible` module** — agentless configuration management, from the distribution
   package so its Python interpreter matches the system's.
+- **`scripts/testuser.sh`** — a throwaway test-user harness for exercising the installer
+  against the local working copy (no GitHub round-trip). Subcommands `create`, `run`,
+  `state`, `shell`, `destroy`, `reset`, and `list` create passwordless-sudo users, sync
+  the repo into their `~/.dotfiles`, and run the installer unattended. Paired with a new
+  `debug-failing` profile scoped to the modules that broke on a fresh WSL install.
 
 ### Changed
 

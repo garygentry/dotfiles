@@ -1,0 +1,11 @@
+# debug-failing.yml — the modules that failed on the fresh WSL install.
+# Used with scripts/testuser.sh to reproduce and verify fixes quickly.
+#
+#   ripgrep, btop, nodejs  -> failed install.sh with apt exit 100
+#   fzf, python            -> failed verify.sh (exit 1)
+modules:
+  - ripgrep
+  - btop
+  - nodejs
+  - python
+  - fzf
