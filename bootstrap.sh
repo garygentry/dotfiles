@@ -230,17 +230,21 @@ expand_tilde() {
 # so existing invocations behave exactly as before.
 # ---------------------------------------------------------------------------
 parse_args() {
+    # $# includes the flag itself, so a value in $2 requires at least 2 args.
+    # Guarding before touching $2 turns a fat-fingered flag into a clear error
+    # instead of a raw "$2: unbound variable" from set -u.
+    need_val() { [ "$1" -ge 2 ] || fatal "${2} requires a value"; }
     while [ $# -gt 0 ]; do
         case "$1" in
-            --content-repo)       CONTENT_REPO="$2";      shift 2 ;;
+            --content-repo)       need_val $# "$1"; CONTENT_REPO="$2";     shift 2 ;;
             --content-repo=*)     CONTENT_REPO="${1#*=}";      shift ;;
-            --content-ref)        CONTENT_REF="$2";       shift 2 ;;
+            --content-ref)        need_val $# "$1"; CONTENT_REF="$2";      shift 2 ;;
             --content-ref=*)      CONTENT_REF="${1#*=}";       shift ;;
-            --content-path)       CONTENT_PATH="$2";      shift 2 ;;
+            --content-path)       need_val $# "$1"; CONTENT_PATH="$2";     shift 2 ;;
             --content-path=*)     CONTENT_PATH="${1#*=}";      shift ;;
-            --content-dir)        CONTENT_DIR_DEST="$2";  shift 2 ;;
+            --content-dir)        need_val $# "$1"; CONTENT_DIR_DEST="$2"; shift 2 ;;
             --content-dir=*)      CONTENT_DIR_DEST="${1#*=}";  shift ;;
-            --content-auth-cmd)   CONTENT_AUTH_CMD="$2";  shift 2 ;;
+            --content-auth-cmd)   need_val $# "$1"; CONTENT_AUTH_CMD="$2"; shift 2 ;;
             --content-auth-cmd=*) CONTENT_AUTH_CMD="${1#*=}";  shift ;;
             --no-persist-content-dir) PERSIST_CONTENT_DIR=0;   shift ;;
             --)                   shift; INSTALL_ARGS+=("$@"); break ;;
@@ -339,8 +343,11 @@ persist_content_dir() {
         info "${target} already sets DOTFILES_CONTENT_DIR; leaving it unchanged."
         return
     fi
-    printf '\n# Added by dotfiles bootstrap\n%s\n' "$line" >> "$target" \
-        && ok "Persisted DOTFILES_CONTENT_DIR to ${target}"
+    if printf '\n# Added by dotfiles bootstrap\n%s\n' "$line" >> "$target"; then
+        ok "Persisted DOTFILES_CONTENT_DIR to ${target}"
+    else
+        warn "could not write ${target}; add the export line above to your shell env manually"
+    fi
 }
 
 # ---------------------------------------------------------------------------

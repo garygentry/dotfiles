@@ -176,5 +176,12 @@ AUTH_MARKER="${TMPROOT}/auth-ran"
     [ ! -f "${HOME}/.zshenv" ] || exit 1
 ) && pass "--no-persist-content-dir skips ~/.zshenv" || fail "--no-persist-content-dir skips ~/.zshenv"
 
+# --- Case 12: value-taking flag with no value fails cleanly (not set -u crash) -
+(
+    reset_content_vars
+    INSTALL_ARGS=()
+    parse_args --content-repo 2>/dev/null
+) && fail "trailing value flag should fail" || pass "trailing value flag fails with clear error"
+
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" -eq 0 ]
