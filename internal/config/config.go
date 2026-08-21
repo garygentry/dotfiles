@@ -191,33 +191,47 @@ func ProfileIsPath(name string) bool {
 	return ext == ".yml" || ext == ".yaml"
 }
 
-// ResolveProfilePath returns the file that a profile argument refers to: the argument
-// itself when it is a path (with a leading ~ expanded and relative paths taken from the
-// working directory), otherwise <dotfilesDir>/profiles/<name>.yml.
-func ResolveProfilePath(dotfilesDir, name string) string {
-	if !ProfileIsPath(name) {
-		return filepath.Join(dotfilesDir, "profiles", name+".yml")
+// ResolveProfilePath returns the file that a profile argument refers to.
+//
+// A path argument (see ProfileIsPath) is used as-is, with a leading ~ expanded and
+// relative paths taken from the working directory.
+//
+// A bare name resolves to <dir>/profiles/<name>.yml. When contentDir is set and it
+// contains a profile of that name, the content directory wins over the engine's
+// built-in profiles — so a user can override a built-in profile or add their own.
+// Otherwise it falls back to <dotfilesDir>/profiles/<name>.yml (which may not exist,
+// yielding a clear not-found error at load time).
+func ResolveProfilePath(dotfilesDir, contentDir, name string) string {
+	if ProfileIsPath(name) {
+		path := name
+		if path == "~" || strings.HasPrefix(path, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				path = filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+			}
+		}
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+		return path
 	}
 
-	path := name
-	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			path = filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+	if contentDir != "" {
+		p := filepath.Join(contentDir, "profiles", name+".yml")
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
 	}
-	if abs, err := filepath.Abs(path); err == nil {
-		path = abs
-	}
-	return path
+	return filepath.Join(dotfilesDir, "profiles", name+".yml")
 }
 
 // LoadProfile reads a profile and returns the module names defined under its "modules"
-// key. The name is resolved by ResolveProfilePath, so it may be either a bare profile
-// name or a path to a profile file anywhere on disk.
+// key. The name is resolved by ResolveProfilePath, so it may be a bare profile name
+// (looked up in the content dir then the engine) or a path to a profile file anywhere
+// on disk.
 //
 // A missing file yields an error wrapping ErrProfileNotFound.
-func LoadProfile(dotfilesDir, name string) ([]string, error) {
-	profilePath := ResolveProfilePath(dotfilesDir, name)
+func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
+	profilePath := ResolveProfilePath(dotfilesDir, contentDir, name)
 
 	data, err := os.ReadFile(profilePath)
 	if err != nil {

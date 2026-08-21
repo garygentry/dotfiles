@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Content overlay (phase 2: profiles).** Bare profile names now resolve from your
+  content directory's `profiles/` before the engine's built-in `profiles/`, so a content
+  profile of the same name overrides a built-in one and content-only profiles work by
+  name (`--profile mine`). Path profiles (`--profile /path/to.yml`) are unchanged. The
+  installer also announces the overlay in use and warns when `DOTFILES_CONTENT_DIR`
+  points at a directory that does not exist, instead of silently ignoring it.
+
 ## [2.2.0] - 2026-08-21
 
 ### Added
