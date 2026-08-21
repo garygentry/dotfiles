@@ -27,6 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   typo into a full install. A profile named only in `config.yml` still falls back, since
   that is a default rather than a request.
 
+### Fixed
+
+- **Package installs now refresh the index first.** `pkg_install` runs `apt-get update`
+  (or `pacman -Sy`) once per script before the first install. On a fresh system — e.g. a
+  new WSL Ubuntu — the apt lists start empty, so package installs previously failed with
+  exit 100 (*"Unable to locate package"*). This affected every module that installs a
+  plain distro package without its own `os/*.sh` refresh (ripgrep, btop, nodejs, fzf).
+- **`python` module now installs `pip3`.** `install.sh` short-circuited when `python3`
+  was already present (as it is on most distros) and never installed `python3-pip`, so
+  `verify.sh` failed on a fresh machine. It now installs both unconditionally
+  (idempotently).
+- **`nodejs` module ignores a Windows `node` on WSL.** A `node` resolving under `/mnt/`
+  (the Windows PATH bleeding into WSL) no longer counts as installed, so the real Linux
+  package is installed instead of being silently skipped.
+- **`fzf` git fallback hardened.** The fallback no longer swallows the package manager's
+  error output, reuses an existing `~/.fzf` checkout, and cleans up a partial one before
+  cloning.
+
 ## [2.1.0] - 2026-02-16
 
 ### Added

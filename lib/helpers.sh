@@ -99,6 +99,35 @@ pkg_installed() {
     esac
 }
 
+# pkg_refresh
+#   Refresh the package manager's index once per script invocation. On a fresh
+#   system (e.g. a new WSL Ubuntu) the apt lists start empty, so "apt-get
+#   install" fails with exit 100 ("Unable to locate package") until they are
+#   populated. Guarded so repeated pkg_install calls only refresh once.
+pkg_refresh() {
+    [[ "${_DOTFILES_PKG_REFRESHED:-false}" == "true" ]] && return 0
+    case "${DOTFILES_PKG_MGR:-}" in
+        apt)
+            if is_dry_run; then
+                log_info "[dry-run] Would run: apt-get update"
+            else
+                log_info "Refreshing package lists (apt-get update)..."
+                sudo_cmd apt-get update -qq
+            fi
+            ;;
+        pacman)
+            if is_dry_run; then
+                log_info "[dry-run] Would run: pacman -Sy"
+            else
+                log_info "Refreshing package lists (pacman -Sy)..."
+                sudo_cmd pacman -Sy --noconfirm
+            fi
+            ;;
+        *) ;;  # brew updates itself on install; unknown managers no-op.
+    esac
+    _DOTFILES_PKG_REFRESHED="true"
+}
+
 # pkg_install PKG1 [PKG2 ...]
 #   Install one or more packages that are not already present.
 #   Respects dry-run mode (logs what would happen without acting).
@@ -126,6 +155,9 @@ pkg_install() {
             return 1
             ;;
     esac
+
+    # Ensure the package index is populated before the first install.
+    pkg_refresh
 
     if is_dry_run; then
         log_info "[dry-run] Would run: ${cmd[*]} ${to_install[*]}"
