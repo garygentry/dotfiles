@@ -1,0 +1,32 @@
+# Example content overlay.
+#
+# Copy this to your content directory as config.yml to personalize a dotfiles
+# install WITHOUT editing the generic repo. The content directory is opt-in: the
+# engine uses it only when DOTFILES_CONTENT_DIR points at it. A typical setup:
+#
+#   mkdir -p ~/.config/dotfiles
+#   cp config.overlay.example.yml ~/.config/dotfiles/config.yml
+#   # edit to taste, then make it apply to every install:
+#   echo 'export DOTFILES_CONTENT_DIR="$HOME/.config/dotfiles"' >> ~/.zshenv
+#
+# This overlay is deep-merged over the repo's config.yml: only include the keys
+# you want to change. Scalars override the base when set; module settings merge
+# per key (so you can change one modules.<name>.<key> without redefining the
+# whole module). When no content directory exists, the engine behaves exactly as
+# it does with the committed config.yml alone.
+
+# Personal identity used by modules like git and ssh.
+user:
+  name: "Ada Lovelace"
+  email: "ada@example.com"
+  github_user: "ada"
+
+# Opt into a secret provider for this machine.
+secrets:
+  provider: 1password
+  account: my.1password.com
+
+modules:
+  ssh:
+    # Use an external SSH agent (e.g. the 1Password agent) instead of a local key.
+    key_source: agent
