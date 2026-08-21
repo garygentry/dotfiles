@@ -41,9 +41,15 @@ func TestCreateBackup(t *testing.T) {
 	}
 
 	// Create backup
-	err := createBackup(testFile, cfg, "testmodule")
+	backupPath, err := createBackup(testFile, cfg, "testmodule")
 	if err != nil {
 		t.Fatalf("createBackup failed: %v", err)
+	}
+	if backupPath == "" {
+		t.Fatal("createBackup returned an empty backup path for an existing file")
+	}
+	if _, statErr := os.Stat(backupPath); statErr != nil {
+		t.Fatalf("returned backup path does not exist: %v", statErr)
 	}
 
 	// Verify backup was created
@@ -109,10 +115,13 @@ func TestCreateBackupNonExistentFile(t *testing.T) {
 		DryRun: false,
 	}
 
-	// Backup non-existent file should succeed (no-op)
-	err := createBackup(filepath.Join(tmpDir, "nonexistent"), cfg, "test")
+	// Backup non-existent file should succeed (no-op) and return an empty path
+	backupPath, err := createBackup(filepath.Join(tmpDir, "nonexistent"), cfg, "test")
 	if err != nil {
 		t.Errorf("createBackup failed for non-existent file: %v", err)
+	}
+	if backupPath != "" {
+		t.Errorf("expected empty backup path for non-existent file, got %q", backupPath)
 	}
 }
 
@@ -133,10 +142,13 @@ func TestCreateBackupDryRun(t *testing.T) {
 		DryRun: true,
 	}
 
-	// Dry run should not create backup
-	err := createBackup(testFile, cfg, "test")
+	// Dry run should not create backup and returns an empty path
+	backupPath, err := createBackup(testFile, cfg, "test")
 	if err != nil {
 		t.Fatalf("createBackup failed: %v", err)
+	}
+	if backupPath != "" {
+		t.Errorf("expected empty backup path in dry-run, got %q", backupPath)
 	}
 
 	// Verify no backup directory was created

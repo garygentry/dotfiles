@@ -24,25 +24,30 @@ type BackupMetadata struct {
 //
 // This protects user modifications from being lost when modules are updated.
 // Users can manually restore files from backups if needed.
-func createBackup(filePath string, cfg *RunConfig, moduleName string) error {
+//
+// It returns the absolute path of the backup that was written, so callers can
+// record it (e.g. in a file_deploy operation's backup_path metadata) to enable
+// restore-on-rollback. The returned path is empty when nothing was backed up
+// (dry-run, or the file did not exist).
+func createBackup(filePath string, cfg *RunConfig, moduleName string) (string, error) {
 	if cfg.DryRun {
 		cfg.UI.Debug(fmt.Sprintf("[dry-run] Would backup: %s", filePath))
-		return nil
+		return "", nil
 	}
 
 	// Verify source file exists
 	if _, err := os.Stat(filePath); err != nil {
 		if os.IsNotExist(err) {
 			// File doesn't exist, no need to backup
-			return nil
+			return "", nil
 		}
-		return fmt.Errorf("checking file: %w", err)
+		return "", fmt.Errorf("checking file: %w", err)
 	}
 
 	// Compute hash of file being backed up
 	contentHash, err := ComputeFileHash(filePath)
 	if err != nil {
-		return fmt.Errorf("computing hash: %w", err)
+		return "", fmt.Errorf("computing hash: %w", err)
 	}
 
 	// Create backup with timestamp
@@ -60,12 +65,12 @@ func createBackup(filePath string, cfg *RunConfig, moduleName string) error {
 	// Create backup directory
 	backupDir := filepath.Dir(backupPath)
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
-		return fmt.Errorf("creating backup directory: %w", err)
+		return "", fmt.Errorf("creating backup directory: %w", err)
 	}
 
 	// Copy file to backup location
 	if err := copyFile(filePath, backupPath); err != nil {
-		return fmt.Errorf("copying to backup: %w", err)
+		return "", fmt.Errorf("copying to backup: %w", err)
 	}
 
 	// Write metadata alongside backup
@@ -80,15 +85,15 @@ func createBackup(filePath string, cfg *RunConfig, moduleName string) error {
 	metaPath := backupPath + ".meta.json"
 	metaData, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling metadata: %w", err)
+		return "", fmt.Errorf("marshaling metadata: %w", err)
 	}
 
 	if err := os.WriteFile(metaPath, metaData, 0o644); err != nil {
-		return fmt.Errorf("writing metadata: %w", err)
+		return "", fmt.Errorf("writing metadata: %w", err)
 	}
 
 	cfg.UI.Warn(fmt.Sprintf("⚠ Backed up user-modified file: %s → %s", filePath, backupPath))
-	return nil
+	return backupPath, nil
 }
 
 // copyFile copies the contents of src to dst, creating dst if it doesn't exist.

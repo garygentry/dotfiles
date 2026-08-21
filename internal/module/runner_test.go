@@ -209,6 +209,121 @@ func TestBuildEnvVarsModuleSettings(t *testing.T) {
 	}
 }
 
+// setupCopyModule creates a module with a single copy-type file under the
+// config's dotfiles dir and returns the module plus the absolute source/dest.
+func setupCopyModule(t *testing.T, cfg *RunConfig, content string) (*Module, string, string) {
+	t.Helper()
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "mymod")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(modDir, "files", "foo.conf")
+	if err := os.WriteFile(src, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mod := &Module{
+		Name:  "mymod",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/foo.conf", Dest: "~/foo.conf", Type: "copy"}},
+	}
+	dest := filepath.Join(cfg.SysInfo.HomeDir, "foo.conf")
+	return mod, src, dest
+}
+
+func countFileDeployOps(ms *state.ModuleState, dest string) int {
+	n := 0
+	for _, op := range ms.Operations {
+		if op.Type == "file_deploy" && op.Path == dest {
+			n++
+		}
+	}
+	return n
+}
+
+// A clean re-run that skips an unchanged file must still record a rollback
+// operation, or a later uninstall cannot remove the file.
+func TestDeployFiles_SkipRecordsRollbackOp(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	mod, _, dest := setupCopyModule(t, cfg, "v1")
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms1 := &state.ModuleState{Name: mod.Name}
+	deployed, skipped, err := deployFiles(cfg, mod, tctx, ms1, nil)
+	if err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+	if deployed != 1 || skipped != 0 {
+		t.Fatalf("first deploy counts: deployed=%d skipped=%d, want 1/0", deployed, skipped)
+	}
+
+	ms2 := &state.ModuleState{Name: mod.Name}
+	deployed, skipped, err = deployFiles(cfg, mod, tctx, ms2, ms1)
+	if err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+	if deployed != 0 || skipped != 1 {
+		t.Fatalf("second deploy counts: deployed=%d skipped=%d, want 0/1", deployed, skipped)
+	}
+	if got := countFileDeployOps(ms2, dest); got != 1 {
+		t.Fatalf("skip run recorded %d file_deploy ops for %s, want 1", got, dest)
+	}
+	if !ms2.CanRollback() {
+		t.Fatal("state after a clean re-run reports CanRollback()==false")
+	}
+}
+
+// When the user edits a deployed file AND the source also changes before the
+// next run, the user's copy must be backed up (not silently overwritten) and the
+// operation must carry backup_path so rollback can restore it.
+func TestDeployFiles_BacksUpUserEditWhenSourceAlsoChanged(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	mod, src, dest := setupCopyModule(t, cfg, "v1")
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms1 := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms1, nil); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	if err := os.WriteFile(dest, []byte("user-edited"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src, []byte("v2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ms2 := &state.ModuleState{Name: mod.Name}
+	deployed, _, err := deployFiles(cfg, mod, tctx, ms2, ms1)
+	if err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+	if deployed != 1 {
+		t.Fatalf("expected redeploy (source changed), deployed=%d", deployed)
+	}
+
+	var backupPath, action string
+	for _, op := range ms2.Operations {
+		if op.Type == "file_deploy" && op.Path == dest {
+			action = op.Action
+			backupPath = op.Metadata["backup_path"]
+		}
+	}
+	if action != "modified" {
+		t.Errorf("op action = %q, want modified", action)
+	}
+	if backupPath == "" {
+		t.Fatal("no backup_path recorded for overwritten user edit")
+	}
+	if data, rerr := os.ReadFile(backupPath); rerr != nil {
+		t.Fatalf("reading backup: %v", rerr)
+	} else if string(data) != "user-edited" {
+		t.Errorf("backup content = %q, want %q", string(data), "user-edited")
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "v2" {
+		t.Errorf("dest content = %q, want %q", string(got), "v2")
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	cfg := newTestRunConfig(t)
 

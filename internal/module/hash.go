@@ -33,7 +33,22 @@ import (
 // template or copied config would report success while leaving the old content in
 // place. Symlinked sources are live regardless of what this hash says; templates
 // and copies are not.
-func ComputeModuleChecksum(mod *Module) (string, error) {
+//
+// extraFiles are additional files whose content affects the module's behavior
+// but which live outside mod.Dir — notably lib/helpers.sh, which every install
+// and verify script sources. Callers must pass the same extraFiles for both the
+// idempotence check and the state recording, or the checksum would differ every
+// run. Changing a shared helper thus re-runs each module once (the same one-time
+// cost as any other definition change).
+// ModuleChecksumExtras returns files outside a module's own directory whose
+// content should still invalidate its checksum when changed. Today that is just
+// lib/helpers.sh, which every module's install.sh and verify.sh source. Pass the
+// result to ComputeModuleChecksum at both the decision and recording sites.
+func ModuleChecksumExtras(dotfilesDir string) []string {
+	return []string{filepath.Join(dotfilesDir, "lib", "helpers.sh")}
+}
+
+func ComputeModuleChecksum(mod *Module, extraFiles ...string) (string, error) {
 	h := sha256.New()
 
 	// Collect all files that define this module's behavior
@@ -42,6 +57,7 @@ func ComputeModuleChecksum(mod *Module) (string, error) {
 		filepath.Join(mod.Dir, "install.sh"),
 		filepath.Join(mod.Dir, "verify.sh"),
 	}
+	filesToHash = append(filesToHash, extraFiles...)
 
 	// Add the sources of every file the module deploys
 	for _, f := range mod.Files {
