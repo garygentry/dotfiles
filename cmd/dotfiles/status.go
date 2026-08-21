@@ -68,9 +68,10 @@ installed on your system and when it was set up.`,
 		u.Info(fmt.Sprintf("Dotfiles directory: %s", sys.DotfilesDir))
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
-		// Only show the Source column when a content overlay is active; without
-		// one every module is built-in and the output stays as before.
-		showSource := cfg.ContentDir != ""
+		// Only show the Source column when the overlay actually contributed a
+		// modules root (len(roots) > 1); otherwise every module is built-in and
+		// the output stays as before.
+		showSource := len(roots) > 1
 
 		// Build table data
 		type row struct {

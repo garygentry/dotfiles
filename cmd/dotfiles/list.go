@@ -46,10 +46,11 @@ var listCmd = &cobra.Command{
 
 		store := state.NewStore(filepath.Join(sys.DotfilesDir, ".state"))
 
-		// Only show the Source column when a content overlay is active. With no
-		// overlay every module is built-in, so the column would add nothing and
-		// the output stays byte-identical to before the overlay existed.
-		showSource := contentDir != ""
+		// Only show the Source column when the overlay actually contributed a
+		// modules root (len(roots) > 1). A content dir that is set but has no
+		// modules/ dir adds nothing, so the output stays byte-identical to
+		// before the overlay existed.
+		showSource := len(roots) > 1
 
 		// Build table data.
 		type row struct {

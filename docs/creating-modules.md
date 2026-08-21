@@ -762,7 +762,10 @@ with **same-name content-wins precedence**:
 Each content module is a normal module directory (`module.yml`, `install.sh`,
 `files/`, …) authored exactly as described above. An override is whole-module
 replacement, not a merge: the content `module.yml` is used in full instead of
-the built-in one. `dotfiles list` and `dotfiles status` tag each module
+the built-in one. Precedence is keyed on the module's **`name`** (which defaults
+to the directory name) — to override built-in `git`, the content module's `name`
+must be `git`, not just its directory. A content module whose `name` matches no
+built-in is simply added as a `custom` module. `dotfiles list` and `dotfiles status` tag each module
 `built-in`, `override`, or `custom` so overrides are visible. A content profile
 (`~/.config/dotfiles/profiles/*.yml`) can then list your custom or overridden
 modules by name. See `config.overlay.example.yml` for the full layout.

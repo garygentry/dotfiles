@@ -116,6 +116,19 @@ func TestDiscoverRootsMissingContentRootIsEngineOnly(t *testing.T) {
 	}
 }
 
+func TestDiscoverRootsMissingFirstRootErrors(t *testing.T) {
+	// The first root is the engine's required modules dir: a missing one is an
+	// error, matching single-root Discover (backward compatibility). A later
+	// root that also does not exist must not mask that.
+	_, err := DiscoverRoots([]string{
+		filepath.Join(t.TempDir(), "no-engine"),
+		filepath.Join(t.TempDir(), "no-content"),
+	})
+	if err == nil {
+		t.Fatal("DiscoverRoots with a missing first root: want error, got nil")
+	}
+}
+
 func TestDiscoverRootsMalformedContentModuleErrorsWithPath(t *testing.T) {
 	engine := t.TempDir()
 	content := t.TempDir()

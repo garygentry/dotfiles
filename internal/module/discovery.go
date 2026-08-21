@@ -41,8 +41,13 @@ func ModuleRoots(dotfilesDir, contentDir string) []string {
 
 // DiscoverRoots discovers modules across an ordered list of roots. Later roots
 // override earlier ones by module name (so pass [engineModules, contentModules]
-// for content-wins precedence). Missing roots are skipped. A malformed
-// module.yml in any root is a hard error naming the file, not a silent skip.
+// for content-wins precedence). A malformed module.yml in any root is a hard
+// error naming the file, not a silent skip.
+//
+// The FIRST root is required: if it is missing, its os.ReadDir error is returned
+// (the engine's modules are mandatory, matching single-root Discover). LATER
+// roots are optional: a missing one is skipped, so an absent content overlay
+// simply contributes nothing.
 //
 // Each returned module's Source records where it came from: SourceBuiltin (only
 // in the first root), SourceOverride (a later root shadowed an earlier same-name
@@ -53,9 +58,10 @@ func DiscoverRoots(roots []string) ([]*Module, error) {
 	for i, root := range roots {
 		mods, err := scanRoot(root)
 		if err != nil {
-			// A root that does not exist is skipped (an unset/absent content
-			// modules dir simply contributes nothing). Any other error is fatal.
-			if os.IsNotExist(err) {
+			// A missing later (overlay) root is skipped; a missing first root is
+			// fatal, preserving single-root Discover behavior. Any other error
+			// (e.g. permissions) is always fatal.
+			if i > 0 && os.IsNotExist(err) {
 				continue
 			}
 			return nil, err
