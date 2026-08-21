@@ -89,7 +89,7 @@ installed on your system and when it was set up.`,
 					needsUpdate++
 				} else {
 					// Check module checksum
-					currentChecksum, _ := module.ComputeModuleChecksum(mod)
+					currentChecksum, _ := module.ComputeModuleChecksum(mod, module.ModuleChecksumExtras(cfg.DotfilesDir)...)
 					if ms.Checksum != "" && currentChecksum != "" && currentChecksum != ms.Checksum {
 						updateStatus = "• changed"
 						needsUpdate++

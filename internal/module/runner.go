@@ -198,7 +198,7 @@ func shouldRunModule(mod *Module, existingState *state.ModuleState, cfg *RunConf
 	}
 
 	// Check module checksum (scripts/definition changed?)
-	currentChecksum, err := ComputeModuleChecksum(mod)
+	currentChecksum, err := ComputeModuleChecksum(mod, ModuleChecksumExtras(cfg.SysInfo.DotfilesDir)...)
 	if err != nil {
 		// If we can't compute checksum, be safe and re-run
 		return ExecutionUpdateModule, fmt.Sprintf("checksum error: %v", err)
@@ -251,7 +251,11 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 			vCtx, vCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			cmd := exec.CommandContext(vCtx, "bash", "-c", wrapper.String())
 			cmd.Env = os.Environ()
-			envVars := buildEnvVars(cfg, mod, nil)
+			// Use each prompt's default answer (as an unattended install would)
+			// rather than nil, so a verify.sh that reads DOTFILES_PROMPT_* sees the
+			// same values it would at install time instead of empty strings — which
+			// could make it fail spuriously and force a needless full reinstall.
+			envVars := buildEnvVars(cfg, mod, defaultPromptAnswers(mod))
 			for k, v := range envVars {
 				cmd.Env = append(cmd.Env, k+"="+v)
 			}
@@ -289,6 +293,16 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		Status:      "installing",
 		InstalledAt: installedAt,
 		OS:          cfg.SysInfo.OS,
+	}
+
+	// Seed the prior checksums so a failed run doesn't blank them. A successful
+	// run recomputes both in recordStateWithChecksums; but the failure path
+	// (recordStateWithOps) persists modState as-is, and if these were empty the
+	// checksum/config-hash guards in shouldRunModule would be disabled on the
+	// next run, losing change detection against the last known-good install.
+	if existingState != nil {
+		modState.Checksum = existingState.Checksum
+		modState.ConfigHash = existingState.ConfigHash
 	}
 
 	// Step 1: Handle prompts.
@@ -542,7 +556,8 @@ func handleLegacyPaths(cfg *RunConfig, mod *Module, modState *state.ModuleState)
 				continue
 			}
 
-			if err := createBackup(path, cfg, mod.Name); err != nil {
+			backupPath, err := createBackup(path, cfg, mod.Name)
+			if err != nil {
 				return fmt.Errorf("backing up legacy file %s: %w", path, err)
 			}
 
@@ -550,19 +565,33 @@ func handleLegacyPaths(cfg *RunConfig, mod *Module, modState *state.ModuleState)
 				return fmt.Errorf("removing legacy file %s: %w", path, err)
 			}
 
+			legacyMeta := map[string]string{"reason": reason}
+			if backupPath != "" {
+				legacyMeta["backup_path"] = backupPath
+			}
 			modState.RecordOperation(state.Operation{
-				Type:   "legacy_cleanup",
-				Action: "backed_up",
-				Path:   path,
-				Metadata: map[string]string{
-					"reason": reason,
-				},
+				Type:     "legacy_cleanup",
+				Action:   "backed_up",
+				Path:     path,
+				Metadata: legacyMeta,
 			})
 
 			cfg.UI.Success(fmt.Sprintf("Backed up and removed legacy file: %s", path))
 		}
 	}
 	return nil
+}
+
+// defaultPromptAnswers returns each prompt's declared default keyed by prompt
+// key, without invoking the UI. Used where prompt answers are needed but the
+// user must not be prompted (e.g. the silent verify-on-skip check), matching the
+// values an unattended install would use.
+func defaultPromptAnswers(mod *Module) map[string]string {
+	answers := make(map[string]string, len(mod.Prompts))
+	for _, p := range mod.Prompts {
+		answers[p.Key] = p.Default
+	}
+	return answers
 }
 
 // buildEnvVars constructs the full DOTFILES_* environment variable map
@@ -1038,6 +1067,27 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 				UserModified: reason == "user modified (source unchanged)",
 				LastChecked:  time.Now(),
 			})
+
+			// Record a rollback operation for this still-managed file even though
+			// we didn't re-deploy it. modState starts empty every run, so without
+			// this a clean no-op re-run would persist zero operations and a later
+			// uninstall would report CanRollback()==false and be unable to remove
+			// the file. The action mirrors a real deploy so rollback removes it.
+			skipAction := "created"
+			if f.Type == "symlink" {
+				skipAction = "symlinked"
+			}
+			modState.RecordOperation(state.Operation{
+				Type:   "file_deploy",
+				Action: skipAction,
+				Path:   dest,
+				Metadata: map[string]string{
+					"source":      src,
+					"type":        f.Type,
+					"source_hash": sourceHash,
+					"redeployed":  "false",
+				},
+			})
 			continue
 		}
 
@@ -1046,10 +1096,33 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 			continue
 		}
 
-		// Backup user-modified files before overwriting
-		if existingFile != nil && existingFile.UserModified {
-			if err := createBackup(dest, cfg, mod.Name); err != nil {
-				cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, err))
+		// Back up the destination before overwriting a copy/template if it holds
+		// content we would otherwise lose. This covers two cases the old
+		// UserModified-flag-only check missed:
+		//   1. A pre-existing file we've never deployed (existingFile == nil).
+		//   2. A file the user edited since our last deploy — detected by the
+		//      on-disk hash diverging from our recorded DeployedHash — including
+		//      when the source ALSO changed in the same interval (previously a
+		//      silent overwrite with no backup).
+		// The returned backupPath is recorded on the operation so rollback can
+		// restore it. Symlinks hold no user content, so they are not backed up.
+		var backupPath string
+		if f.Type != "symlink" {
+			if _, statErr := os.Lstat(dest); statErr == nil {
+				shouldBackup := existingFile == nil
+				if !shouldBackup && existingFile != nil {
+					if cur, herr := ComputeFileHash(dest); herr == nil && cur != existingFile.DeployedHash {
+						shouldBackup = true
+					}
+				}
+				if shouldBackup {
+					bp, berr := createBackup(dest, cfg, mod.Name)
+					if berr != nil {
+						cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, berr))
+					} else {
+						backupPath = bp
+					}
+				}
 			}
 		}
 
@@ -1108,19 +1181,18 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 				return 0, 0, fmt.Errorf("computing deployed hash for %s: %w", dest, err)
 			}
 
-			action := "created"
-			if fileExisted {
-				action = "modified"
+			copyMeta := map[string]string{"source": src, "type": "copy", "source_hash": sourceHash}
+			copyAction := "created"
+			if backupPath != "" {
+				// We preserved pre-existing/user content: rollback restores it.
+				copyAction = "modified"
+				copyMeta["backup_path"] = backupPath
 			}
 			modState.RecordOperation(state.Operation{
-				Type:   "file_deploy",
-				Action: action,
-				Path:   dest,
-				Metadata: map[string]string{
-					"source":      src,
-					"type":        "copy",
-					"source_hash": sourceHash,
-				},
+				Type:     "file_deploy",
+				Action:   copyAction,
+				Path:     dest,
+				Metadata: copyMeta,
 			})
 
 		case "template":
@@ -1133,19 +1205,18 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 				return 0, 0, fmt.Errorf("computing deployed hash for %s: %w", dest, err)
 			}
 
-			action := "created"
-			if fileExisted {
-				action = "modified"
+			tmplMeta := map[string]string{"source": src, "type": "template", "source_hash": sourceHash}
+			tmplAction := "created"
+			if backupPath != "" {
+				// We preserved pre-existing/user content: rollback restores it.
+				tmplAction = "modified"
+				tmplMeta["backup_path"] = backupPath
 			}
 			modState.RecordOperation(state.Operation{
-				Type:   "file_deploy",
-				Action: action,
-				Path:   dest,
-				Metadata: map[string]string{
-					"source":      src,
-					"type":        "template",
-					"source_hash": sourceHash,
-				},
+				Type:     "file_deploy",
+				Action:   tmplAction,
+				Path:     dest,
+				Metadata: tmplMeta,
 			})
 
 		default:
@@ -1257,7 +1328,7 @@ func recordStateWithChecksums(cfg *RunConfig, modState *state.ModuleState, mod *
 	}
 
 	// Compute and store checksums for change detection
-	if checksum, err := ComputeModuleChecksum(mod); err == nil {
+	if checksum, err := ComputeModuleChecksum(mod, ModuleChecksumExtras(cfg.SysInfo.DotfilesDir)...); err == nil {
 		modState.Checksum = checksum
 	} else {
 		cfg.UI.Debug(fmt.Sprintf("Failed to compute checksum for %s: %v", mod.Name, err))

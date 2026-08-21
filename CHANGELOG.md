@@ -66,6 +66,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ssh` key generation no longer aborts when `USER` is unset.** The key comment fell
   back to `${USER}@host`, which crashed under `set -u` if `USER` was absent from the
   environment; it now derives the name from `id -un`.
+- **A clean re-run no longer erases rollback history.** Files skipped as up-to-date now
+  still record a `file_deploy` operation, so a no-op re-run keeps the module
+  uninstallable — previously the second run persisted zero operations and a later
+  `uninstall` reported nothing to roll back and left the deployed files in place.
+- **User-edited deployed files are backed up before being overwritten.** A copy/template
+  whose destination diverges from what was last deployed — including when the source
+  *also* changed in the same interval, previously a silent data-losing overwrite — is now
+  backed up first, and the backup path is recorded so rollback can restore it.
+- **Rollback can actually restore a modified file.** `createBackup` now returns its path
+  and the deploy records it as `backup_path`; previously the restore branch read a field
+  that was never written, so it silently did nothing.
+- **A failed re-run no longer blanks the last-good checksums.** The prior module and
+  config hashes are carried into the run, so a failure persists them instead of clearing
+  the change-detection guards for the next run.
+- **`lib/helpers.sh` changes now invalidate module checksums.** Every module sources it,
+  so editing shared helper logic re-runs each module once (a one-time cost) instead of
+  leaving them all reporting "up-to-date" against changed behavior.
+- **The verify-on-skip check gets the same prompt defaults an install would.** It ran
+  with an empty prompt environment, so a `verify.sh` reading `DOTFILES_PROMPT_*` could
+  fail spuriously and force a needless full reinstall.
 
 ## [2.1.0] - 2026-02-16
 
