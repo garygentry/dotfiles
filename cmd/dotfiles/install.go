@@ -64,7 +64,17 @@ resolution, module execution, and summary output.`,
 		}
 		u.Debug(fmt.Sprintf("Profile: %s (explicit: %t)", cfg.Profile, explicitProfile))
 
-		profileModules, profileErr := config.LoadProfile(sys.DotfilesDir, cfg.Profile)
+		// Surface the content overlay, and catch a mistyped DOTFILES_CONTENT_DIR
+		// (set but no such directory) rather than silently ignoring it.
+		if cfg.ContentDir != "" {
+			if fi, statErr := os.Stat(cfg.ContentDir); statErr != nil || !fi.IsDir() {
+				u.Warn(fmt.Sprintf("DOTFILES_CONTENT_DIR is set to %q but no such directory exists; the overlay is ignored.", cfg.ContentDir))
+			} else {
+				u.Info(fmt.Sprintf("Using content overlay: %s", cfg.ContentDir))
+			}
+		}
+
+		profileModules, profileErr := config.LoadProfile(sys.DotfilesDir, cfg.ContentDir, cfg.Profile)
 		if profileErr != nil {
 			if explicitProfile {
 				u.Error(fmt.Sprintf("Requested profile %q could not be loaded", cfg.Profile))

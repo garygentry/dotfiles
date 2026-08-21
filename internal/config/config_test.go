@@ -242,7 +242,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	modules, err := LoadProfile(dir, "test")
+	modules, err := LoadProfile(dir, "", "test")
 	if err != nil {
 		t.Fatalf("LoadProfile() error: %v", err)
 	}
@@ -261,7 +261,7 @@ modules:
 func TestLoadProfile_NotFound(t *testing.T) {
 	dir := t.TempDir()
 
-	_, err := LoadProfile(dir, "nosuchprofile")
+	_, err := LoadProfile(dir, "", "nosuchprofile")
 	if err == nil {
 		t.Fatal("LoadProfile() returned no error for a missing profile")
 	}
@@ -302,14 +302,14 @@ func TestResolveProfilePath(t *testing.T) {
 	dir := t.TempDir()
 
 	// A bare name resolves inside the dotfiles repo, as it always has.
-	if got, want := ResolveProfilePath(dir, "minimal"), filepath.Join(dir, "profiles", "minimal.yml"); got != want {
+	if got, want := ResolveProfilePath(dir, "", "minimal"), filepath.Join(dir, "profiles", "minimal.yml"); got != want {
 		t.Errorf("ResolveProfilePath(bare) = %q, want %q", got, want)
 	}
 
 	// An absolute path is taken literally — the point of the feature is that a profile
 	// can live outside the dotfiles repo.
 	abs := filepath.Join(dir, "elsewhere", "gnet-lg.yml")
-	if got := ResolveProfilePath(dir, abs); got != abs {
+	if got := ResolveProfilePath(dir, "", abs); got != abs {
 		t.Errorf("ResolveProfilePath(abs) = %q, want %q", got, abs)
 	}
 
@@ -318,8 +318,70 @@ func TestResolveProfilePath(t *testing.T) {
 	if err != nil {
 		t.Skip("no home directory available")
 	}
-	if got, want := ResolveProfilePath(dir, "~/p.yml"), filepath.Join(home, "p.yml"); got != want {
+	if got, want := ResolveProfilePath(dir, "", "~/p.yml"), filepath.Join(home, "p.yml"); got != want {
 		t.Errorf("ResolveProfilePath(~) = %q, want %q", got, want)
+	}
+}
+
+func TestResolveProfilePath_ContentDirOverrides(t *testing.T) {
+	engine := t.TempDir()
+	content := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(engine, "profiles"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(engine, "profiles", "mine.yml"), []byte("modules: [git]\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// With no content profile of that name, resolves to the engine's.
+	if got, want := ResolveProfilePath(engine, content, "mine"), filepath.Join(engine, "profiles", "mine.yml"); got != want {
+		t.Errorf("no content profile: got %q, want %q", got, want)
+	}
+
+	// A content profile of the same name overrides the built-in.
+	if err := os.MkdirAll(filepath.Join(content, "profiles"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	cp := filepath.Join(content, "profiles", "mine.yml")
+	if err := os.WriteFile(cp, []byte("modules: [zsh]\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveProfilePath(engine, content, "mine"); got != cp {
+		t.Errorf("content override: got %q, want %q", got, cp)
+	}
+
+	// A name that exists only in the content dir also resolves there.
+	custom := filepath.Join(content, "profiles", "custom.yml")
+	if err := os.WriteFile(custom, []byte("modules: [tmux]\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveProfilePath(engine, content, "custom"); got != custom {
+		t.Errorf("content-only: got %q, want %q", got, custom)
+	}
+}
+
+func TestLoadProfile_ContentDirOverride(t *testing.T) {
+	engine := t.TempDir()
+	content := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(engine, "profiles"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(engine, "profiles", "dev.yml"), []byte("modules:\n  - git\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(content, "profiles"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(content, "profiles", "dev.yml"), []byte("modules:\n  - zsh\n  - tmux\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mods, err := LoadProfile(engine, content, "dev")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	if len(mods) != 2 || mods[0] != "zsh" || mods[1] != "tmux" {
+		t.Errorf("got %v, want [zsh tmux] from content override", mods)
 	}
 }
 
@@ -338,7 +400,7 @@ modules:
 		t.Fatal(err)
 	}
 
-	modules, err := LoadProfile(dotfilesDir, profilePath)
+	modules, err := LoadProfile(dotfilesDir, "", profilePath)
 	if err != nil {
 		t.Fatalf("LoadProfile(path) error: %v", err)
 	}
@@ -355,7 +417,7 @@ modules:
 
 	// A path that does not exist must still be ErrProfileNotFound, so the caller can
 	// fail fast on it rather than silently installing everything.
-	if _, err := LoadProfile(dotfilesDir, filepath.Join(projectDir, "absent.yml")); !errors.Is(err, ErrProfileNotFound) {
+	if _, err := LoadProfile(dotfilesDir, "", filepath.Join(projectDir, "absent.yml")); !errors.Is(err, ErrProfileNotFound) {
 		t.Errorf("error = %v, want one wrapping ErrProfileNotFound", err)
 	}
 }
