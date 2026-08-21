@@ -12,6 +12,13 @@ user:
 modules:
   ssh:
     key_type: ed25519
+    # How SSH keys are managed:
+    #   generate  (default) create a local key if none exists
+    #   agent     use an external SSH agent (e.g. 1Password); no local key,
+    #             and the GitHub config avoids pinning IdentityFile/IdentitiesOnly
+    #   1password retrieve the key from 1Password via the `op` CLI
+    #   none      leave ~/.ssh keys and config untouched
+    key_source: generate
   git:
     default_branch: main
   zsh:

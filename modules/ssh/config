@@ -1,20 +1,24 @@
 # SSH Configuration
 # Managed by dotfiles - {{ .OS }}/{{ .Arch }}
+{{- $agent := eq (index .Env "DOTFILES_SSH_KEY_SOURCE") "agent" }}
+{{- $keyType := or (index .Env "DOTFILES_SSH_KEY_TYPE") "ed25519" }}
 
 Host *
     # Add keys to the SSH agent automatically
     AddKeysToAgent yes
+{{- if eq .OS "darwin" }}
 
     # Use the macOS Keychain on macOS
-{{- if eq .OS "darwin" }}
     UseKeychain yes
 {{- end }}
+{{- if not $agent }}
 
     # Default identity file
-{{- if eq (index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE") "rsa" }}
+{{- if eq $keyType "rsa" }}
     IdentityFile ~/.ssh/id_rsa
 {{- else }}
-    IdentityFile ~/.ssh/id_ed25519
+    IdentityFile ~/.ssh/id_{{ $keyType }}
+{{- end }}
 {{- end }}
 
     # Connection settings
@@ -30,5 +34,10 @@ Host *
 Host github.com
     HostName github.com
     User git
+{{- if $agent }}
+    # key_source=agent: keys are provided by the SSH agent (e.g. 1Password).
+    # No IdentityFile / IdentitiesOnly is set so the agent's keys are offered.
+{{- else }}
     IdentityFile {{ or (index .Env "DOTFILES_SSH_GITHUB_KEY") "~/.ssh/id_ed25519" }}
     IdentitiesOnly yes
+{{- end }}

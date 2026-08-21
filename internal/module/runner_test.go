@@ -167,6 +167,48 @@ func TestBuildEnvVars(t *testing.T) {
 	}
 }
 
+func TestBuildEnvVarsModuleSettings(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.Config.Modules["ssh"] = map[string]any{
+		"key_source": "agent",
+		"key_type":   "ed25519",
+		"enabled":    true,
+		"count":      3,
+	}
+
+	mod := &Module{Name: "ssh", Dir: "/tmp/modules/ssh"}
+
+	env := buildEnvVars(cfg, mod, nil)
+
+	// Settings are exposed as DOTFILES_SETTING_*, with scalars stringified.
+	checks := map[string]string{
+		"DOTFILES_SETTING_KEY_SOURCE": "agent",
+		"DOTFILES_SETTING_KEY_TYPE":   "ed25519",
+		"DOTFILES_SETTING_ENABLED":    "true",
+		"DOTFILES_SETTING_COUNT":      "3",
+	}
+	for key, want := range checks {
+		if got, ok := env[key]; !ok {
+			t.Errorf("expected env var %s to be present", key)
+		} else if got != want {
+			t.Errorf("env[%s] = %q, want %q", key, got, want)
+		}
+	}
+
+	// Prompt answers stay in their own namespace, independent of settings.
+	if _, ok := env["DOTFILES_PROMPT_KEY_SOURCE"]; ok {
+		t.Error("settings must not appear under the DOTFILES_PROMPT_ prefix")
+	}
+
+	// Settings from a different module must not leak in.
+	cfg2 := newTestRunConfig(t)
+	cfg2.Config.Modules["git"] = map[string]any{"default_branch": "main"}
+	env2 := buildEnvVars(cfg2, mod, nil) // mod is "ssh", not "git"
+	if _, ok := env2["DOTFILES_SETTING_DEFAULT_BRANCH"]; ok {
+		t.Error("settings from another module leaked into env")
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	cfg := newTestRunConfig(t)
 
