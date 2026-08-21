@@ -34,8 +34,9 @@ engine only ever **consumes a local content directory**; how that directory is
 | **Re-run / rollback safety** | ✅ Done | PR #4 (in v2.2.0) |
 | **Content overlay — phase 1: config** | ✅ Done | v2.2.0 |
 | **Content overlay — phase 2: profiles** | ✅ Done | PR #6 |
-| **Content overlay — phase 3: modules** | 📋 Planned | `plans/phase3-content-modules.md` |
-| **Content overlay — phase 4: acquisition/packaging + cleanups** | 📋 Planned | `plans/phase4-acquisition-packaging.md` |
+| **Content overlay — phase 3: modules** | ✅ Done | PR #7 |
+| **Content overlay — phase 4: acquisition/packaging + cleanups** | ✅ Done | PRs #8–#12 (4A–4E) |
+| **Documentation scrub** (align all docs + docs-site to the shipped engine) | 📋 Planned | `plans/docs-scrub.md` |
 
 ### Phase summary (arc 2)
 - **P1 config** — `<content>/config.yml` deep-merged over the repo's; conservative
@@ -43,11 +44,16 @@ engine only ever **consumes a local content directory**; how that directory is
 - **P2 profiles** — bare profile names resolve from `<content>/profiles/` first
   (content-wins); overlay announced; typo'd content dir warned.
 - **P3 modules** — discover `<content>/modules/` with same-name **content-wins**
-  precedence (custom + override modules). *Next up.*
+  precedence (custom + override modules). *Done (PR #7).*
 - **P4 acquisition/packaging** — fetch a content repo/path (public/private/network)
   into the content dir + auth ordering; the two-repo "my-dotfiles" story; plus the
   deferred cleanups (secret-ref parameterization, template-context unification,
-  dead-config).
+  dead-config). *Done (PRs #8–#12).*
+
+**Content-overlay initiative (arcs 1 & 2) is complete.** The follow-on
+[`plans/docs-scrub.md`](docs-scrub.md) brings all human-facing docs (repo markdown +
+the Astro docs site) into line with what shipped. Remaining engine follow-up:
+`neovim.colorscheme` dead config (issue #13).
 
 ## Releases
 - **v2.2.0** (2026-08-21) — fresh-WSL install fixes, ssh `key_source`, re-run/rollback
@@ -78,7 +84,8 @@ engine only ever **consumes a local content directory**; how that directory is
 - Keep the relevant `plans/*.md` checkboxes + Status line current as you work.
 
 ## Files
-- `plans/phase3-content-modules.md` — next up.
-- `plans/phase4-acquisition-packaging.md` — after phase 3.
+- `plans/docs-scrub.md` — **next up**: comprehensive documentation scrub (repo + docs site).
+- `plans/phase3-content-modules.md` — ✅ done (PR #7).
+- `plans/phase4-acquisition-packaging.md` — ✅ done (PRs #8–#12).
 - `plans/README.md` — this index.
 - Root `ROADMAP.md` — separate product-feature backlog.
