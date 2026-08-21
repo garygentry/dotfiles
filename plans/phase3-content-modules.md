@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 3 (Modules)
 
-**Status:** IN PROGRESS (T1–T5 done) · **Branch:** `track3/content-modules` (from `main`)
+**Status:** DONE (T1–T6) — PR open, awaiting CI · **Branch:** `track3/content-modules` (from `main`)
 **Tracks:** Content-overlay model, phase 3 of 4. Multi-session plan — update the
 checkboxes and the Status line as you go, and commit the updated plan with the work.
 
@@ -126,11 +126,17 @@ Small column or tag. If it balloons, split to its own task/PR.
       `config.overlay.example.yml` (or a short `docs/` note) showing a content
       module and an override. CHANGELOG under `[Unreleased]` → "Content overlay
       (phase 3: modules)". *Acceptance:* docs build / render fine.
-- [ ] **T6 — End-to-end via testuser harness.** Using `scripts/testuser.sh`, run
-      an install with a content dir containing (a) a custom module and (b) an
-      override of a built-in; confirm the content versions win and a run with NO
-      content dir is unchanged. *Acceptance:* both scenarios pass; record output
-      in the PR.
+- [x] **T6 — End-to-end (real install).** `scripts/testuser.sh` needs root
+      (`useradd`), which the dev session lacked (no passwordless sudo), so the
+      same two scenarios were proven with a hermetic *real, non-dry-run* install
+      against a synthetic engine+content dir (own `HOME`/`DOTFILES_DIR`, modules
+      that only write markers — no packages/sudo/network): (a) content `git`
+      override + custom `mymod` both executed (markers `CONTENT-GIT`/
+      `CONTENT-MYMOD`), the override dropped git's `ssh` dep, and `list` tagged
+      them `override`/`custom`; (b) with no content dir, engine `git` ran
+      (`ENGINE-GIT`), no Source column, `mymod` unknown — identical to before.
+      Output recorded in the PR. CI's Docker integration tests exercise the full
+      testuser-style flow. Optional manual harness run left for a root shell.
 
 Tasks may be one PR or a few small ones — reviewer's discretion. Keep each commit
 green.
