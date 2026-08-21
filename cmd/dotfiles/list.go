@@ -46,13 +46,18 @@ var listCmd = &cobra.Command{
 
 		store := state.NewStore(filepath.Join(sys.DotfilesDir, ".state"))
 
+		// Only show the Source column when a content overlay is active. With no
+		// overlay every module is built-in, so the column would add nothing and
+		// the output stays byte-identical to before the overlay existed.
+		showSource := contentDir != ""
+
 		// Build table data.
 		type row struct {
-			name, description, os, status string
+			name, description, os, source, status string
 		}
 
 		rows := make([]row, 0, len(modules))
-		maxName, maxDesc, maxOS := 4, 11, 2 // header widths: Name, Description, OS
+		maxName, maxDesc, maxOS, maxSource := 4, 11, 2, 6 // header widths: Name, Description, OS, Source
 
 		for _, m := range modules {
 			desc := m.Description
@@ -63,6 +68,11 @@ var listCmd = &cobra.Command{
 			osStr := "all"
 			if len(m.OS) > 0 {
 				osStr = strings.Join(m.OS, ",")
+			}
+
+			source := m.Source
+			if source == "" {
+				source = module.SourceBuiltin
 			}
 
 			status := "not installed"
@@ -80,11 +90,15 @@ var listCmd = &cobra.Command{
 			if len(osStr) > maxOS {
 				maxOS = len(osStr)
 			}
+			if len(source) > maxSource {
+				maxSource = len(source)
+			}
 
 			rows = append(rows, row{
 				name:        m.Name,
 				description: desc,
 				os:          osStr,
+				source:      source,
 				status:      status,
 			})
 		}
@@ -94,22 +108,38 @@ var listCmd = &cobra.Command{
 			maxDesc = 40
 		}
 
-		fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxDesc, maxOS)
-
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")
-		fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Description", "OS", "Status")
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s\n",
-			strings.Repeat("-", maxName),
-			strings.Repeat("-", maxDesc),
-			strings.Repeat("-", maxOS),
-			strings.Repeat("-", 13))
-
-		for _, r := range rows {
-			desc := r.description
-			if len(desc) > maxDesc {
-				desc = desc[:maxDesc-3] + "..."
+		if showSource {
+			fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxDesc, maxOS, maxSource)
+			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Description", "OS", "Source", "Status")
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s  %s\n",
+				strings.Repeat("-", maxName),
+				strings.Repeat("-", maxDesc),
+				strings.Repeat("-", maxOS),
+				strings.Repeat("-", maxSource),
+				strings.Repeat("-", 13))
+			for _, r := range rows {
+				desc := r.description
+				if len(desc) > maxDesc {
+					desc = desc[:maxDesc-3] + "..."
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, desc, r.os, r.source, r.status)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, desc, r.os, r.status)
+		} else {
+			fmtStr := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%s\n", maxName, maxDesc, maxOS)
+			fmt.Fprintf(cmd.OutOrStdout(), fmtStr, "Name", "Description", "OS", "Status")
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s  %s\n",
+				strings.Repeat("-", maxName),
+				strings.Repeat("-", maxDesc),
+				strings.Repeat("-", maxOS),
+				strings.Repeat("-", 13))
+			for _, r := range rows {
+				desc := r.description
+				if len(desc) > maxDesc {
+					desc = desc[:maxDesc-3] + "..."
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), fmtStr, r.name, desc, r.os, r.status)
+			}
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
