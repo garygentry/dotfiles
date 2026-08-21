@@ -1,6 +1,6 @@
 # Plan: Content Overlay — Phase 4 (Acquisition, Packaging & Cleanups)
 
-**Status:** 4A ✅ merged (#8); 4B IN REVIEW (branch `track4/ssh-key-item`); 4C–4E not started · **Branch:** `track4/*` per task group
+**Status:** 4A ✅ merged (#8); 4B ✅ merged (#9); 4C IN REVIEW (branch `track4/template-context`); 4D–4E not started · **Branch:** `track4/*` per task group
 **Tracks:** Content-overlay model, phase 4 of 4 (final). Multi-session plan — update
 checkboxes and the Status line as you go; commit the updated plan with the work.
 
@@ -92,15 +92,25 @@ builds a DIFFERENT context than the in-process path: `.User`, `.Module` (config
 settings), and `.Secrets` are absent, so a template rendered from a shell script
 silently gets empty values for those. Make the two paths equivalent.
 
-- [ ] Populate `.User`, `.Module` (from `config.yml modules.<name>.*`, incl. the
+- [x] Populate `.User`, `.Module` (from `config.yml modules.<name>.*`, incl. the
       overlay), and `.XDGConfigHome` in the subcommand — sourced from the same
       config the runner uses (load config + content overlay in the subcommand, or
       pass them through env). Keep `.Secrets` explicitly empty but consistent (or
       document that secrets reach scripts only via `get_secret`).
-- [ ] Test parity: the same template renders identically in-process and via the
+- [x] Test parity: the same template renders identically in-process and via the
       subcommand.
 - *Acceptance:* a template using `{{ .User.email }}` / `{{ .Module.key_source }}`
       renders correctly from a module's `render_template` call.
+      *Status:* done. Both paths now build the context through one shared
+      `module.NewTemplateContext` (runner.go); the `render-template` subcommand
+      (`cmd/dotfiles/render_template.go`) reuses `config.Load` — the SAME layered
+      base+overlay load — so `.User`, `.Module` (type-preserving, incl. overlay),
+      and `.XDGConfigHome` are populated identically. `.Secrets` is a consistent
+      empty map in both; secrets reach scripts only via `get_secret`. Parity is
+      covered by a table-driven `t.TempDir()` test in
+      `cmd/dotfiles/render_template_test.go` (no-overlay + content-overlay cases,
+      including a bool setting to prove type preservation). Acceptance verified
+      end-to-end against the built binary.
 
 ### 4D — Dead-config cleanup
 Some `config.yml` settings look wired but aren't consumed.

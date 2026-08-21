@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unified template contexts (phase 4C).** Templates rendered from a shell script via
+  the `render_template` helper now see the same context as those rendered in-process by
+  the runner. Previously the hidden `render-template` subcommand left `.User`, the
+  module's config settings (`.Module`), and `.XDGConfigHome` empty — so a template
+  rendered from an `install.sh` silently got blank values for `{{ .User.email }}`,
+  `{{ .Module.key_source }}`, etc. Both paths now build the context through a single
+  shared `module.NewTemplateContext`, and the subcommand reloads the SAME layered config
+  (base `config.yml` + optional content overlay) via `config.Load`, so overlay values and
+  YAML types (e.g. bool settings) are preserved identically. `.Secrets` is a consistent
+  empty map on both paths; secrets reach scripts only through `get_secret`. No behavior
+  change for the in-process path or when no content overlay is set.
+
 ### Added
 
 - **Configurable SSH 1Password item (phase 4B).** The `ssh` module no longer hardcodes
