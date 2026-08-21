@@ -98,8 +98,13 @@ material must already be present — an ambient agent (SSH or the 1Password agen
 is enough, or run a setup step first with `--content-auth-cmd '<cmd>'` (executed
 before the clone). Because of this ordering, prefer a **public, secret-free**
 content repo: real secrets stay in 1Password and are fetched at install time,
-never committed to the content repo. See
-[`config.overlay.example.yml`](config.overlay.example.yml) for the layout.
+never committed to the content repo.
+
+See **[Content Overlay & Packaging](docs/content-overlay.md)** for the full
+two-repo model, the clean-machine first-install flow, and a copy-me example
+content repo ([`docs/examples/content-repo/`](docs/examples/content-repo/)); or
+[`config.overlay.example.yml`](config.overlay.example.yml) for an annotated
+overlay `config.yml`.
 
 ### Usage
 

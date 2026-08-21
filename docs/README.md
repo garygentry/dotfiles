@@ -11,6 +11,7 @@ Welcome to the dotfiles management system documentation.
 ### Getting Started
 - [Installation](installation.md) - How to install and bootstrap the system
 - [Quick Start](quick-start.md) - Get up and running in 5 minutes
+- [Content Overlay & Packaging](content-overlay.md) - Keep your personal config/profiles/modules in a separate repo that overlays the engine
 
 ### Architecture & Design
 - [Architecture](architecture.md) - System design and component overview

@@ -1,0 +1,19 @@
+# OVERRIDE of the built-in `git` module. Precedence is keyed on `name` (which
+# defaults to the directory name), so this must be `name: git` to replace the
+# engine's git module. Override = whole-module replacement, NOT a merge: this
+# module.yml and its install.sh are used in full instead of the built-in pair.
+name: git
+description: "Custom git configuration (content override)"
+version: "1.0.0"
+priority: 30
+dependencies:
+  - ssh
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - git
+tags:
+  - example
+  - git

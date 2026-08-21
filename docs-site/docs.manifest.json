@@ -28,6 +28,11 @@
       "from": "docs/quick-start.md"
     },
     {
+      "slug": "content-overlay",
+      "source": "symlink",
+      "from": "docs/content-overlay.md"
+    },
+    {
       "slug": "creating-modules",
       "source": "symlink",
       "from": "docs/creating-modules.md"

@@ -768,7 +768,10 @@ must be `git`, not just its directory. A content module whose `name` matches no
 built-in is simply added as a `custom` module. `dotfiles list` and `dotfiles status` tag each module
 `built-in`, `override`, or `custom` so overrides are visible. A content profile
 (`~/.config/dotfiles/profiles/*.yml`) can then list your custom or overridden
-modules by name. See `config.overlay.example.yml` for the full layout.
+modules by name. See [Content Overlay & Packaging](content-overlay.md) for the
+two-repo model and a copy-me example at
+[`docs/examples/content-repo/`](https://github.com/garygentry/dotfiles/tree/main/docs/examples/content-repo), or
+`config.overlay.example.yml` for an annotated overlay config.
 
 `dotfiles new` still scaffolds into this repo's `modules/`; copy the generated
 directory into your content dir to make it a content module.

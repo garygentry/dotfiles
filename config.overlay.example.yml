@@ -29,6 +29,11 @@
 # replaces the built-in one wholesale (whole-module replacement, not merging).
 # A content profile can then list custom or overridden modules by name, and
 # `dotfiles list`/`status` tag each module built-in / override / custom.
+#
+# A complete, copy-me example content repo (this config.yml + a profile + a
+# custom module + an override) lives at docs/examples/content-repo/. The full
+# two-repo model and clean-machine first-install flow are documented in
+# docs/content-overlay.md.
 
 # Personal identity used by modules like git and ssh.
 user:

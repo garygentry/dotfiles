@@ -45,6 +45,7 @@ export default defineConfig({
         },
         { label: "Installation", slug: "installation" },
         { label: "Quick Start", slug: "quick-start" },
+        { label: "Content Overlay", slug: "content-overlay" },
         { label: "Creating Modules", slug: "creating-modules" },
         { label: "Rollback Guide", slug: "rollback-guide" },
         { label: "Troubleshooting", slug: "troubleshooting" },
