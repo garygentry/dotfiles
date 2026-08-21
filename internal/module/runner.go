@@ -605,7 +605,31 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 		env["DOTFILES_USER_GITHUB_USER"] = cfg.Config.User.GithubUser
 	}
 
+	// Expose this module's config settings (config.yml -> modules.<name>.*) to
+	// scripts as DOTFILES_SETTING_<UPPER_KEY>. Scripts otherwise only see prompt
+	// answers and cannot read their own configured settings (e.g. ssh.key_source).
+	// Prompt answers live under the separate DOTFILES_PROMPT_* namespace.
+	if settings, ok := cfg.Config.Modules[mod.Name]; ok {
+		for k, v := range settings {
+			env["DOTFILES_SETTING_"+strings.ToUpper(k)] = settingToStr(v)
+		}
+	}
+
 	return env
+}
+
+// settingToStr renders a module config setting value as a string suitable for
+// an environment variable. Scalars render naturally (true, 42, ed25519); nil
+// becomes empty. Non-scalar values fall back to Go's default formatting.
+func settingToStr(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	default:
+		return fmt.Sprintf("%v", t)
+	}
 }
 
 // buildTemplateContext creates a template.Context from the current run

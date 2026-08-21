@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `state`, `shell`, `destroy`, `reset`, and `list` create passwordless-sudo users, sync
   the repo into their `~/.dotfiles`, and run the installer unattended. Paired with a new
   `debug-failing` profile scoped to the modules that broke on a fresh WSL install.
+- **`ssh` module `key_source` setting** (`generate` | `agent` | `1password` | `none`).
+  `agent` skips local key generation and renders a GitHub config **without**
+  `IdentityFile`/`IdentitiesOnly`, so keys from an external agent (e.g. the 1Password
+  SSH agent) are actually offered — previously the module always pinned a local key and
+  set `IdentitiesOnly yes`, which broke agent-based GitHub auth. `1password` retrieves
+  the key via `op` (and fails loudly if it can't); `none` leaves `~/.ssh` untouched.
+- **Module config settings are now available to shell scripts** as
+  `DOTFILES_SETTING_<KEY>` (from `config.yml` → `modules.<name>.*`). Previously scripts
+  could only see prompt answers, so a module could not read its own configured settings.
 
 ### Changed
 
@@ -49,6 +58,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`fzf` git fallback hardened.** The fallback no longer swallows the package manager's
   error output, reuses an existing `~/.fzf` checkout, and cleans up a partial one before
   cloning.
+- **`ssh` module `verify.sh` now actually fails.** It previously counted problems as
+  *warnings* and always exited 0, so ssh was marked `installed` even with no key or
+  config, and the runner's post-install re-verify could never detect a missing key. It
+  now exits non-zero when an essential artifact is missing (key/config for managed
+  modes; config for `agent`; nothing for `none`).
+- **`ssh` key generation no longer aborts when `USER` is unset.** The key comment fell
+  back to `${USER}@host`, which crashed under `set -u` if `USER` was absent from the
+  environment; it now derives the name from `id -un`.
 
 ## [2.1.0] - 2026-02-16
 

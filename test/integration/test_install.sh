@@ -214,8 +214,6 @@ echo ""
 echo "--- Test: SSH module verification ---"
 assert_dir_exists "~/.ssh directory exists" "$HOME/.ssh"
 assert_dir_perms "~/.ssh has permissions 700" "$HOME/.ssh" "700"
-assert_file_exists "~/.ssh/id_ed25519 exists" "$HOME/.ssh/id_ed25519"
-assert_file_exists "~/.ssh/id_ed25519.pub exists" "$HOME/.ssh/id_ed25519.pub"
 assert_file_exists "~/.ssh/config exists" "$HOME/.ssh/config"
 # ssh/config is deployed as a template (regular file, not symlink)
 if [[ -f "$HOME/.ssh/config" && ! -L "$HOME/.ssh/config" ]]; then
@@ -223,6 +221,40 @@ if [[ -f "$HOME/.ssh/config" && ! -L "$HOME/.ssh/config" ]]; then
 else
     fail "~/.ssh/config is a regular file (template, not symlink)"
 fi
+
+# Key expectations depend on the configured key_source. Only ssh sets it, so a
+# whole-file grep is sufficient (defaults to generate if absent).
+SSH_KEY_SOURCE="$(grep -E '^[[:space:]]*key_source:' "${DOTFILES_DIR}/config.yml" | head -1 | awk '{print $2}' || true)"
+SSH_KEY_SOURCE="${SSH_KEY_SOURCE:-generate}"
+echo "  (ssh key_source=${SSH_KEY_SOURCE})"
+case "$SSH_KEY_SOURCE" in
+    generate|1password)
+        assert_file_exists "~/.ssh/id_ed25519 exists" "$HOME/.ssh/id_ed25519"
+        assert_file_exists "~/.ssh/id_ed25519.pub exists" "$HOME/.ssh/id_ed25519.pub"
+        # Anchor to a real directive line so a comment mentioning the word
+        # "IdentitiesOnly" is not mistaken for the directive being set.
+        if grep -qE '^[[:space:]]*IdentitiesOnly[[:space:]]+yes' "$HOME/.ssh/config"; then
+            pass "github config pins IdentitiesOnly (managed key)"
+        else
+            fail "github config pins IdentitiesOnly (managed key)"
+        fi
+        ;;
+    agent)
+        if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
+            pass "no local key generated (agent mode)"
+        else
+            fail "no local key generated (agent mode)"
+        fi
+        if grep -qE '^[[:space:]]*IdentitiesOnly[[:space:]]+yes' "$HOME/.ssh/config"; then
+            fail "github config omits IdentitiesOnly (agent mode)"
+        else
+            pass "github config omits IdentitiesOnly (agent mode)"
+        fi
+        ;;
+    none)
+        pass "key_source=none: no key/config assertions"
+        ;;
+esac
 
 # --- Test 6: Git module verification ---
 echo ""
