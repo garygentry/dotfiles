@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (default): ssh `key_item` default changed** from `op://Personal/SSH Key` to
+  the neutral generic `op://Private/SSH Key` (1Password's current default personal-vault
+  name), so no personal vault name is baked into the engine. This only affects users who
+  set `modules.ssh.key_source: 1password` **and** relied on the old default vault name; if
+  the SSH key lives in a `Personal` vault, set `modules.ssh.key_item: op://Personal/SSH Key`
+  explicitly. Anyone already setting `key_item`, or not using `key_source: 1password`, is
+  unaffected. Changed in `modules/ssh/install.sh`, `config.yml`,
+  `config.overlay.example.yml`, and the hermetic ssh test.
+
 - **Dead-config cleanup (phase 4D).** Two committed `config.yml` keys that looked wired
   but were silently ignored are now either live or gone. `modules.git.default_branch` is
   now live: `modules/git/install.sh` applies it via

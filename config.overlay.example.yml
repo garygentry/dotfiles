@@ -51,5 +51,5 @@ modules:
     # Use an external SSH agent (e.g. the 1Password agent) instead of a local key.
     key_source: agent
     # When key_source=1password, point at your own 1Password item. The key type
-    # (ed25519/rsa) is appended as the field. Defaults to "op://Personal/SSH Key".
+    # (ed25519/rsa) is appended as the field. Defaults to "op://Private/SSH Key".
     # key_item: op://Private/My SSH Key

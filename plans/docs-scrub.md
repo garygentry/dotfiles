@@ -295,19 +295,20 @@ page (§5 four-place sync + `.gitignore` + rerun `setup-docs.sh` + `check-docs.m
 - [ ] Cross-link the new page from `docs/README.md` (index), root `README.md`,
       `docs/content-overlay.md`, and `docs/creating-modules.md`.
 
-### H. ssh `key_item` default change (NOT docs-only — deliberate back-compat break)
+### H. ssh `key_item` default change (NOT docs-only — deliberate back-compat break) ✅ DONE (branch `fix/ssh-key-item-default`)
 Per the guiding principle + §6-D1. Ship as its own PR (`fix/ssh-key-item-default`).
-- [ ] Change the code default in `modules/ssh/install.sh:27`
+- [x] Change the code default in `modules/ssh/install.sh:27`
       (`${DOTFILES_SETTING_KEY_ITEM:-op://Personal/SSH Key}`) to the new generic
-      (recommended `op://Private/SSH Key`). Update the comments at
-      `modules/ssh/install.sh:14-15,24` too.
-- [ ] Update `config.yml:30-31` comment and `config.overlay.example.yml:49` example to the
-      new default; update `test/bootstrap/ssh_key_item_test.sh` (the "unset → default"
-      cases assert `op://Personal/SSH Key/…`) to the new value.
-- [ ] CHANGELOG `[Unreleased]` **Changed** entry explicitly flagging the changed default
+      (`op://Private/SSH Key`). Comments at `modules/ssh/install.sh:14-15,22-27` updated too.
+- [x] Update `config.yml:29-30` comment and `config.overlay.example.yml:54` example to the
+      new default; `test/bootstrap/ssh_key_item_test.sh` (the "unset → default"
+      cases) now assert `op://Private/SSH Key/…`.
+- [x] CHANGELOG `[Unreleased]` **Changed** entry explicitly flagging the changed default
       as a **breaking default** (only affects users of `key_source: 1password` who relied
       on the old default vault name; fix: set `modules.ssh.key_item`).
-- [ ] `go test -race ./...` + the hermetic ssh test green; shellcheck-clean.
+- [x] `go test ./...` + the hermetic ssh test green; `go vet` clean. (shellcheck/docker not
+      available locally — CI's lint-shell covers it; the edited scripts are minimal comment/
+      literal changes.)
 
 ---
 

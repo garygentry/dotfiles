@@ -62,14 +62,14 @@ run_case() {
     cat "${REF_FILE}" 2>/dev/null || true
 }
 
-# --- Case 1: unset key_item -> historical default --------------------------
+# --- Case 1: unset key_item -> neutral generic default ---------------------
 got="$(run_case ed25519)"
-want="op://Personal/SSH Key/ed25519"
+want="op://Private/SSH Key/ed25519"
 [ "${got}" = "${want}" ] && pass "default item (unset)" || fail "default item: got '${got}' want '${want}'"
 
 # --- Case 2: unset key_item, rsa type --------------------------------------
 got="$(run_case rsa)"
-want="op://Personal/SSH Key/rsa"
+want="op://Private/SSH Key/rsa"
 [ "${got}" = "${want}" ] && pass "default item (rsa field)" || fail "default rsa: got '${got}' want '${want}'"
 
 # --- Case 3: custom key_item -----------------------------------------------
