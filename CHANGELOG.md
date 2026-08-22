@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Uninstall no longer proposes removing `$HOME` (#22).** When a module deployed a file
+  directly into an already-existing directory (e.g. `~/.gitignore_global`, whose parent is
+  `$HOME`), the installer recorded a bogus `dir_create` operation for that pre-existing
+  directory, so `dotfiles uninstall <module> --dry-run` listed an alarming
+  "Remove directory: /home/<user>". The deploy path now records a `dir_create` op only when
+  it actually creates the directory. (The rollback executor already rmdir'd empty
+  directories only, so nothing was ever deleted — but the plan was wrong.) State files
+  written before this fix keep the stale op until the module is reinstalled.
+
 - **Unified template contexts (phase 4C).** Templates rendered from a shell script via
   the `render_template` helper now see the same context as those rendered in-process by
   the runner. Previously the hidden `render-template` subcommand left `.User`, the

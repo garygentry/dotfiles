@@ -1173,14 +1173,19 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 
 		cfg.UI.Debug(fmt.Sprintf("Deploying %s -> %s (%s): %s", f.Source, dest, f.Type, reason))
 
-		// Ensure the destination directory exists.
+		// Ensure the destination directory exists. Only record a dir_create
+		// operation when the directory did NOT already exist — otherwise a file
+		// deployed straight into a pre-existing directory (e.g. $HOME) would
+		// record a bogus "created" op, and uninstall would later propose
+		// "Remove directory: $HOME". (The rollback executor only rmdir's empty
+		// dirs, so this never deleted anything, but the plan was wrong/alarming.)
 		destDir := filepath.Dir(dest)
+		_, destDirStatErr := os.Stat(destDir)
+		destDirExisted := destDirStatErr == nil
 		if err := os.MkdirAll(destDir, 0o755); err != nil {
 			return 0, 0, fmt.Errorf("creating directory %s: %w", destDir, err)
 		}
-
-		// Record directory creation if it was created
-		if _, err := os.Stat(destDir); err == nil {
+		if !destDirExisted {
 			modState.RecordOperation(state.Operation{
 				Type:   "dir_create",
 				Action: "created",
