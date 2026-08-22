@@ -1,9 +1,65 @@
 ---
 title: Setup
-description: Getting started with dotfiles.
+description: Get from a one-line bootstrap to your first dotfiles install.
 ---
 
-This is a starter page authored directly in the site (`source: "native"`).
+import { Steps } from "@astrojs/starlight/components";
 
-Add more pages by editing `docs.manifest.json` in the docs package directory, then
-re-running the generator (or `setup-docs.sh` in symlink mode).
+This is the fast path from nothing to a working install. For the full reference see
+[Installation](/installation/) and [Quick Start](/quick-start/).
+
+## Prerequisites
+
+- macOS, Ubuntu/Debian, or Arch Linux
+- `curl` and `git` (the bootstrap script installs Go ≥ 1.23 if it's missing)
+
+## Install
+
+<Steps>
+
+1. **Bootstrap the engine.** This clones the repo, builds the CLI, and runs an install:
+
+   ```bash
+   curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
+   ```
+
+2. **Pick what to install.** Run interactively and choose modules from the grid selector, or
+   install a profile directly:
+
+   ```bash
+   dotfiles install --profile minimal     # or: developer
+   dotfiles install --dry-run             # preview without changing anything
+   ```
+
+   The repo ships `developer`, `minimal`, and `test` profiles. See
+   [Quick Start](/quick-start/) for the module list and interactive flow.
+
+3. **Verify:**
+
+   ```bash
+   dotfiles list       # modules and their status
+   dotfiles status     # what's installed
+   ```
+
+</Steps>
+
+## Make it yours (content overlay)
+
+The engine is generic — it ships no personal identity. Rather than editing the committed
+`config.yml`, keep your identity, secrets choice, and custom profiles/modules in a separate
+**content overlay** repo that is deep-merged over the engine. Bootstrap can clone it for you:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- \
+  --content-repo https://github.com/you/my-dotfiles.git
+```
+
+- Read the model: [Content Overlay](/content-overlay/)
+- Build your own from scratch: [Extending](/extending/)
+
+## Next steps
+
+- [Content Overlay](/content-overlay/) — the two-repo model and first-install flow
+- [Extending](/extending/) — a hands-on tutorial for custom and override modules
+- [CLI Reference](/cli-reference/) — every command and flag
+- [Troubleshooting](/troubleshooting/) — common issues and fixes

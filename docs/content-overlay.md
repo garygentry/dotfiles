@@ -205,6 +205,7 @@ echo 'export DOTFILES_CONTENT_DIR="$HOME/.config/dotfiles"' >> ~/.zshenv
 
 ## See also
 
+- [Extending](extending.md) — a hands-on, copy-pasteable tutorial that builds a `my-dotfiles` content repo from scratch (custom + override modules, ending in a working `--dry-run`).
 - [`config.overlay.example.yml`](https://github.com/garygentry/dotfiles/blob/main/config.overlay.example.yml) — annotated overlay `config.yml`.
 - [`docs/examples/content-repo/`](https://github.com/garygentry/dotfiles/tree/main/docs/examples/content-repo) — the copy-me example repo.
 - [Creating Modules](creating-modules.md) — authoring custom/override modules.

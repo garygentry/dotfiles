@@ -91,6 +91,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Docs scrub — docs site & new Extending guide (docs-scrub §4.D/§4.G).** Added
+  [`docs/extending.md`](docs/extending.md), a hands-on tutorial that builds a `my-dotfiles`
+  content repo from scratch — overlay `config.yml`, a content profile, a **custom** module,
+  and an **override** module — ending in a working `--dry-run`, referencing the shipped
+  [`docs/examples/content-repo/`](docs/examples/content-repo) as the finished result. It is
+  registered as a docs-site page (manifest, `setup-docs.sh`, sidebar, `.gitignore`) and
+  cross-linked from the docs index, root README, content-overlay, and creating-modules docs.
+  Rewrote the two native docs-site pages (`index.mdx` product hero and `guides/setup.mdx`
+  quick-setup) from generator placeholders into real content with base-safe root-absolute
+  links, and replaced the placeholder "Documentation for dotfiles" site description in all
+  three synced spots. `node docs-site/check-docs.mjs` reports no drift (the full Node-22
+  Astro build runs on push to `main`).
+
 - **Docs scrub — top-level artifacts & ROADMAP (docs-scrub §4.E).** Deleted the one-off
   `DOCUMENTATION_UPDATES.md` and `UX_ENHANCEMENT_SUMMARY.md` summaries (their content lives
   in this changelog). Refreshed `ROADMAP.md`: genericized the registry example
