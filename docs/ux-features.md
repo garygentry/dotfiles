@@ -233,6 +233,26 @@ dotfiles install --unattended
 - **Default selections**: Uses profile or specified modules
 - **Parseable output**: Structured for log aggregation
 
+## Module Source Tags (Content Overlay)
+
+When a [content overlay](content-overlay.md) contributes modules (`DOTFILES_CONTENT_DIR`
+set), `dotfiles list` and `dotfiles status` insert a **Source** column that tags each
+module by where it comes from:
+
+- `built-in` — defined only in the engine repo
+- `override` — a content module whose `name:` shadows a same-name built-in (whole-module replacement)
+- `custom` — a module defined only in the overlay
+
+```
+Name         Description                          OS                 Source    Status
+-----------  -----------------------------------  -----------------  --------  -------------
+git          Configure git with SSH signing       macos,ubuntu,arch  override  installed
+hello        Greet the current user               all                custom    not installed
+zsh          Install and configure Zsh            macos,ubuntu,arch  built-in  installed
+```
+
+The column is hidden when no overlay contributes, so default output is unchanged.
+
 ## Color Scheme
 
 All UI elements use the **Catppuccin Mocha** color palette:

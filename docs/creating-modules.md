@@ -373,9 +373,23 @@ Skips silently if the destination already exists, so it is safe to re-run.
 # Render template (calls back to Go CLI)
 render_template "$DOTFILES_MODULE_DIR/files/config.tmpl" ~/.config/app/config
 
-# Get secret from 1Password (calls back to Go CLI)
+# Get secret from the configured provider (calls back to Go CLI)
 API_KEY=$(get_secret "op://vault/item/field")
 ```
+
+> The **default secrets provider is `noop`**. With no provider configured, `get_secret`
+> **fails** (non-zero exit, empty output) — under `set -euo pipefail` a bare
+> `KEY=$(get_secret ...)` will abort the script. Only call `get_secret` when a provider is
+> configured (`secrets.provider: 1password`, via your overlay or `DOTFILES_SECRETS_PROVIDER`),
+> and guard it so a missing secret degrades gracefully, e.g.:
+>
+> ```bash
+> if API_KEY=$(get_secret "op://vault/item/field" 2>/dev/null); then
+>     # use "$API_KEY"
+> else
+>     log_warn "No secret provider configured; skipping API key setup"
+> fi
+> ```
 
 ### Interactive Prompts
 

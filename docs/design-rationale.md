@@ -28,7 +28,8 @@ The hybrid approach plays to each language's strengths:
 **Shell handles system operations** — what it does best:
 
 - Running package managers (`apt install`, `brew install`, `pacman -S`)
-- Git configuration, SSH key generation, tool setup
+- Git configuration, SSH key management (generate / agent / 1Password / none, selected by
+  `modules.ssh.key_source`), tool setup
 - OS-specific logic that varies by platform
 - Anything that benefits from being easily readable and modifiable without recompilation
 
@@ -89,6 +90,26 @@ Go installs as a self-contained tarball (~70MB), extracts to a single directory,
 
 The build itself takes 3-5 seconds on modern hardware. For a tool that runs once during system setup, this is negligible.
 
+## Why a Generic Engine + Content Overlay?
+
+The repository is a **generic engine**: it ships conservative, personal-free defaults
+(`secrets.provider: noop`, empty `user.*`, no baked-in vault names) and works out of the
+box for anyone. Personal identity, secrets choices, and custom profiles/modules live in an
+optional **content overlay** directory (`$DOTFILES_CONTENT_DIR`) — laid out like the repo
+and deep-merged over it — which the user keeps in their own repo.
+
+This separation is deliberate:
+
+- **Forkability without divergence.** You point the engine at your own content repo instead
+  of forking and editing tracked files, so you can pull engine updates without merge
+  conflicts against your personal settings.
+- **No secrets in the engine.** Identity and secret references never need to be committed to
+  the shared repo; they stay in your overlay (and secrets themselves stay in a provider).
+- **Opt-in, zero-cost when unused.** With no content dir set, every layer collapses to the
+  engine alone and behavior is identical — the overlay is purely additive.
+
+See [Content Overlay](content-overlay.md) for the full model.
+
 ## Design Tradeoffs
 
 Every architecture involves tradeoffs. Here are the ones this system makes consciously:
@@ -100,6 +121,7 @@ Every architecture involves tradeoffs. Here are the ones this system makes consc
 | Build from source | Always in sync, zero release infra | ~70MB Go download + ~5s build time on first run |
 | Runtime file loading | Modules can be added/modified without rebuilding | Binary is useless without the repository |
 | YAML configuration | Human-readable, well-supported | Requires a parsing library (Go) or external tool (shell) |
+| Generic engine + content overlay | Fork-free personalization, no secrets in the shared repo | A second (content) repo to manage for a fully custom setup |
 
 These tradeoffs optimize for the primary use case: a developer setting up a new machine, where reliability and correctness matter more than shaving seconds off the initial bootstrap.
 

@@ -263,7 +263,10 @@ Computed from:
 - `user.name`, `user.email`, `user.github_user` (affects templates)
 - Module-specific config from `config.modules.<module-name>`
 
-Changes to these values trigger a re-run.
+Changes to these values trigger a re-run. This is computed from the **effective, merged**
+config — when a [content overlay](content-overlay.md) is active, the overlay's deep-merged
+values are what the hash sees, so editing your overlay's `config.yml` correctly re-runs the
+affected modules just as editing the base `config.yml` would.
 
 ### File Hash
 
