@@ -1,6 +1,9 @@
 # Plan: Comprehensive Documentation Scrub
 
-**Status:** 📋 PLANNED — not started · **Branch:** `docs/scrub-*` per work group
+**Status:** 🚧 IN PROGRESS — §4.H (ssh key_item default) merged (#15); §4.A + §4.F
+sweeps F1–F7 on branch `docs/scrub-core-defaults`. Remaining: §4.C template-context
+(incl. F8), §4.B structural, §4.D/§4.G site, §4.E artifacts. · **Branch:** `docs/scrub-*`
+per work group
 **Scope:** All human-facing docs (repo markdown + the Astro/Starlight docs site) brought
 into line with the merged content-overlay initiative (phases 1–4), a new **Extensibility
 guide + tutorial** (§4.G), and one **deliberate default change** (ssh `key_item`, §4.H).
@@ -148,31 +151,31 @@ a CHANGELOG `[Unreleased]` entry per PR.
 The recurring fix: (a) stop showing `provider: 1password` as the committed default; (b)
 teach the **overlay** as the personalization path; (c) show/describe `ssh.key_source`.
 
-- [ ] `README.md:172-174` config example → `provider: noop` (or drop the `secrets:` block
+- [x] `README.md:172-174` config example → `provider: noop` (or drop the `secrets:` block
       and point to the overlay). `:18` & `:236` soften "Integrated/Seamless 1Password" to
       "optional 1Password (opt-in) secrets".
-- [ ] `README.md:155-159` Modules table: fix ssh "Dependencies: 1password" → none;
+- [x] `README.md:155-159` Modules table: fix ssh "Dependencies: 1password" → none;
       zsh "Zinit" → "Zinit or Oh My Zsh"; note the table is a sample of ~30 modules.
-- [ ] `README.md:181-190` config example: add `key_source` under `ssh:` so readers learn
+- [x] `README.md:181-190` config example: add `key_source` under `ssh:` so readers learn
       generation is selectable.
-- [ ] `README.md:163-186` "Configuration" section: reframe personalization to the overlay
+- [x] `README.md:163-186` "Configuration" section: reframe personalization to the overlay
       (link `docs/content-overlay.md` / `config.overlay.example.yml`) instead of editing
       `~/.dotfiles/config.yml` in place.
-- [ ] `README.md:194-203` Developer Profile block → real `profiles/developer.yml` contents.
-- [ ] `docs/quick-start.md:208-210` → `provider: noop`; `:30-33` sample `list` output →
+- [x] `README.md:194-203` Developer Profile block → real `profiles/developer.yml` contents.
+- [x] `docs/quick-start.md:208-210` → `provider: noop`; `:30-33` sample `list` output →
       current modules/phrasing; `:167` "all modules" → curated set; add an overlay pointer
       in the Configuration section (198-222).
-- [ ] `docs/installation.md`: add a short **content-overlay bootstrap** subsection
+- [x] `docs/installation.md`: add a short **content-overlay bootstrap** subsection
       (`--content-repo` / `--content-path` / `DOTFILES_CONTENT_DIR`) linking
       `docs/content-overlay.md`; fix the `USER` vs `garygentry` placeholder (see §4.F);
       align Go version (§2.5).
-- [ ] `docs/cli-reference.md:568-570` → `provider: noop`; `:207-215` sample `list` →
+- [x] `docs/cli-reference.md:568-570` → `provider: noop`; `:207-215` sample `list` →
       current modules + note the built-in/override/custom **tag column**; document
       `render-template --module`; add a pointer that `--content-*` are bootstrap flags.
-- [ ] `docs/troubleshooting.md`: SSH section (130-157, 335, 574) → describe `key_source`
+- [x] `docs/troubleshooting.md`: SSH section (130-157, 335, 574) → describe `key_source`
       (generate is the default, not a fallback); "Skip Secrets" (333-341) → note default is
       already `noop`; add an overlay-not-applied / override-name gotcha entry.
-- [ ] `docs/ci-cd-guide.md`: replace `provider: ""` (53-54, 348-349, 653-655) with `noop`;
+- [x] `docs/ci-cd-guide.md`: replace `provider: ""` (53-54, 348-349, 653-655) with `noop`;
       mark nonexistent profiles (`server`/`ci`/`prod`/…) as "create your own"; add a
       content-overlay-in-CI note (`--content-repo` to materialize config in a container);
       align Go version (`:147`).
@@ -237,17 +240,17 @@ if you ship the template-context PR separately, do these four together.)
       generic default, not `op://Personal/SSH Key`.
 
 ### F. Cross-file consistency sweeps (grep-driven; do once, repo-wide)
-- [ ] **Provider default**: no doc shows `provider: 1password` or `provider: ""` as the
+- [x] **Provider default**: no doc shows `provider: 1password` or `provider: ""` as the
       committed/default value. `rg -n "provider: *1password|provider: *\"\""` → all fixed
       to `noop` or clearly opt-in.
-- [ ] **`rollback` command**: `rg -n "dotfiles rollback"` → none (use `uninstall`).
-- [ ] **`version` command**: `rg -n "dotfiles version"` → none; remove the
+- [x] **`rollback` command**: `rg -n "dotfiles rollback"` → none (use `uninstall`).
+- [x] **`version` command**: `rg -n "dotfiles version"` → none; remove the
       `cli-reference.md:493-503` section (no such command).
-- [ ] **ssh dependency chain**: `rg -n "1password.*ssh|ssh.*1password"` in docs → no
+- [x] **ssh dependency chain**: `rg -n "1password.*ssh|ssh.*1password"` in docs → no
       dependency claims; ssh deps are `[]`.
-- [ ] **developer profile**: every listing matches `profiles/developer.yml`.
-- [ ] **Go version**: `rg -n "1\.22|golang:1\.22"` → standardize on ≥1.23.
-- [ ] **repo URL placeholder** (D4 → `garygentry`): replace `USER` in
+- [x] **developer profile**: every listing matches `profiles/developer.yml`.
+- [x] **Go version**: `rg -n "1\.22|golang:1\.22"` → standardize on ≥1.23.
+- [x] **repo URL placeholder** (D4 → `garygentry`): replace `USER` in
       `installation.md`/`quick-start.md` raw URLs with `garygentry`; reserve
       `<your-fork>` only where a doc is explicitly about forking.
 - [ ] **template context**: `rg -n "\.User\.Name|\.Secrets\.|Module settings + prompts"` →

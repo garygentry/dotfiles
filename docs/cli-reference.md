@@ -18,6 +18,13 @@ These flags are available for all commands:
 --unattended     Run without prompts, using defaults (ideal for CI/CD and IaC)
 ```
 
+> **Content-overlay flags belong to `bootstrap.sh`, not `dotfiles`.** The
+> `--content-repo`, `--content-ref`, `--content-path`, `--content-dir`,
+> `--content-auth-cmd`, and `--no-persist-content-dir` flags are consumed by the bootstrap
+> script to materialize a [content overlay](content-overlay.md); the `dotfiles` binary
+> reads the resulting overlay via the `DOTFILES_CONTENT_DIR` environment variable. They are
+> never `dotfiles install --content-...` flags.
+
 ## Commands
 
 ### dotfiles install
@@ -202,18 +209,18 @@ dotfiles list -v
 **Output:**
 
 ```
-Available Modules:
-
-Name         Description                           OS           Status
-──────────── ───────────────────────────────────── ──────────── ────────────────
-1password    Install and configure 1Password CLI   all          installed
-ssh          Configure SSH keys and settings       all          installed
-git          Configure Git with SSH signing        all          installed
-zsh          Install and configure Zsh + Zinit     all          not installed
-neovim       Install Neovim and symlink config     all          failed
-
-5 modules available
+Name         Description                          OS                 Status
+-----------  -----------------------------------  -----------------  -------------
+1password    Install and configure 1Password CLI  macos,ubuntu,arch  installed
+ssh          Configure SSH keys and settings      macos,ubuntu,arch  installed
+git          Configure git with SSH signing       macos,ubuntu,arch  installed
+zsh          Install and configure Zsh            macos,ubuntu,arch  not installed
+neovim       Install Neovim and symlink config    macos,ubuntu,arch  failed
 ```
+
+The listing shows all ~30 modules (truncated above). When a
+[content overlay](content-overlay.md) contributes modules, an extra **Source** column is
+inserted (before Status) tagging each module as `built-in`, `override`, or `custom`.
 
 **Status Values:**
 - `installed` - Module is currently installed
@@ -461,7 +468,15 @@ dotfiles render-template --src <source> --dest <destination> [flags]
 ```
 --src string         Source template file path
 --dest string        Destination file path
+--module string      Module directory (accepted for symmetry with the runner)
 ```
+
+The subcommand builds the **same** template context as the in-process runner — including
+`.User`, the module's `.Module` settings, `.XDGConfigHome`, and any content-overlay values
+(it reloads the layered config via `config.Load`). In practice the module whose settings
+populate `.Module` is taken from the `DOTFILES_MODULE_NAME` environment variable that the
+runner exports to every script, so module authors just call the `render_template` helper
+and get the right context automatically.
 
 **Examples:**
 
@@ -489,19 +504,6 @@ Templates have access to:
 - `contains "substr"` - String contains
 - `join ","` - Join slice
 - `trimSpace` - Trim whitespace
-
-### dotfiles version
-
-Show version information.
-
-```bash
-dotfiles version
-```
-
-**Output:**
-```
-dotfiles version 1.0.0
-```
 
 ### dotfiles help
 
@@ -560,23 +562,25 @@ Module scripts receive many more environment variables. See [Creating Modules �
 
 ### config.yml
 
-Main configuration file at `~/.dotfiles/config.yml`:
+Main configuration file at `~/.dotfiles/config.yml`. The committed file ships generic
+engine defaults (`secrets.provider: noop`, empty `user.*`); personalize via a
+[content overlay](content-overlay.md) rather than editing it in place:
 
 ```yaml
 profile: developer
 
 secrets:
-  provider: 1password
-  account: my.1password.com
+  provider: noop           # opt into "1password" from your overlay
 
 user:
-  name: "Your Name"
-  email: "your.email@example.com"
-  github_user: "yourusername"
+  name: ""
+  email: ""
+  github_user: ""
 
 modules:
   ssh:
     key_type: ed25519
+    key_source: generate   # generate | agent | 1password | none
   git:
     default_branch: main
 ```

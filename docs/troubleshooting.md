@@ -54,7 +54,7 @@ export PATH="/usr/local/go/bin:$PATH"
 **Solutions:**
 
 ```bash
-# Ensure Go version is 1.22+
+# Ensure Go version is 1.23+
 go version
 
 # Clean and rebuild
@@ -130,6 +130,13 @@ dotfiles install module-name
 ### SSH Module Fails
 
 **Problem:** SSH key generation or configuration fails.
+
+The ssh module's behavior is driven by `modules.ssh.key_source` (default **`generate`** —
+create a local key if none exists). Other values: `agent` (use an external SSH agent such
+as 1Password's; no local key managed), `1password` (retrieve the key via the `op` CLI, from
+`modules.ssh.key_item`), and `none` (leave `~/.ssh` untouched). Key generation is the
+default path, not a fallback — if you meant to use an agent or 1Password, set `key_source`
+accordingly.
 
 **Debug:**
 
@@ -274,6 +281,37 @@ EOF
 dotfiles install --profile developer
 ```
 
+### Content Overlay Not Applied
+
+**Problem:** Your overlay's `config.yml` values, custom profiles, or custom modules don't
+show up — `dotfiles list` shows no **Source** column and your identity/settings are missing.
+
+**Cause & fix:** the engine only reads an overlay when `DOTFILES_CONTENT_DIR` points at it.
+
+```bash
+# Confirm the overlay dir is set and exported
+echo "$DOTFILES_CONTENT_DIR"          # should print your my-dotfiles path
+export DOTFILES_CONTENT_DIR="$HOME/my-dotfiles"
+
+# When set, list gains a Source column tagging modules built-in/override/custom
+dotfiles list
+```
+
+If bootstrap cloned the overlay, it normally persists this variable; re-run bootstrap with
+`--content-repo` (or set the variable manually) if it isn't set. See the
+[Content Overlay guide](content-overlay.md).
+
+### Override Module Ignored (name mismatch)
+
+**Problem:** You added `modules/git/` to your overlay to replace the built-in `git` module,
+but the built-in still runs (or the overlay module shows as `custom`, not `override`).
+
+**Cause & fix:** override precedence is keyed on the module's **`name:`** in `module.yml`,
+not its directory name. To replace a built-in wholesale, the overlay module's `name:` must
+exactly match the built-in's (e.g. `name: git`). An override is a **whole-module**
+replacement — reproduce any parts of the original you still want. `dotfiles list` tags a
+correct override as `override` and a brand-new module as `custom`.
+
 ## Secrets Management Issues
 
 ### 1Password Not Authenticated
@@ -327,17 +365,18 @@ op item get "GitHub" --vault "Private"
 
 **Problem:** Don't want to use 1Password.
 
-**Solutions:**
+**Solution:** Nothing to do — the shipped default is already `secrets.provider: noop`, so
+no secrets backend is used and installs need no external tooling. 1Password is **opt-in**.
+If a config or overlay you're using sets `provider: 1password` and you want to turn it off,
+set it back to `noop` (and ensure `modules.ssh.key_source` is `generate` or `agent`, not
+`1password`):
 
-```bash
-# Remove secrets config from config.yml
-# Modules will fall back to default behavior
-# (e.g., SSH module will generate new keys instead of retrieving from 1Password)
-
-# Edit config.yml and remove:
-# secrets:
-#   provider: 1password
-#   account: my.1password.com
+```yaml
+secrets:
+  provider: noop
+modules:
+  ssh:
+    key_source: generate
 ```
 
 ## State Management Issues
@@ -571,11 +610,13 @@ If you're still stuck:
 
 ### Issue: Git signing fails on new systems
 
-**Workaround:** Ensure SSH keys are generated before configuring Git signing.
+**Workaround:** Ensure SSH keys are configured before configuring Git signing. The `git`
+module already depends on `ssh`, so dependency resolution installs them in the right order
+automatically:
 
 ```bash
-# Install modules in order
-dotfiles install 1password ssh git
+# Dependency resolution installs ssh before git
+dotfiles install git
 ```
 
 ### Issue: Zsh not set as default shell in containers
@@ -646,15 +687,15 @@ dotfiles install --unattended --profile docker
 # Unattended mode auto-skips secrets authentication
 dotfiles install --unattended
 
-# Or disable secrets in config
+# The default provider is already noop; only pin it if an overlay set otherwise
 cat > config.yml << 'EOF'
-profile: ci
+profile: minimal
 secrets:
-  provider: ""  # Disable secrets
+  provider: noop  # no secrets backend
 EOF
 
-# Use a profile without secrets-dependent modules
-dotfiles install --unattended --profile ci
+# Use a profile without secrets-dependent modules (create your own if needed)
+dotfiles install --unattended --profile minimal
 ```
 
 ### Non-Interactive Stdin

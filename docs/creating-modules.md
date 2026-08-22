@@ -578,7 +578,7 @@ priority: 50  # Lower numbers run first
 
 **Examples:**
 - 1password: 10 (runs very early, no dependencies)
-- ssh: 20 (depends on 1password)
+- ssh: 20 (no dependencies)
 - git: 30 (depends on ssh)
 - zsh: 40 (depends on git)
 - neovim: 50 (depends on git)

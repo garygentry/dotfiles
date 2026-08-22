@@ -89,6 +89,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   installer also announces the overlay in use and warns when `DOTFILES_CONTENT_DIR`
   points at a directory that does not exist, instead of silently ignoring it.
 
+### Documentation
+
+- **Docs scrub — core defaults & narrative (docs-scrub §4.A/§4.F).** Brought the
+  operational docs in line with the shipped engine: `secrets.provider: noop` (not
+  1Password) shown as the committed default across `README.md`, `docs/quick-start.md`,
+  `docs/cli-reference.md`, `docs/troubleshooting.md`, and `docs/ci-cd-guide.md`, with the
+  **content overlay** taught as the personalization path and `modules.ssh.key_source`
+  documented. Repo-wide sweeps: removed the nonexistent `dotfiles rollback`/`dotfiles
+  version` commands, corrected the stale `1password → ssh → git` dependency chain (ssh has
+  no deps; `git` depends on `ssh`), replaced the old five-module developer-profile listing
+  with the real curated set, standardized Go references on ≥1.23, and fixed `USER` repo-URL
+  placeholders to `garygentry`. Also noted the `list`/`status` built-in/override/custom
+  **Source** column and that `--content-*` are bootstrap flags, not `dotfiles` flags.
+
 ## [2.2.0] - 2026-08-21
 
 ### Added
