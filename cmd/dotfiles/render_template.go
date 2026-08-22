@@ -23,12 +23,24 @@ var renderTemplateCmd = &cobra.Command{
 	Short:  "Render a template file to a destination path",
 	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, err := newRenderContext(resolveDotfilesDir(), os.Getenv("DOTFILES_MODULE_NAME"))
+		moduleName := pickModuleName(renderModule, os.Getenv("DOTFILES_MODULE_NAME"))
+		ctx, err := newRenderContext(resolveDotfilesDir(), moduleName)
 		if err != nil {
 			return err
 		}
 		return template.RenderToFile(renderSrc, renderDest, ctx)
 	},
+}
+
+// pickModuleName resolves which module's config.yml settings populate .Module.
+// An explicit --module flag wins; otherwise it falls back to DOTFILES_MODULE_NAME,
+// which the in-process runner exports to every script (so the render_template
+// shell helper needs no flag).
+func pickModuleName(flag, env string) string {
+	if flag != "" {
+		return flag
+	}
+	return env
 }
 
 // resolveDotfilesDir determines the dotfiles repository root the same way the
@@ -93,7 +105,7 @@ func collectDotfilesEnv() map[string]string {
 func init() {
 	renderTemplateCmd.Flags().StringVar(&renderSrc, "src", "", "Source template file path")
 	renderTemplateCmd.Flags().StringVar(&renderDest, "dest", "", "Destination file path")
-	renderTemplateCmd.Flags().StringVar(&renderModule, "module", "", "Module directory")
+	renderTemplateCmd.Flags().StringVar(&renderModule, "module", "", "Module name whose config.yml settings populate .Module (overrides DOTFILES_MODULE_NAME)")
 	_ = renderTemplateCmd.MarkFlagRequired("src")
 	_ = renderTemplateCmd.MarkFlagRequired("dest")
 	rootCmd.AddCommand(renderTemplateCmd)
