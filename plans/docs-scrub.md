@@ -180,24 +180,24 @@ teach the **overlay** as the personalization path; (c) show/describe `ssh.key_so
       content-overlay-in-CI note (`--content-repo` to materialize config in a container);
       align Go version (`:147`).
 
-### B. Architecture / rationale / creating-modules (structural coverage)
-- [ ] `docs/architecture.md`: fix the `Context` struct (201-212) per §2.4; replace the
+### B. Architecture / rationale / creating-modules (structural coverage) ✅ DONE (branch `docs/scrub-structural`)
+- [x] `docs/architecture.md`: fix the `Context` struct (201-212) per §2.4; replace the
       stale `1password→ssh→git` dependency example (362-378); note `noop` is the shipped
       default (187-193); **add** coverage of: config **overlay** layering, content-wins
       module **discovery** with built-in/override/custom tags (100-108), and the unified
       in-process vs `render-template` context (4C).
-- [ ] `docs/design-rationale.md`: add the **engine vs content-overlay** separation as a
+- [x] `docs/design-rationale.md`: add the **engine vs content-overlay** separation as a
       rationale point; `:31` reword "SSH key generation" to reflect `key_source` gating.
-- [ ] `docs/creating-modules.md`: fix the template-context section (463-474) and the
+- [x] `docs/creating-modules.md`: fix the template-context section (463-474) and the
       gitconfig example (481-483) per §2.4 (lowercase `.User` keys, `.Module` = settings
       not prompts, `.Secrets` empty, add `.XDGConfigHome`); fix the priority/deps example
       (580-584) stale 1password chain; note default provider is `noop` near the
       `get_secret` example (373-378). (The overlay section 750-777 is correct — leave it.)
-- [ ] `docs/idempotence.md:431`: `dotfiles rollback zsh` → `dotfiles uninstall zsh`; add
+- [x] `docs/idempotence.md:431`: `dotfiles rollback zsh` → `dotfiles uninstall zsh`; add
       one line that overlay-merged config participates in the config-hash change detection.
-- [ ] `docs/ux-features.md`: add the `list`/`status` **built-in/override/custom** tag to
+- [x] `docs/ux-features.md`: add the `list`/`status` **built-in/override/custom** tag to
       the described UX (brief).
-- [ ] `docs/README.md` (index): add the missing **CI/CD Guide** link under Operations;
+- [x] `docs/README.md` (index): add the missing **CI/CD Guide** link under Operations;
       confirm **Content Overlay** link present (it is).
 
 ### C. Template-context correctness (surgical) ✅ DONE (branch `docs/scrub-template-context`)

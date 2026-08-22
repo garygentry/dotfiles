@@ -98,10 +98,26 @@ Core module system implementation.
 **Components:**
 
 #### Discovery (`discovery.go`)
-- Scans `modules/` directory
+- Scans the engine's `modules/` directory — and, when `DOTFILES_CONTENT_DIR` is set, the
+  overlay's `modules/` as a later root
 - Parses `module.yml` files
 - Validates module schema
 - Sorts by priority, then name
+- **Content-wins layering:** modules are merged across roots keyed on `name` (not directory).
+  A module defined only in the engine is tagged `built-in`; a later (content) root that
+  shadows a same-name engine module is `override` (whole-module replacement); a module that
+  exists only in a content root is `custom`. `dotfiles list`/`status` surface these tags in
+  a **Source** column when an overlay contributes.
+
+#### Config overlay (`config.Load`)
+- Loads the base `config.yml`, then **deep-merges** the overlay's `config.yml`
+  (`$DOTFILES_CONTENT_DIR/config.yml`) over it — only the keys the overlay sets are
+  changed, and YAML types are preserved.
+- Profiles resolve overlay-first: a bare `--profile name` prefers the overlay's
+  `profiles/name.yml` over the engine's, so a content profile overrides a same-name
+  built-in.
+- With no content dir set, every layer collapses to the engine alone — behavior is
+  identical to having no overlay.
 
 #### Schema (`schema.go`)
 - Defines module structure
@@ -182,7 +198,9 @@ type Provider interface {
 
 **Implementations:**
 - **1Password** (`onepassword.go`) - Integrates with `op` CLI
-- **Noop** (`noop.go`) - No-op provider for systems without secrets
+- **Noop** (`noop.go`) - No-op provider for systems without secrets. **This is the shipped
+  default** (`secrets.provider: noop` in the committed `config.yml`), so installs need no
+  external tooling; 1Password is opt-in via the overlay or `DOTFILES_SECRETS_PROVIDER`.
 
 **1Password Provider:**
 - Checks `op` CLI availability

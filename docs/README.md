@@ -26,8 +26,9 @@ Welcome to the dotfiles management system documentation.
 - [CLI Reference](cli-reference.md) - Complete command-line interface reference
 
 ### Operations
+- [CI/CD & IaC Integration](ci-cd-guide.md) - Unattended installs in pipelines, containers, and IaC
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
-- [Rollback Guide](rollback-guide.md) - How to roll back module installations
+- [Rollback Guide](rollback-guide.md) - How to reverse module installations (via `uninstall`)
 
 ### Contributing
 - [Contributing](https://github.com/garygentry/dotfiles/blob/main/CONTRIBUTING.md) - How to contribute to the project

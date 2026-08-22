@@ -91,6 +91,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Docs scrub — structural overlay coverage (docs-scrub §4.B).** Extended the architecture
+  and authoring docs to cover the content-overlay model: `docs/architecture.md` now
+  documents config **deep-merge** layering (`config.Load`), content-wins module
+  **discovery** with `built-in`/`override`/`custom` tags and the `list`/`status` **Source**
+  column, and flags `noop` as the shipped default provider; `docs/design-rationale.md` adds
+  a "generic engine + content overlay" rationale section and reflects `key_source`-gated SSH
+  handling; `docs/creating-modules.md` warns that `get_secret` fails (not returns empty)
+  under the default `noop` provider and shows a guarded call; `docs/idempotence.md` notes
+  that config-hash change detection sees the merged overlay values; `docs/ux-features.md`
+  documents the overlay **Source** column; and `docs/README.md` adds the CI/CD guide link.
+
 - **Docs scrub — template context (docs-scrub §4.C).** Corrected the Go template-context
   description everywhere it appears (`docs/architecture.md`, `docs/creating-modules.md`,
   `docs/cli-reference.md`, `docs/troubleshooting.md`) to match
