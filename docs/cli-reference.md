@@ -468,15 +468,17 @@ dotfiles render-template --src <source> --dest <destination> [flags]
 ```
 --src string         Source template file path
 --dest string        Destination file path
---module string      Module directory (accepted for symmetry with the runner)
+--module string      Module name whose config.yml settings populate .Module
+                     (overrides DOTFILES_MODULE_NAME)
 ```
 
 The subcommand builds the **same** template context as the in-process runner — including
 `.User`, the module's `.Module` settings, `.XDGConfigHome`, and any content-overlay values
-(it reloads the layered config via `config.Load`). In practice the module whose settings
-populate `.Module` is taken from the `DOTFILES_MODULE_NAME` environment variable that the
-runner exports to every script, so module authors just call the `render_template` helper
-and get the right context automatically.
+(it reloads the layered config via `config.Load`). The module whose settings populate
+`.Module` is chosen by `--module` if given, otherwise by the `DOTFILES_MODULE_NAME`
+environment variable that the runner exports to every script — so module authors just call
+the `render_template` helper and get the right context automatically, while a manual
+invocation can select the module explicitly with `--module`.
 
 **Examples:**
 

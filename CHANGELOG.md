@@ -31,6 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`render-template --module` now works (#21).** The `--module` flag was registered but
+  its value was never read, so the module whose `config.yml` settings populate `.Module`
+  could only be chosen via the `DOTFILES_MODULE_NAME` env var. The flag now selects the
+  module (overriding `DOTFILES_MODULE_NAME` when given); its help text is corrected from the
+  misleading "Module directory" to "Module name …". No change for the shell `render_template`
+  helper, which still relies on the env var the runner exports.
+
 - **Uninstall no longer proposes removing `$HOME` (#22).** When a module deployed a file
   directly into an already-existing directory (e.g. `~/.gitignore_global`, whose parent is
   `$HOME`), the installer recorded a bogus `dir_create` operation for that pre-existing

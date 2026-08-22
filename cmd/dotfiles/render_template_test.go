@@ -145,6 +145,54 @@ modules:
 	}
 }
 
+// TestPickModuleName covers the --module flag / DOTFILES_MODULE_NAME precedence
+// (regression for #21: the --module flag was previously ignored entirely).
+func TestPickModuleName(t *testing.T) {
+	tests := []struct {
+		name, flag, env, want string
+	}{
+		{"flag overrides env", "gitconfig", "ssh", "gitconfig"},
+		{"env used when flag empty", "", "ssh", "ssh"},
+		{"flag used when env empty", "zsh", "", "zsh"},
+		{"both empty", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pickModuleName(tt.flag, tt.env); got != tt.want {
+				t.Errorf("pickModuleName(%q, %q) = %q, want %q", tt.flag, tt.env, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRenderContextModuleFlagSelectsSettings proves the --module flag actually
+// drives which module's config.yml settings populate .Module — end to end
+// through newRenderContext, not just the string-precedence helper.
+func TestRenderContextModuleFlagSelectsSettings(t *testing.T) {
+	dotfilesDir := t.TempDir()
+	writeFile(t, filepath.Join(dotfilesDir, "config.yml"), `modules:
+  ssh:
+    key_source: generate
+  git:
+    default_branch: trunk
+`)
+	t.Setenv("DOTFILES_CONTENT_DIR", "")
+
+	// Simulate `--module git` winning over DOTFILES_MODULE_NAME=ssh.
+	moduleName := pickModuleName("git", "ssh")
+	ctx, err := newRenderContext(dotfilesDir, moduleName)
+	if err != nil {
+		t.Fatalf("newRenderContext: %v", err)
+	}
+	out, err := template.RenderString(`{{ .Module.default_branch }}`, ctx)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if out != "trunk" {
+		t.Errorf(".Module came from the wrong module: got %q, want %q (git's default_branch)", out, "trunk")
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
