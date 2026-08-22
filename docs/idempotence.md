@@ -427,6 +427,7 @@ ls -lt ~/.dotfiles/.backups/
 # Restore old version
 cp ~/.dotfiles/.backups/20260211-143022/.zshrc ~/.zshrc
 
-# Or rollback entire module
-dotfiles rollback zsh
+# Or reverse the module entirely (uninstall is the reversal path — there is
+# no separate `rollback` command)
+dotfiles uninstall zsh
 ```

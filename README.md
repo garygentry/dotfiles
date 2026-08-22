@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/garygentry/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/garygentry/dotfiles/actions/workflows/ci.yml)
 [![Docs](https://github.com/garygentry/dotfiles/actions/workflows/docs.yml/badge.svg)](https://github.com/garygentry/dotfiles/actions/workflows/docs.yml)
-[![Go Version](https://img.shields.io/badge/go-1.22%2B-blue)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.23%2B-blue)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 📖 **[Read the documentation →](https://garygentry.github.io/dotfiles/)**
@@ -15,7 +15,7 @@
 - **🔄 Dependency Resolution** - Automatic topological sorting ensures correct execution order
 - **♻️ Fully Idempotent** - Safe to run multiple times, only updates what changed
 - **🖥️ Cross-Platform** - Works on macOS, Ubuntu, and Arch Linux
-- **🔐 Secrets Management** - Integrated 1Password support for sensitive data
+- **🔐 Secrets Management** - Optional 1Password support (opt-in) for sensitive data
 - **📝 Template Rendering** - Go templates for dynamic configuration files
 - **✅ State Tracking** - Persistent state to track installations
 - **💾 Automatic Backups** - Protects user modifications with timestamped backups
@@ -150,13 +150,15 @@ dotfiles status
 
 ## Available Modules
 
-| Module        | Description                           | Dependencies |
-| ------------- | ------------------------------------- | ------------ |
-| **1password** | Install and configure 1Password CLI   | -            |
-| **ssh**       | Configure SSH keys and settings       | 1password    |
-| **git**       | Configure Git with SSH signing        | ssh          |
-| **zsh**       | Install Zsh with Zinit plugin manager | git          |
-| **neovim**    | Install Neovim and symlink config     | git          |
+A sample of the ~30 modules under `modules/` (run `dotfiles list` for the full set):
+
+| Module        | Description                                   | Dependencies |
+| ------------- | --------------------------------------------- | ------------ |
+| **1password** | Install and configure 1Password CLI           | -            |
+| **ssh**       | Configure SSH keys and settings               | -            |
+| **git**       | Configure Git with SSH signing                | ssh          |
+| **zsh**       | Install Zsh with Zinit or Oh My Zsh           | git          |
+| **neovim**    | Install Neovim and symlink config             | git          |
 
 [Creating modules guide →](docs/creating-modules.md)
 
@@ -164,26 +166,36 @@ dotfiles status
 
 ### config.yml
 
-Configure the system in `~/.dotfiles/config.yml`:
+The committed `config.yml` is a **generic engine default**: `secrets.provider` is `noop`
+(no secrets backend) and there is no personal identity baked in. Its shape:
 
 ```yaml
 profile: developer
 
 secrets:
-  provider: 1password
-  account: my.1password.com
+  provider: noop           # opt into "1password" via your overlay (see below)
 
 user:
-  name: "Your Name"
-  email: "your.email@example.com"
-  github_user: "yourusername"
+  name: ""
+  email: ""
+  github_user: ""
 
 modules:
   ssh:
     key_type: ed25519
+    key_source: generate   # generate | agent | 1password | none
   git:
     default_branch: main
 ```
+
+### Personalize with a content overlay (recommended)
+
+Rather than editing the committed `config.yml` in place, keep your identity, secrets
+choice, and any custom profiles/modules in an optional **content overlay** directory
+(`$DOTFILES_CONTENT_DIR`) that is deep-merged over the repo. This keeps the engine generic
+and your personal setup in your own repo. Start from
+[`config.overlay.example.yml`](config.overlay.example.yml) and see the
+[Content Overlay guide →](docs/content-overlay.md).
 
 [Full documentation →](docs/README.md)
 
@@ -191,15 +203,21 @@ modules:
 
 Profiles define module sets for different use cases:
 
-**Developer Profile** (`profiles/developer.yml`):
+**Developer Profile** (`profiles/developer.yml`) — a curated set, not every module:
 
 ```yaml
 modules:
-  - 1password
   - ssh
   - git
   - zsh
+  - starship
+  - tmux
+  - docker
+  - fzf
   - neovim
+  - btop
+  - claude-code
+  - nodejs
 ```
 
 **Minimal Profile** (`profiles/minimal.yml`):
@@ -233,7 +251,7 @@ The system uses a **hybrid architecture** where Go handles orchestration and she
 - **Topological Dependency Resolution** - Kahn's algorithm ensures correct order
 - **OS-Specific Logic** - Optional platform-specific scripts
 - **Template Rendering** - Go templates with custom functions
-- **Secrets Integration** - Seamless 1Password integration
+- **Secrets Integration** - Optional 1Password integration (opt-in)
 - **State Tracking** - JSON-based state persistence
 
 [Architecture documentation →](docs/architecture.md) · [Design rationale →](docs/design-rationale.md)
@@ -309,7 +327,7 @@ log_success "mymodule installed!"
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.23+
 - Bash 4.0+
 - Docker (for integration tests)
 

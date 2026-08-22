@@ -11,7 +11,7 @@ This guide covers different ways to install the dotfiles management system.
 The fastest way to get started is using the bootstrap script:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 This will:
@@ -27,13 +27,13 @@ This will:
 ### Prerequisites
 
 - **Git** - Version control system
-- **Go** - Version 1.22.0 or later
+- **Go** - Version 1.23 or later
 - **Bash** - Version 4.0 or later
 
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/USER/dotfiles.git ~/.dotfiles
+git clone https://github.com/garygentry/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 ```
 
@@ -60,7 +60,7 @@ The bootstrap script will use Homebrew to install dependencies if available. If 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Then run bootstrap
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 ### Ubuntu/Debian
@@ -72,7 +72,7 @@ The bootstrap script will use `apt` to install system packages. You may need sud
 sudo apt update && sudo apt upgrade -y
 
 # Run bootstrap
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 ### Arch Linux
@@ -84,7 +84,7 @@ The bootstrap script will use `pacman` to install system packages.
 sudo pacman -Syu
 
 # Run bootstrap
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 ## Configuration
@@ -98,13 +98,13 @@ You can customize the installation by setting environment variables before runni
 export DOTFILES_DIR="$HOME/my-dotfiles"
 
 # Custom repository URL
-export DOTFILES_REPO="https://github.com/USER/custom-dotfiles.git"
+export DOTFILES_REPO="https://github.com/<your-fork>/dotfiles.git"
 
 # Custom Go version
 export GO_VERSION="1.23.6"
 
 # Run bootstrap
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 ### Custom Profile
@@ -112,8 +112,32 @@ curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | ba
 To install a specific profile during bootstrap:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash -s -- --profile minimal
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- --profile minimal
 ```
+
+### Content Overlay
+
+The engine is generic; your personal identity, secrets choice, and any custom
+profiles/modules live in an optional **content overlay** directory that is deep-merged
+over the repo. Point the bootstrap script at your content repo and it will clone it and
+persist `DOTFILES_CONTENT_DIR` for you:
+
+```bash
+# Materialize a content overlay from your own repo during bootstrap
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- \
+  --content-repo https://github.com/you/my-dotfiles.git
+```
+
+Or use an already-cloned overlay by exporting the directory before installing:
+
+```bash
+export DOTFILES_CONTENT_DIR="$HOME/my-dotfiles"
+```
+
+The `--content-*` flags (`--content-repo`, `--content-ref`, `--content-path`,
+`--content-dir`, `--content-auth-cmd`, `--no-persist-content-dir`) are **bootstrap
+flags**, not `dotfiles` subcommand flags. See the [Content Overlay guide](content-overlay.md)
+for the full model, private-repo auth, and layout.
 
 ## Verification
 

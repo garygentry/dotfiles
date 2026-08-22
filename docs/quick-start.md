@@ -9,7 +9,7 @@ Get up and running with the dotfiles management system in minutes.
 ## Installation
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/USER/dotfiles/main/bootstrap.sh | bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash
 ```
 
 ## Common Tasks
@@ -22,16 +22,18 @@ dotfiles list
 
 Example output:
 ```
-Available Modules:
-
-Name         Description                          OS           Status
-──────────── ──────────────────────────────────── ──────────── ────────────────
-1password    Install and configure 1Password CLI  all          not installed
-ssh          Configure SSH keys and settings      all          installed
-git          Configure Git with SSH signing       all          installed
-zsh          Install and configure Zsh + Zinit    all          installed
-neovim       Install Neovim and symlink config    all          not installed
+Name         Description                          OS                 Status
+-----------  -----------------------------------  -----------------  -------------
+1password    Install and configure 1Password CLI  macos,ubuntu,arch  not installed
+ssh          Configure SSH keys and settings      macos,ubuntu,arch  installed
+git          Configure git with SSH signing       macos,ubuntu,arch  installed
+zsh          Install and configure Zsh            macos,ubuntu,arch  installed
+neovim       Install Neovim and symlink config    macos,ubuntu,arch  not installed
 ```
+
+> The listing above is truncated — `dotfiles list` shows all ~30 modules. When a
+> [content overlay](content-overlay.md) contributes modules, an extra **Source** column
+> appears tagging each as `built-in`, `override`, or `custom`.
 
 ### Install All Modules
 
@@ -132,7 +134,7 @@ OS: ubuntu 22.04 (amd64)
 Package Manager: apt
 ```
 
-Modules are listed in **dependency order**. For example, `git` depends on `1password`, so `1password` runs first.
+Modules are listed in **dependency order**. For example, `git` depends on `ssh`, so `ssh` runs first.
 
 ### 3. Progress Tracking
 
@@ -164,7 +166,7 @@ Profiles let you install predefined sets of modules.
 
 ### Available Profiles
 
-- **developer** - Full development environment (all modules)
+- **developer** - Full development environment (a curated module set)
 - **minimal** - Lightweight setup (git, zsh)
 - **test** - Testing configuration
 
@@ -194,29 +196,36 @@ dotfiles install --profile custom
 
 ## Configuration
 
-### Edit Main Configuration
+The committed `config.yml` ships generic engine defaults (`secrets.provider: noop`, empty
+`user.*`). To personalize, prefer a **content overlay** — an optional directory
+(`$DOTFILES_CONTENT_DIR`) holding your own `config.yml`/`profiles/`/`modules/` that is
+deep-merged over the repo, so the engine stays generic and your identity/secrets live in
+your own repo. See the [Content Overlay guide](content-overlay.md) and
+[`config.overlay.example.yml`](https://github.com/garygentry/dotfiles/blob/main/config.overlay.example.yml).
+
+Editing `~/.dotfiles/config.yml` directly still works for a single machine:
 
 ```bash
 vim ~/.dotfiles/config.yml
 ```
 
-Example configuration:
+The config shape (defaults shown):
 
 ```yaml
 profile: developer
 
 secrets:
-  provider: 1password
-  account: my.1password.com
+  provider: noop           # opt into "1password" from your overlay
 
 user:
-  name: "Your Name"
-  email: "your.email@example.com"
-  github_user: "yourusername"
+  name: ""
+  email: ""
+  github_user: ""
 
 modules:
   ssh:
     key_type: ed25519
+    key_source: generate   # generate | agent | 1password | none
   git:
     default_branch: main
 ```

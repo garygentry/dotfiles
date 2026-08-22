@@ -28,6 +28,12 @@ When `--unattended` is set:
 
 The system automatically enables unattended mode when stdin is not interactive (e.g., `curl | bash`).
 
+> **Note on example profiles.** The repo ships `developer`, `minimal`, and `test`. Profile
+> names used throughout this guide for illustration — `server`, `ci`, `prod`, `docker`,
+> `no-secrets` — are **not built in**; create your own (a file in `profiles/`, or a profile
+> in your [content overlay](content-overlay.md)) or substitute a real one like `minimal`.
+> `--profile` also accepts a path to a profile file.
+
 ## Quick Start
 
 ### Basic Unattended Installation
@@ -50,7 +56,7 @@ go build -o bin/dotfiles .
 cat > ~/.dotfiles/config.yml <<EOF
 profile: minimal
 secrets:
-  provider: ""
+  provider: noop
 EOF
 
 # Run installation
@@ -144,7 +150,7 @@ CMD ["/bin/bash"]
 
 ```dockerfile
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 WORKDIR /build
 COPY . .
 RUN go build -o dotfiles .
@@ -271,7 +277,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.22'
+          go-version: '1.23'
 
       - name: Build dotfiles
         run: go build -o bin/dotfiles .
@@ -345,33 +351,55 @@ Create configuration before installation to control profile and settings:
 cat > ~/.dotfiles/config.yml <<EOF
 profile: minimal
 secrets:
-  provider: ""  # Disable secrets in CI/CD
+  provider: noop  # no secrets backend (this is the default)
 EOF
 
 # Run installation
 dotfiles install --unattended
 ```
 
-### Using Profiles
+### Content Overlay in CI
 
-Create custom profiles for different environments:
+To materialize identity, secrets choice, and custom profiles/modules inside a container or
+CI runner without committing them to the engine repo, point `bootstrap.sh` at your content
+repo. The bootstrap clones it and exports `DOTFILES_CONTENT_DIR`, which the `dotfiles`
+binary reads to deep-merge your overlay over the repo:
 
-```bash
-# profiles/ci.yml
-- git
-- zsh
-
-# profiles/server.yml
-- git
-- tmux
-- zsh
-
-# profiles/docker.yml
-- git
-- neovim
+```dockerfile
+# In a Dockerfile / CI step — public, secret-free overlay
+RUN curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | \
+    bash -s -- --unattended --content-repo https://github.com/you/my-dotfiles.git
 ```
 
-Use with `--profile` flag:
+For an already-checked-out overlay, set the directory directly before installing:
+
+```bash
+export DOTFILES_CONTENT_DIR="$PWD/my-dotfiles"
+dotfiles install --unattended --profile mine
+```
+
+Keep CI overlays public and secret-free; for a private overlay use an SSH agent or
+`--content-auth-cmd`. See the [Content Overlay guide](content-overlay.md).
+
+### Using Profiles
+
+Create custom profiles for different environments (each profile file has a `modules:` key):
+
+```yaml
+# profiles/ci.yml
+modules:
+  - git
+  - zsh
+
+# profiles/server.yml
+modules:
+  - git
+  - tmux
+  - zsh
+```
+
+Use with `--profile` flag (these names are examples — create the profile first, or use a
+built-in like `minimal`):
 
 ```bash
 dotfiles install --unattended --profile ci
@@ -651,7 +679,7 @@ dotfiles install --unattended
 # Or disable secrets in config
 cat > config.yml <<EOF
 secrets:
-  provider: ""
+  provider: noop
 EOF
 ```
 

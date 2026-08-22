@@ -361,19 +361,17 @@ The Go runner wraps each shell script in a generated wrapper that sources `lib/h
 
 ```yaml
 # Module dependencies
-1password: []
-ssh: [1password]
+ssh: []
 git: [ssh]
 zsh: [git]
 neovim: [git]
 ```
 
 **Execution order:**
-1. 1password (priority 10, no deps)
-2. ssh (priority 20, after 1password)
-3. git (priority 30, after ssh)
-4. zsh (priority 40, after git)
-5. neovim (priority 50, after git)
+1. ssh (priority 20, no deps)
+2. git (priority 30, after ssh)
+3. zsh (priority 40, after git)
+4. neovim (priority 50, after git)
 
 Note: zsh and neovim could run in parallel since they only depend on git, but the system runs sequentially for simplicity.
 
