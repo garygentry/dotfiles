@@ -91,6 +91,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Docs scrub — template context (docs-scrub §4.C).** Corrected the Go template-context
+  description everywhere it appears (`docs/architecture.md`, `docs/creating-modules.md`,
+  `docs/cli-reference.md`, `docs/troubleshooting.md`) to match
+  `internal/template/render.go`: `.User` keys are **lowercase** (`{{ .User.name }}`, not
+  `.User.Name`, which renders empty), `.XDGConfigHome` is now listed, `.Module` holds only
+  the module's `config.yml` settings (prompt answers arrive via `.Env` as
+  `DOTFILES_PROMPT_*`, not in `.Module`), and `.Secrets` is documented as an always-empty
+  map during rendering (secrets reach scripts through the `get_secret` helper). The
+  troubleshooting "wrong field name" example, which previously recommended the wrong fix,
+  now points at `{{ .User.name }}`.
+
 - **Docs scrub — core defaults & narrative (docs-scrub §4.A/§4.F).** Brought the
   operational docs in line with the shipped engine: `secrets.provider: noop` (not
   1Password) shown as the committed default across `README.md`, `docs/quick-start.md`,

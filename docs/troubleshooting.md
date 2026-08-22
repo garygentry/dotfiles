@@ -533,10 +533,11 @@ dotfiles install module-name -v
 
 ```go
 // Missing closing brace
-{{ .User.Name
+{{ .User.name
 
-// Wrong field name (case-sensitive)
-{{ .user.name }}  // Should be .User.Name
+// Wrong access (case-sensitive): .User is the struct field (capital U),
+// but its keys are lowercase — so .User.Name renders EMPTY.
+{{ .User.Name }}  // Should be {{ .User.name }}
 
 // Using undefined field
 {{ .NonExistent }}  // Field doesn't exist in context
