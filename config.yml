@@ -27,8 +27,8 @@ modules:
     key_source: generate
     # 1Password item holding the key when key_source=1password. The key type
     # (ed25519/rsa) is appended as the field, so the full secret reference is
-    # "<key_item>/<key_type>". Defaults to "op://Personal/SSH Key" when unset.
-    # key_item: op://Personal/SSH Key
+    # "<key_item>/<key_type>". Defaults to "op://Private/SSH Key" when unset.
+    # key_item: op://Private/SSH Key
   git:
     # Value for `git config --global init.defaultBranch`, applied by the git
     # module. Defaults to 'main'.

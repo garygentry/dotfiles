@@ -12,7 +12,7 @@
 #   none       leave ~/.ssh keys and config entirely untouched
 #
 # For key_source=1password the item is configurable via modules.ssh.key_item
-# (DOTFILES_SETTING_KEY_ITEM), defaulting to "op://Personal/SSH Key".
+# (DOTFILES_SETTING_KEY_ITEM), defaulting to "op://Private/SSH Key".
 
 _ssh_dir="${DOTFILES_HOME}/.ssh"
 _ssh_key_source="${DOTFILES_SETTING_KEY_SOURCE:-generate}"
@@ -21,10 +21,11 @@ _ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
 # 1Password item holding the SSH key (key_source=1password). Configurable via
 # config.yml -> modules.ssh.key_item, exposed as DOTFILES_SETTING_KEY_ITEM. The
 # key type is appended as the field, so the full secret reference is
-# "<key_item>/<key_type>" (e.g. op://Personal/SSH Key/ed25519). Defaults to the
-# historical hardcoded item so unset config behaves exactly as before. A single
-# trailing slash is tolerated so "op://Vault/Item/" doesn't double up.
-_ssh_key_item="${DOTFILES_SETTING_KEY_ITEM:-op://Personal/SSH Key}"
+# "<key_item>/<key_type>" (e.g. op://Private/SSH Key/ed25519). Defaults to a
+# neutral generic item ("op://Private/SSH Key" — 1Password's default personal
+# vault) so no personal vault name is baked in. A single trailing slash is
+# tolerated so "op://Vault/Item/" doesn't double up.
+_ssh_key_item="${DOTFILES_SETTING_KEY_ITEM:-op://Private/SSH Key}"
 _ssh_key_item="${_ssh_key_item%/}"
 
 case "$_ssh_key_source" in
