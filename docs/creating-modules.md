@@ -461,29 +461,36 @@ Templates use Go's `text/template` syntax.
 Templates have access to:
 
 ```go
-.User.Name          // User's full name
-.User.Email         // User's email
-.User.GithubUser    // GitHub username
+.User.name          // User's full name  (lowercase keys!)
+.User.email         // User's email
+.User.github_user   // GitHub username
 .OS                 // Operating system
 .Arch               // Architecture
 .Home               // Home directory
 .DotfilesDir        // Dotfiles repository path
-.Module.theme       // Module settings from config.yml
-.Module.api_key     // Prompt answers
-.Secrets.api_key    // Secrets from 1Password
-.Env.PATH           // Environment variables
+.XDGConfigHome      // Resolved XDG_CONFIG_HOME (env or ~/.config)
+.Module.<key>       // This module's config.yml settings only (settings, NOT prompt answers)
+.Secrets            // Always an empty map here — secrets reach scripts via the get_secret helper
+.Env.<VAR>          // Environment overrides, incl. DOTFILES_PROMPT_* (prompt answers)
 ```
+
+> **Key facts:** `.User` keys are **lowercase** (`.User.name`, not `.User.Name` — the
+> latter renders empty). `.Module` contains only this module's `config.yml`
+> `modules.<name>.*` settings (including content-overlay values, type-preserving); **prompt
+> answers are NOT in `.Module`** — read them from `.Env` as `DOTFILES_PROMPT_*`, e.g.
+> `{{ index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE" }}`. `.Secrets` is always an empty (non-nil)
+> map during rendering; use the `get_secret` shell helper for secret values.
 
 ### Example Template
 
 ```
 # files/gitconfig.tmpl
 [user]
-    name = {{ .User.Name }}
-    email = {{ .User.Email }}
+    name = {{ .User.name }}
+    email = {{ .User.email }}
 
 [github]
-    user = {{ .User.GithubUser }}
+    user = {{ .User.github_user }}
 
 {{- if eq .OS "darwin" }}
 [credential]
@@ -502,8 +509,8 @@ Templates have access to:
 ```go
 {{ env "HOME" }}                    // Get environment variable
 {{ default "value" .Module.key }}   // Default value if empty
-{{ .User.Name | upper }}            // Uppercase
-{{ .User.Name | lower }}            // Lowercase
+{{ .User.name | upper }}            // Uppercase
+{{ .User.name | lower }}            // Lowercase
 {{ contains "substring" .OS }}      // String contains
 {{ join "," .Module.features }}     // Join slice
 {{ .Module.name | trimSpace }}      // Trim whitespace

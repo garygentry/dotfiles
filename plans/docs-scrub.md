@@ -200,12 +200,15 @@ teach the **overlay** as the personalization path; (c) show/describe `ssh.key_so
 - [ ] `docs/README.md` (index): add the missing **CI/CD Guide** link under Operations;
       confirm **Content Overlay** link present (it is).
 
-### C. Template-context correctness (surgical)
+### C. Template-context correctness (surgical) ✅ DONE (branch `docs/scrub-template-context`)
 Fix the SAME context description everywhere it appears, using the §2.4 block verbatim as
 the model. Files: `docs/architecture.md:201-212`, `docs/creating-modules.md:463-483`,
 `docs/cli-reference.md:476-491`, and `docs/troubleshooting.md:499-503` (its "fix" is
 itself wrong — the correct access is lowercase `.User.name`). (Overlaps §4.B by design;
 if you ship the template-context PR separately, do these four together.)
+- [x] All four blocks corrected to §2.4: lowercase `.User` keys, `.XDGConfigHome` added,
+      `.Module` = config settings only (prompt answers via `.Env` `DOTFILES_PROMPT_*`),
+      `.Secrets` an empty map (secrets via `get_secret`). F8 sweep clean.
 
 ### D. docs-site native pages & metadata (see §5 for mechanics — do not break the guard)
 - [ ] Rewrite `docs-site/src/content/docs/guides/setup.mdx` — currently pure generator
@@ -253,7 +256,7 @@ if you ship the template-context PR separately, do these four together.)
 - [x] **repo URL placeholder** (D4 → `garygentry`): replace `USER` in
       `installation.md`/`quick-start.md` raw URLs with `garygentry`; reserve
       `<your-fork>` only where a doc is explicitly about forking.
-- [ ] **template context**: `rg -n "\.User\.Name|\.Secrets\.|Module settings + prompts"` →
+- [x] **template context**: `rg -n "\.User\.Name|\.Secrets\.|Module settings + prompts"` →
       reconciled with §2.4.
 
 ### G. Extensibility guide + hands-on tutorial (NEW page)

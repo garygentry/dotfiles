@@ -200,16 +200,25 @@ Go template rendering with custom functions.
 **Context:**
 ```go
 type Context struct {
-    User        map[string]string   // name, email, github_user
-    OS          string              // Operating system
-    Arch        string              // Architecture
-    Home        string              // Home directory
-    DotfilesDir string              // Repository path
-    Module      map[string]any      // Module settings + prompts
-    Secrets     map[string]string   // Retrieved secrets
-    Env         map[string]string   // DOTFILES_* env vars
+    User          map[string]string   // lowercase keys: name, email, github_user
+    OS            string              // Operating system
+    Arch          string              // Architecture
+    Home          string              // Home directory
+    DotfilesDir   string              // Repository path
+    XDGConfigHome string              // Resolved XDG_CONFIG_HOME (env or ~/.config)
+    Module        map[string]any      // config.yml modules.<name>.* settings only (NOT prompt answers)
+    Secrets       map[string]string   // always an empty map here; secrets reach scripts via get_secret
+    Env           map[string]string   // env overrides, incl. DOTFILES_PROMPT_* (prompt answers)
 }
 ```
+
+Access `.User` with **lowercase** keys — `{{ .User.name }}`, `{{ .User.email }}`,
+`{{ .User.github_user }}` (`.User.Name` renders empty). `.Module` carries only the
+module's `config.yml` settings (including any content-overlay values, type-preserving);
+**prompt answers are not in `.Module`** — they arrive via `.Env` as `DOTFILES_PROMPT_*`
+(e.g. `index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE"`). Since phase 4C the shell-invoked
+`render-template` subcommand builds this same context (with overlay) as the in-process
+runner.
 
 **Custom Functions:**
 - `env` - Get environment variable

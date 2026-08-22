@@ -490,12 +490,12 @@ render_template "$DOTFILES_MODULE_DIR/files/config.tmpl" ~/.config/app/config
 
 **Template Context:**
 
-Templates have access to:
-- `.User.Name`, `.User.Email`, `.User.GithubUser`
-- `.OS`, `.Arch`, `.Home`, `.DotfilesDir`
-- `.Module.*` - Module settings and prompt answers
-- `.Secrets.*` - Retrieved secrets
-- `.Env.*` - Environment variables
+Templates have access to (see the [creating-modules guide](creating-modules.md) for detail):
+- `.User.name`, `.User.email`, `.User.github_user` — **lowercase** keys (`.User.Name` renders empty)
+- `.OS`, `.Arch`, `.Home`, `.DotfilesDir`, `.XDGConfigHome`
+- `.Module.<key>` - this module's `config.yml` settings only (**not** prompt answers)
+- `.Secrets` - always an empty map here; secrets reach scripts via the `get_secret` helper
+- `.Env.<VAR>` - environment overrides, incl. `DOTFILES_PROMPT_*` (prompt answers), e.g. `index .Env "DOTFILES_PROMPT_SSH_KEY_TYPE"`
 
 **Template Functions:**
 - `env "VAR"` - Get environment variable
