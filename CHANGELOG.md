@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-22
+
 ### Changed
 
 - **Removed dead `modules.neovim.colorscheme` config (#13).** The committed
@@ -399,6 +401,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive and unattended modes
 - Comprehensive test suite
 
+[Unreleased]: https://github.com/garygentry/dotfiles/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/garygentry/dotfiles/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/garygentry/dotfiles/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/garygentry/dotfiles/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/garygentry/dotfiles/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/garygentry/dotfiles/compare/v1.0.0...v1.1.0
