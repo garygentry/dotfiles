@@ -36,7 +36,7 @@ engine only ever **consumes a local content directory**; how that directory is
 | **Content overlay — phase 2: profiles** | ✅ Done | PR #6 |
 | **Content overlay — phase 3: modules** | ✅ Done | PR #7 |
 | **Content overlay — phase 4: acquisition/packaging + cleanups** | ✅ Done | PRs #8–#12 (4A–4E) |
-| **Documentation scrub** (align all docs + docs-site to the shipped engine) | 📋 Planned | `plans/docs-scrub.md` |
+| **Documentation scrub** (align all docs + docs-site to the shipped engine) | ✅ Done | PRs #15–#20 (§4.H/A/F/C/B/E/D/G) |
 
 ### Phase summary (arc 2)
 - **P1 config** — `<content>/config.yml` deep-merged over the repo's; conservative
@@ -50,10 +50,12 @@ engine only ever **consumes a local content directory**; how that directory is
   deferred cleanups (secret-ref parameterization, template-context unification,
   dead-config). *Done (PRs #8–#12).*
 
-**Content-overlay initiative (arcs 1 & 2) is complete.** The follow-on
-[`plans/docs-scrub.md`](docs-scrub.md) brings all human-facing docs (repo markdown +
-the Astro docs site) into line with what shipped. Remaining engine follow-up:
-`neovim.colorscheme` dead config (issue #13).
+**Content-overlay initiative (arcs 1 & 2) is complete**, and so is the follow-on
+[`plans/docs-scrub.md`](docs-scrub.md) (PRs #15–#20) — all human-facing docs (repo markdown
++ the Astro docs site) are now in line with what shipped, plus a new `docs/extending.md`
+tutorial. Remaining engine follow-ups (not blocking): `neovim.colorscheme` dead config
+(issue #13), dead `render-template --module` flag (issue #21), and the uninstall `$HOME`
+rmdir plan (issue #22).
 
 ## Releases
 - **v2.2.0** (2026-08-21) — fresh-WSL install fixes, ssh `key_source`, re-run/rollback
@@ -84,7 +86,7 @@ the Astro docs site) into line with what shipped. Remaining engine follow-up:
 - Keep the relevant `plans/*.md` checkboxes + Status line current as you work.
 
 ## Files
-- `plans/docs-scrub.md` — **next up**: comprehensive documentation scrub (repo + docs site).
+- `plans/docs-scrub.md` — ✅ done (PRs #15–#20): comprehensive documentation scrub (repo + docs site) + new `docs/extending.md`.
 - `plans/phase3-content-modules.md` — ✅ done (PR #7).
 - `plans/phase4-acquisition-packaging.md` — ✅ done (PRs #8–#12).
 - `plans/README.md` — this index.
