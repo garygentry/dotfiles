@@ -15,6 +15,7 @@ src/content/docs/overview.md
 src/content/docs/installation.md
 src/content/docs/quick-start.md
 src/content/docs/content-overlay.md
+src/content/docs/extending.md
 src/content/docs/creating-modules.md
 src/content/docs/rollback-guide.md
 src/content/docs/troubleshooting.md

@@ -1,9 +1,10 @@
 # Plan: Comprehensive Documentation Scrub
 
-**Status:** 🚧 IN PROGRESS — §4.H (ssh key_item default) merged (#15); §4.A + §4.F
-sweeps F1–F7 on branch `docs/scrub-core-defaults`. Remaining: §4.C template-context
-(incl. F8), §4.B structural, §4.D/§4.G site, §4.E artifacts. · **Branch:** `docs/scrub-*`
-per work group
+**Status:** ✅ COMPLETE — all work groups shipped: §4.H ssh key_item default (#15),
+§4.A+§4.F core defaults & sweeps (#16), §4.C template-context (#17), §4.B structural (#18),
+§4.E artifacts (#19), §4.D+§4.G docs-site + new Extending page (`docs/scrub-site`).
+The Node-22 `npm run build` could not run locally (dev machine is Node 18); the docs
+workflow builds it on push to `main`. · **Branch:** `docs/scrub-*` per work group
 **Scope:** All human-facing docs (repo markdown + the Astro/Starlight docs site) brought
 into line with the merged content-overlay initiative (phases 1–4), a new **Extensibility
 guide + tutorial** (§4.G), and one **deliberate default change** (ssh `key_item`, §4.H).
@@ -210,21 +211,21 @@ if you ship the template-context PR separately, do these four together.)
       `.Module` = config settings only (prompt answers via `.Env` `DOTFILES_PROMPT_*`),
       `.Secrets` an empty map (secrets via `get_secret`). F8 sweep clean.
 
-### D. docs-site native pages & metadata (see §5 for mechanics — do not break the guard)
-- [ ] Rewrite `docs-site/src/content/docs/guides/setup.mdx` — currently pure generator
+### D. docs-site native pages & metadata (see §5 for mechanics — do not break the guard) ✅ DONE (branch `docs/scrub-site`)
+- [x] Rewrite `docs-site/src/content/docs/guides/setup.mdx` — currently pure generator
       placeholder, yet it is the homepage "Get Started" target. Make it a real quick-setup
       (bootstrap one-liner, profile pick, the overlay path). Keep `title` frontmatter;
       internal links MUST be root-absolute `/slug/` (native-page rule, §5).
-- [ ] Rewrite `docs-site/src/content/docs/index.mdx` — replace boilerplate hero/cards with
+- [x] Rewrite `docs-site/src/content/docs/index.mdx` — replace boilerplate hero/cards with
       a real product description (engine + overlay, key features). Fix the base-unsafe hero
       `link: guides/setup/` (`index.mdx:9`) to `/guides/setup/`. Keep body Card links
       root-absolute.
-- [ ] Replace the placeholder description "Documentation for dotfiles" in all three synced
+- [x] Replace the placeholder description "Documentation for dotfiles" in all three synced
       spots: `docs-site/docs.manifest.json:4`, `docs-site/astro.config.mjs:32`,
       `index.mdx` frontmatter — with one real one-line description.
-- [ ] Register the new **Extensibility** page (§4.G) as a docs-site page — manifest +
+- [x] Register the new **Extensibility** page (§4.G) as a docs-site page — manifest +
       `setup-docs.sh` + sidebar + `.gitignore`, in order (§5).
-- [ ] (Optional) Consider a docs-site nav grouping so Overview/Installation/Quick
+- [x] (Optional) Consider a docs-site nav grouping so Overview/Installation/Quick
       Start/**Content Overlay**/**Extending** read as a "Getting started" cluster. If you
       touch the sidebar, keep manifest↔sidebar parity + order (§5).
 
@@ -259,18 +260,18 @@ if you ship the template-context PR separately, do these four together.)
 - [x] **template context**: `rg -n "\.User\.Name|\.Secrets\.|Module settings + prompts"` →
       reconciled with §2.4.
 
-### G. Extensibility guide + hands-on tutorial (NEW page)
+### G. Extensibility guide + hands-on tutorial (NEW page) ✅ DONE (branch `docs/scrub-site`)
 Create a dedicated, task-oriented page for building your own setup — the "how do I make
 this mine?" companion to the conceptual `docs/content-overlay.md`. Proposed
 `docs/extending.md`, slug `extending`, sidebar label "Extending". Register as a docs-site
 page (§5 four-place sync + `.gitignore` + rerun `setup-docs.sh` + `check-docs.mjs`).
 
-- [ ] **Concept intro** — what extensibility means here: a personal **content repo**
+- [x] **Concept intro** — what extensibility means here: a personal **content repo**
       (`my-dotfiles`) overlaying the generic engine; the three extension points (config
       overlay, content **profiles**, content **modules**: custom + override); secrets stay
       in a provider, never committed. Link `docs/content-overlay.md` for the deep model and
       `docs/creating-modules.md` for module-authoring reference (don't duplicate them).
-- [ ] **Tutorial — build a `my-dotfiles` repo from scratch** (numbered, copy-pasteable,
+- [x] **Tutorial — build a `my-dotfiles` repo from scratch** (numbered, copy-pasteable,
       ending in a working `--dry-run`). Steps:
       1. `git init my-dotfiles`; create the layout (`config.yml`, `profiles/`, `modules/`).
       2. **Overlay `config.yml`** — set identity (`user.*`), opt into a provider if wanted
@@ -295,10 +296,10 @@ page (§5 four-place sync + `.gitignore` + rerun `setup-docs.sh` + `check-docs.m
          `docs/content-overlay.md#private-content-repos`.
       8. **Verify & troubleshoot**: the override-name gotcha (`name` must match), overlay
          not applied (`DOTFILES_CONTENT_DIR` unset), `dotfiles status` tags.
-- [ ] Reuse the shipped example `docs/examples/content-repo/` as the tutorial's finished
+- [x] Reuse the shipped example `docs/examples/content-repo/` as the tutorial's finished
       artifact — reference/link it (via a GitHub tree URL for docs-site link-safety, §5)
       rather than re-pasting all files. Keep the two in sync.
-- [ ] Cross-link the new page from `docs/README.md` (index), root `README.md`,
+- [x] Cross-link the new page from `docs/README.md` (index), root `README.md`,
       `docs/content-overlay.md`, and `docs/creating-modules.md`.
 
 ### H. ssh `key_item` default change (NOT docs-only — deliberate back-compat break) ✅ DONE (branch `fix/ssh-key-item-default`)

@@ -29,7 +29,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "dotfiles",
-      description: "Documentation for dotfiles",
+      description: "A modular Go + shell dotfiles manager — a generic engine you personalize with an optional content overlay.",
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/garygentry/dotfiles" },
       ],
@@ -46,6 +46,7 @@ export default defineConfig({
         { label: "Installation", slug: "installation" },
         { label: "Quick Start", slug: "quick-start" },
         { label: "Content Overlay", slug: "content-overlay" },
+        { label: "Extending", slug: "extending" },
         { label: "Creating Modules", slug: "creating-modules" },
         { label: "Rollback Guide", slug: "rollback-guide" },
         { label: "Troubleshooting", slug: "troubleshooting" },

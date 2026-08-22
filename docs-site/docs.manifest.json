@@ -2,7 +2,7 @@
   "$schema": "./docs.manifest.schema.json",
   "site": {
     "title": "dotfiles",
-    "description": "Documentation for dotfiles",
+    "description": "A modular Go + shell dotfiles manager — a generic engine you personalize with an optional content overlay.",
     "social": {
       "github": "https://github.com/garygentry/dotfiles"
     }
@@ -31,6 +31,11 @@
       "slug": "content-overlay",
       "source": "symlink",
       "from": "docs/content-overlay.md"
+    },
+    {
+      "slug": "extending",
+      "source": "symlink",
+      "from": "docs/extending.md"
     },
     {
       "slug": "creating-modules",

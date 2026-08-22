@@ -807,6 +807,8 @@ See existing modules for reference:
 
 ## Next Steps
 
+- [Extending](extending.md) - Ship your modules from a personal content overlay (custom + override), step by step
+- [Content Overlay](content-overlay.md) - The two-repo model your custom modules live in
 - [CLI Reference](cli-reference.md) - Full command documentation
 - [Idempotence](idempotence.md) - How re-runs and change detection work
 - [Rollback Guide](rollback-guide.md) - Uninstalling modules and reversing changes

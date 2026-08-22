@@ -195,7 +195,9 @@ choice, and any custom profiles/modules in an optional **content overlay** direc
 (`$DOTFILES_CONTENT_DIR`) that is deep-merged over the repo. This keeps the engine generic
 and your personal setup in your own repo. Start from
 [`config.overlay.example.yml`](config.overlay.example.yml) and see the
-[Content Overlay guide →](docs/content-overlay.md).
+[Content Overlay guide →](docs/content-overlay.md). To build your own content repo with
+custom and override modules step by step, follow the
+[Extending tutorial →](docs/extending.md).
 
 [Full documentation →](docs/README.md)
 

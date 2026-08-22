@@ -1,25 +1,43 @@
 ---
 title: dotfiles
-description: Documentation for dotfiles
+description: A modular Go + shell dotfiles manager — a generic engine you personalize with an optional content overlay.
 template: splash
 hero:
-  tagline: Documentation for dotfiles
+  tagline: A modular Go + shell dotfiles manager. A generic engine you personalize with an optional content overlay — no fork required.
   actions:
     - text: Get Started
-      link: guides/setup/
+      link: /guides/setup/
       icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/garygentry/dotfiles
+      icon: external
+      variant: minimal
 ---
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-Welcome to the **dotfiles** documentation.
+**dotfiles** is a hybrid dotfiles manager: Go handles orchestration (CLI, config,
+dependency resolution, state tracking and rollback) while shell scripts handle the actual
+installation. The repository is a **generic engine** with conservative, personal-free
+defaults; your identity, secrets choice, and custom profiles/modules live in an optional
+**content overlay** that is deep-merged over it.
 
 <CardGrid>
   <Card title="Get started" icon="rocket">
-    Head to the [setup guide](/guides/setup/) to begin.
+    New here? The [setup guide](/guides/setup/) takes you from a one-line bootstrap to your
+    first install.
   </Card>
-  <Card title="Single source of truth" icon="document">
-    Pages are driven by `docs.manifest.json`; edit the manifest to change the
-    sidebar.
+  <Card title="Make it yours" icon="pencil">
+    Keep your config in a separate repo with the [content overlay](/content-overlay/), then
+    follow the [extending tutorial](/extending/) to add custom and override modules.
+  </Card>
+  <Card title="Modular & idempotent" icon="setting">
+    ~30 self-contained modules with topological dependency resolution; safe to re-run —
+    only what changed is updated. See [Architecture](/architecture/) and
+    [Idempotence](/idempotence/).
+  </Card>
+  <Card title="Automation-friendly" icon="approve-check">
+    `--unattended` installs for CI/CD, containers, and IaC. See the
+    [CI/CD guide](/ci-cd-guide/) and [CLI reference](/cli-reference/).
   </Card>
 </CardGrid>
