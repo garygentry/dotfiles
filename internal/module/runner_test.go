@@ -339,6 +339,72 @@ func TestDeployFiles_BacksUpUserEditWhenSourceAlsoChanged(t *testing.T) {
 	}
 }
 
+func countDirCreateOps(ms *state.ModuleState, dir string) int {
+	n := 0
+	for _, op := range ms.Operations {
+		if op.Type == "dir_create" && op.Path == dir {
+			n++
+		}
+	}
+	return n
+}
+
+// Deploying a file straight into a directory that already exists (e.g. $HOME)
+// must NOT record a dir_create op — otherwise uninstall proposes
+// "Remove directory: $HOME" in its rollback plan. Regression test for #22.
+func TestDeployFiles_NoDirCreateOpForExistingDir(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	mod, _, _ := setupCopyModule(t, cfg, "v1") // deploys to ~/foo.conf; parent is HomeDir (pre-existing)
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	home := cfg.SysInfo.HomeDir
+	if got := countDirCreateOps(ms, home); got != 0 {
+		t.Errorf("recorded %d dir_create ops for pre-existing home %s, want 0", got, home)
+	}
+	for _, instr := range ms.RollbackInstructions() {
+		if instr == "Remove directory: "+home {
+			t.Errorf("rollback plan proposes removing pre-existing home dir: %q", instr)
+		}
+	}
+}
+
+// Deploying into a directory the install actually creates DOES record a
+// dir_create op, so uninstall can clean up the (empty) directory it made.
+func TestDeployFiles_RecordsDirCreateForNewDir(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "mymod")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(modDir, "files", "foo.conf")
+	if err := os.WriteFile(src, []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Dest lives in a subdirectory that does not exist yet.
+	mod := &Module{
+		Name:  "mymod",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/foo.conf", Dest: "~/newsub/foo.conf", Type: "copy"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+	newDir := filepath.Join(cfg.SysInfo.HomeDir, "newsub")
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	if got := countDirCreateOps(ms, newDir); got != 1 {
+		t.Errorf("recorded %d dir_create ops for newly created %s, want 1", got, newDir)
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	cfg := newTestRunConfig(t)
 
