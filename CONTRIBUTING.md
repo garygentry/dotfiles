@@ -59,7 +59,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.23 or later
 - Bash 4.0 or later
 - Docker (for integration tests)
 - Git
@@ -207,11 +207,24 @@ See [Creating Modules](docs/creating-modules.md) for a detailed guide.
 
 ## Adding Documentation
 
-- Documentation lives in `docs/`
+- Documentation lives in `docs/`; the docs site is generated under `docs-site/`
 - Use clear, concise language
 - Include code examples
-- Update the docs README with links to new pages
+- Update the docs README (`docs/README.md`) with links to new pages
+- If you add, rename, or remove a **docs-site page**, keep the four sync points in step
+  (`docs-site/docs.manifest.json`, `docs-site/setup-docs.sh`, `docs-site/astro.config.mjs`
+  sidebar, `docs-site/.gitignore`) and run `sh docs-site/setup-docs.sh && node
+  docs-site/check-docs.mjs` — the guard fails on drift or broken internal links
 - Use proper Markdown formatting
+
+## Architecture Work & the Content Overlay
+
+Larger, multi-step initiatives are planned in `plans/` — **read [`plans/README.md`](plans/README.md)
+first** for the roadmap, phase status, and per-phase plans. The engine is intentionally
+**generic**: personal config/profiles/modules belong in an optional **content overlay**
+(`$DOTFILES_CONTENT_DIR`), not committed to this repo. Keep the engine depersonalized, and
+prefer changes that keep "no overlay set ⇒ behaves exactly as before". See
+[`docs/content-overlay.md`](docs/content-overlay.md).
 
 ## Commit Messages
 
