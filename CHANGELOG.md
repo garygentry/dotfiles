@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Depersonalization pass: the engine now ships generic, unopinionated defaults**, with
+  personal/curated content moved to a content overlay. Backward-compatibility note: several
+  of these flip out-of-box behavior, so review if you install the engine bare (no overlay).
+  - **Default `profile` is now `minimal`** (`git`, `zsh`) instead of `developer`, so a
+    bare `dotfiles install` no longer pulls in docker + an AI CLI. `developer` remains an
+    opt-in profile. (`config.yml`, `internal/config/config.go` fallbacks + tests.)
+  - **git**: `pull.rebase=true` and `delta.side-by-side=true` are no longer imposed;
+    commit/tag **SSH auto-signing** is now opt-in via `modules.git.sign_commits` (default
+    off — signing *capability* is still configured), and the conventional-commits
+    **commit template** is opt-in via `modules.git.commit_template` (default off).
+  - **neovim**: ships the binary only (no bundled `init.lua`); bring your own config via an
+    overlay. **tmux**: ships the binary + TPM only (the opinionated Catppuccin config and
+    cheatsheet moved out; the `opinionated` preset/prompt is gone). **starship**: keeps
+    official presets only (the bundled `custom` starship.toml and `custom` preset option
+    removed).
+  - **zsh**: `aliases.zsh`/`functions.zsh` trimmed to universal entries; personal git/docker
+    shortcuts and `myip`/`weather` moved out. **fonts**: the Nerd Font is now configurable
+    via `modules.fonts.font` (+ optional `modules.fonts.font_url`), default `FiraCode`.
+  - Removed personal artifacts from the engine: `profiles/gwg-unattended.yml`,
+    `profiles/debug-failing.yml` (and `scripts/testuser.sh` now defaults to `minimal`), the
+    internal `plans/` dev-notes, and the README author/contact block.
+
 ## [2.3.0] - 2026-08-22
 
 ### Changed

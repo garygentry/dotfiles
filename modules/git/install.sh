@@ -12,6 +12,11 @@ _git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_${_git_ssh_key_type}"
 # behaves exactly as before.
 _git_default_branch="${DOTFILES_SETTING_DEFAULT_BRANCH:-main}"
 
+# Opinionated behaviors are opt-in so the generic engine imposes nothing. Enable
+# from your content overlay: modules.git.sign_commits / modules.git.commit_template.
+_git_sign_commits="${DOTFILES_SETTING_SIGN_COMMITS:-false}"
+_git_commit_template="${DOTFILES_SETTING_COMMIT_TEMPLATE:-false}"
+
 # Configure git user identity
 if [[ -n "$_git_user_name" ]]; then
     if is_dry_run; then
@@ -40,11 +45,17 @@ if [[ -f "$_git_ssh_key_file" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would configure git SSH signing with ${_git_ssh_key_file}.pub"
     else
+        # Set up SSH-signing capability (format + key) so commits can be signed
+        # on demand, but only force-enable signing when explicitly opted in.
         git config --global gpg.format ssh
         git config --global user.signingkey "${_git_ssh_key_file}.pub"
-        git config --global commit.gpgsign true
-        git config --global tag.gpgsign true
-        log_success "Configured git SSH signing with ${_git_ssh_key_file}.pub"
+        if [[ "$_git_sign_commits" == "true" ]]; then
+            git config --global commit.gpgsign true
+            git config --global tag.gpgsign true
+            log_success "Configured git SSH signing (auto-sign enabled) with ${_git_ssh_key_file}.pub"
+        else
+            log_success "Configured git SSH signing capability with ${_git_ssh_key_file}.pub (auto-sign off; enable via modules.git.sign_commits)"
+        fi
     fi
 else
     log_warn "SSH key not found at ${_git_ssh_key_file}, skipping signing configuration"
@@ -52,17 +63,18 @@ fi
 
 # Configure useful defaults
 if is_dry_run; then
-    log_info "[dry-run] Would set git init.defaultBranch to '${_git_default_branch}' (and push, pull, aliases)"
+    log_info "[dry-run] Would set git init.defaultBranch to '${_git_default_branch}' (and push defaults, aliases)"
 else
     # Branch defaults
     git config --global init.defaultBranch "$_git_default_branch"
 
-    # Push/pull behavior
+    # Push/pull behavior (no pull.rebase opinion imposed; opt in via your overlay)
     git config --global push.autoSetupRemote true
-    git config --global pull.rebase true
 
-    # Commit template
-    git config --global commit.template "${DOTFILES_HOME}/.gitmessage"
+    # Commit template (opt-in via modules.git.commit_template)
+    if [[ "$_git_commit_template" == "true" ]]; then
+        git config --global commit.template "${DOTFILES_HOME}/.gitmessage"
+    fi
 
     # Global gitignore
     git config --global core.excludesfile "${DOTFILES_HOME}/.gitignore_global"
@@ -119,7 +131,6 @@ if install_delta; then
     git config --global core.pager delta
     git config --global interactive.diffFilter "delta --color-only"
     git config --global delta.navigate true
-    git config --global delta.side-by-side true
     git config --global merge.conflictstyle diff3
     git config --global diff.colorMoved default
     log_success "Installed and configured git-delta"

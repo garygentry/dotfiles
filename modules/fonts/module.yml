@@ -1,9 +1,12 @@
 name: fonts
-description: Nerd Fonts for terminal icons support
-version: 1.0.0
+description: A Nerd Font for terminal icon support (configurable)
+version: 1.1.0
 priority: 10
 dependencies: []
 os: []
+# Which Nerd Font to install is configurable from your config.yml:
+#   modules.fonts.font      Nerd Font family name (default: FiraCode)
+#   modules.fonts.font_url  optional direct .ttf URL override (apt/Linux path)
 tags:
   - fonts
   - terminal

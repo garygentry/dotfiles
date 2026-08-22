@@ -170,7 +170,7 @@ The committed `config.yml` is a **generic engine default**: `secrets.provider` i
 (no secrets backend) and there is no personal identity baked in. Its shape:
 
 ```yaml
-profile: developer
+profile: minimal           # conservative out-of-box set (git, zsh); opt into bigger sets
 
 secrets:
   provider: noop           # opt into "1password" via your overlay (see below)
@@ -509,13 +509,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - [1Password CLI](https://developer.1password.com/docs/cli/) - Secrets management
 - [Zinit](https://github.com/zdharma-continuum/zinit) - Zsh plugin manager
-
-## Author
-
-**Gary Gentry**
-
-- GitHub: [@garygentry](https://github.com/garygentry)
-- Email: gary@garygentry.net
 
 ---
 

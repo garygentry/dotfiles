@@ -46,7 +46,7 @@ type profileFile struct {
 // environment variable overrides.
 func Load(dotfilesDir string) (*Config, error) {
 	cfg := &Config{
-		Profile:     "developer",
+		Profile:     "minimal",
 		DotfilesDir: dotfilesDir,
 		Modules:     make(map[string]map[string]any),
 	}
@@ -79,7 +79,7 @@ func Load(dotfilesDir string) (*Config, error) {
 
 	// Re-apply default profile if YAML left it empty.
 	if cfg.Profile == "" {
-		cfg.Profile = "developer"
+		cfg.Profile = "minimal"
 	}
 
 	// Environment variable overrides.

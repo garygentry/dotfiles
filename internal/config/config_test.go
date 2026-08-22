@@ -219,8 +219,8 @@ modules: {}
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.Profile != "developer" {
-		t.Errorf("Profile = %q, want default %q", cfg.Profile, "developer")
+	if cfg.Profile != "minimal" {
+		t.Errorf("Profile = %q, want default %q", cfg.Profile, "minimal")
 	}
 }
 
