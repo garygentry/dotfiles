@@ -261,7 +261,8 @@ echo ""
 echo "--- Test: Git module verification ---"
 assert_git_config "git init.defaultBranch = main" "init.defaultBranch" "main"
 assert_git_config "git push.autoSetupRemote = true" "push.autoSetupRemote" "true"
-assert_git_config "git pull.rebase = true" "pull.rebase" "true"
+# Generic engine imposes no pull strategy (opt into rebase from a content overlay).
+assert_git_config "git pull.rebase not forced (generic default)" "pull.rebase" ""
 assert_symlink "~/.gitignore_global is symlink" "$HOME/.gitignore_global"
 assert_symlink "~/.gitmessage is symlink" "$HOME/.gitmessage"
 
@@ -284,8 +285,13 @@ assert_symlink "~/.config/zsh/functions.zsh is symlink" "$HOME/.config/zsh/funct
 echo ""
 echo "--- Test: Neovim module verification ---"
 assert_command_exists "nvim is installed" "nvim"
-assert_dir_exists "~/.config/nvim directory exists" "$HOME/.config/nvim"
-assert_symlink "~/.config/nvim/init.lua is symlink" "$HOME/.config/nvim/init.lua"
+# The generic engine installs the neovim binary only and ships no config; a
+# personal init.lua is expected to come from a content overlay, not the engine.
+if [[ ! -e "$HOME/.config/nvim/init.lua" ]]; then
+    pass "engine ships no init.lua (config comes from an overlay)"
+else
+    fail "engine unexpectedly shipped ~/.config/nvim/init.lua"
+fi
 
 # ==============================================================================
 echo ""
