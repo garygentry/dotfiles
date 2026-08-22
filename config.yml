@@ -33,5 +33,3 @@ modules:
     # Value for `git config --global init.defaultBranch`, applied by the git
     # module. Defaults to 'main'.
     default_branch: main
-  neovim:
-    colorscheme: catppuccin

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Removed dead `modules.neovim.colorscheme` config (#13).** The committed
+  `neovim.colorscheme: catppuccin` key was silently ignored — `modules/neovim/init.lua`
+  hardcodes catppuccin (plugin install, `setup(...)`, `colorscheme("catppuccin")`, and the
+  lualine statusline theme), and nothing read the setting. Rather than expose a knob that
+  only accepts one value (catppuccin is the only installed scheme, so any other value would
+  break nvim startup), the key is dropped — the same call made for `zsh.theme` in 4D. No
+  behavior change: neovim still uses catppuccin. Switchable colorschemes remain a possible
+  future feature (would need plugin management), tracked separately from this cleanup.
+
 - **BREAKING (default): ssh `key_item` default changed** from `op://Personal/SSH Key` to
   the neutral generic `op://Private/SSH Key` (1Password's current default personal-vault
   name), so no personal vault name is baked into the engine. This only affects users who
