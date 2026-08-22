@@ -212,7 +212,7 @@ vim ~/.dotfiles/config.yml
 The config shape (defaults shown):
 
 ```yaml
-profile: developer
+profile: minimal           # conservative default (git, zsh); developer is opt-in
 
 secrets:
   provider: noop           # opt into "1password" from your overlay

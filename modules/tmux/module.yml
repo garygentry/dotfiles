@@ -1,18 +1,10 @@
 name: tmux
-description: Terminal multiplexer with TPM plugin manager
-version: 1.0.0
+description: Terminal multiplexer with TPM plugin manager (binary only; bring your own config)
+version: 1.1.0
 priority: 35
 dependencies: []
 os: []
-prompts:
-  - key: tmux_config
-    message: "Tmux config preset (opinionated = prefix Ctrl-j/f, vi keys, theme)"
-    default: "opinionated"
-    type: choice
-    options:
-      - opinionated
-      - minimal
-    show_when: explicit_install
+prompts: []
 legacy_paths:
   - path: "~/.tmux.conf"
     action: backup

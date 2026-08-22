@@ -23,7 +23,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_PROFILE="debug-failing"
+DEFAULT_PROFILE="minimal"
 SUDOERS_PREFIX="/etc/sudoers.d/90-dotfiles-testuser"
 MARKER=".dotfiles-testuser"   # file dropped in the home dir to tag our users
 

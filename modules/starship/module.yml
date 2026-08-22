@@ -11,12 +11,11 @@ requires:
   - curl
 prompts:
   - key: starship_preset
-    message: "Starship prompt preset (custom = dotfiles curated config)"
+    message: "Starship prompt preset (official starship presets)"
     default: "nerd-font-symbols"
     type: choice
     options:
       - nerd-font-symbols
-      - custom
       - no-nerd-font
       - plain-text-symbols
       - pure-preset

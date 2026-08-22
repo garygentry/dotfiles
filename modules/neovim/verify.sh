@@ -24,24 +24,11 @@ else
     _nvim_errors=$((_nvim_errors + 1))
 fi
 
-# Check init.lua is linked
+# The generic engine installs the neovim binary only and ships no config, so a
+# missing init.lua is expected. A config (from a content overlay) is informational.
 _nvim_init_lua="${DOTFILES_XDG_CONFIG_HOME}/nvim/init.lua"
-if [[ -L "$_nvim_init_lua" ]]; then
-    log_success "init.lua is symlinked: ${_nvim_init_lua}"
-elif [[ -f "$_nvim_init_lua" ]]; then
-    log_info "init.lua exists but is not a symlink: ${_nvim_init_lua}"
-else
-    log_warn "init.lua not found: ${_nvim_init_lua}"
-    _nvim_errors=$((_nvim_errors + 1))
-fi
-
-# Check nvim config directory exists
-_nvim_config="${DOTFILES_XDG_CONFIG_HOME}/nvim"
-if [[ -d "$_nvim_config" ]]; then
-    log_success "Neovim config directory exists: ${_nvim_config}"
-else
-    log_warn "Neovim config directory not found: ${_nvim_config}"
-    _nvim_errors=$((_nvim_errors + 1))
+if [[ -L "$_nvim_init_lua" || -f "$_nvim_init_lua" ]]; then
+    log_info "Neovim config present: ${_nvim_init_lua}"
 fi
 
 if [[ $_nvim_errors -gt 0 ]]; then

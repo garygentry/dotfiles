@@ -1,6 +1,6 @@
 name: neovim
-description: "Install Neovim and symlink configuration"
-version: "1.0.0"
+description: "Install Neovim (binary only; bring your own config)"
+version: "1.1.0"
 priority: 50
 dependencies:
   - git
@@ -10,10 +10,7 @@ os:
   - arch
 requires:
   - ripgrep
-files:
-  - source: init.lua
-    dest: "~/.config/nvim/init.lua"
-    type: symlink
+files: []
 prompts: []
 legacy_paths:
   - path: "~/.config/nvim/init.vim"

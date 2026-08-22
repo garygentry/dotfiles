@@ -3,7 +3,7 @@
 # (an optional ~/.config/dotfiles/config.yml), NOT here — see
 # config.overlay.example.yml. The overlay is deep-merged over this file, so it
 # only needs the keys you want to change.
-profile: developer
+profile: minimal
 
 secrets:
   # No secret provider by default, so installs need no external tooling. Opt in

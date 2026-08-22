@@ -2,9 +2,9 @@
 
 Go + Shell hybrid dotfiles manager. Go handles orchestration (CLI, config, dependency resolution, state tracking); shell scripts handle actual installation in `modules/*/install.sh`.
 
-## Architecture context — read `plans/README.md` first
+## Architecture context
 
-The engine has been **depersonalized** and given an optional **content overlay** (`$DOTFILES_CONTENT_DIR`: user `config.yml`/`profiles/`/`modules/` that overlay the repo), alongside re-run/rollback safety. The content-overlay initiative (phases 1–4) and the follow-on documentation scrub are **complete and merged**; the docs (repo markdown + the Astro docs site) reflect the shipped engine, and `docs/extending.md` is the build-your-own-overlay tutorial. **Before planning related work, read [`plans/README.md`](plans/README.md)** — it indexes the roadmap, phase status, and releases. Core invariant to preserve: with no content dir set, behavior is identical to a plain repo checkout. (The repo-root `ROADMAP.md` is a separate product-feature backlog; open follow-ups live as GitHub issues — e.g. #13, #21, #22.)
+The engine is intentionally **generic and unopinionated**, with an optional **content overlay** (`$DOTFILES_CONTENT_DIR`: user `config.yml`/`profiles/`/`modules/` that overlay the repo), alongside re-run/rollback safety. Personalization — identity, opinionated module config, curated profiles — lives in a separate content repo, never in this engine. The docs (repo markdown + the Astro docs site) reflect the shipped engine; `docs/content-overlay.md` is the conceptual model and `docs/extending.md` is the build-your-own-overlay tutorial. **Core invariant to preserve: with no content dir set, behavior is identical to a plain repo checkout.** The repo-root `ROADMAP.md` is the product-feature backlog; open follow-ups live as GitHub issues.
 
 ## Commands
 
