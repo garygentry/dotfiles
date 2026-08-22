@@ -91,6 +91,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Docs scrub — top-level artifacts & ROADMAP (docs-scrub §4.E).** Deleted the one-off
+  `DOCUMENTATION_UPDATES.md` and `UX_ENHANCEMENT_SUMMARY.md` summaries (their content lives
+  in this changelog). Refreshed `ROADMAP.md`: genericized the registry example
+  (`you/my-module`) and re-verified statuses against what shipped — module **uninstall**
+  (1.1) and the **`dotfiles validate`** subcommand (1.2 / 2.6) are marked shipped, and
+  external/private modules (2.5) noted as largely delivered by the content overlay, with a
+  "Recently Completed" entry for the overlay initiative. Updated `CONTRIBUTING.md` (Go
+  ≥1.23, the docs-site four-place sync + `check-docs` guard, and the `plans/` +
+  content-overlay workflow).
+
 - **Docs scrub — structural overlay coverage (docs-scrub §4.B).** Extended the architecture
   and authoring docs to cover the content-overlay model: `docs/architecture.md` now
   documents config **deep-merge** layering (`config.Load`), content-wins module

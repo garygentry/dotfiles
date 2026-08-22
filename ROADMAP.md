@@ -10,33 +10,27 @@ Items are grouped into four tiers. Each tier represents roughly a phase of work,
 
 *These close functional gaps that exist today. High impact, well-understood scope.*
 
-### 1.1 Fully Implement Module Uninstall
+### 1.1 Fully Implement Module Uninstall — ✅ Shipped
 
-The `dotfiles uninstall` command exists in the CLI and the state system already records operations, but the actual reversal logic is unimplemented. This is the most impactful missing feature.
-
-**Scope:**
-- Execute recorded operations in reverse order (remove files, restore backups, remove empty dirs)
-- Display a rollback plan with `--dry-run` before committing
-- Interactive confirmation prompt (skippable with `--unattended` or `--force`)
-- Clear reporting: what was removed, what requires manual cleanup (packages, scripts)
-- Handle edge cases: files modified after install, missing backups, non-empty directories
-
-**Related:** `internal/state/state.go` already defines the `Operation` and `RollbackInstructions()` structures. The runner wires to `module.RunnerUI` but the execution path is incomplete.
+`dotfiles uninstall` executes recorded operations in reverse order (removing files,
+restoring backups, removing empty dirs), displays a rollback plan with `--dry-run`, prompts
+for confirmation (skippable with `--unattended`/`--force`), and reports what was removed vs.
+what needs manual cleanup (packages, executed scripts). See the
+[Rollback and Uninstall Guide](docs/rollback-guide.md). Remaining polish (e.g. package
+removal) is tracked under 4.2.
 
 ---
 
-### 1.2 Module Schema Validation
+### 1.2 Module Schema Validation — ✅ Largely shipped
 
-`module.yml` files are parsed with loose YAML unmarshaling. Typos in field names (e.g. `dependancies` instead of `dependencies`) silently pass through, producing hard-to-debug runtime failures.
+The `dotfiles validate` subcommand lints every `module.yml` for schema errors — invalid
+field values, missing required fields, and broken references — with `--json` output and a
+`--strict` mode that rejects unknown YAML keys (catching typos like `dependancies`). Exit
+code is 0 when all modules pass, 1 otherwise. (This also delivers what was tracked
+separately as 2.6.)
 
-**Scope:**
-- Validate required fields (`name`, `description`, `version`) on module load
-- Warn on unknown top-level keys (catches typos)
-- Validate `type` values in `files:` entries (`symlink`, `copy`, `template` only)
-- Validate `type` values in `prompts:` entries (`input`, `confirm`, `choice` only)
-- Validate `depends_on` references point to existing prompt keys
-- Surface validation errors at `dotfiles list` / `dotfiles install` time with clear messages
-- Add a `dotfiles validate` subcommand for linting all modules without installing
+**Remaining:** surfacing validation inline at `dotfiles list` / `dotfiles install` time (the
+dedicated `validate` command exists; the always-on inline path is the open piece).
 
 ---
 
@@ -155,41 +149,25 @@ modules_config:
 
 ---
 
-### 2.5 External / Private Module Repositories
+### 2.5 External / Private Module Repositories — ✅ Largely shipped (via content overlay)
 
-Power users want to keep private or machine-specific modules outside the main repo (personal tools, work-specific configs, secret-laden modules).
+Delivered by the **content-overlay** initiative: a `$DOTFILES_CONTENT_DIR` directory
+(laid out like the repo, with its own `modules/`) is scanned as an additional root and
+deep-merged over the engine, with content-wins override precedence keyed on module `name`.
+The bootstrap script can clone the overlay from a public or private repo
+(`--content-repo` / `--content-auth-cmd`). See [Content Overlay](docs/content-overlay.md).
 
-**Scope:**
-- Add `module_paths:` to `config.yml` — a list of additional directories to scan for modules
-- Module discovery scans all paths; later paths take priority over earlier ones (allows override)
-- Paths can be absolute or relative to `$DOTFILES_DIR`
-- Paths can reference git repos that are cloned automatically using `github_clone`
-
-**Example config.yml:**
-```yaml
-module_paths:
-  - modules/                        # built-in (default)
-  - ~/.dotfiles-private/modules/    # local private modules
-  - ~/.dotfiles-work/modules/       # work-specific modules
-```
+**Remaining:** a `module_paths:` list in `config.yml` for **multiple** external roots (the
+overlay currently supports one content root, not an arbitrary list of `~/.dotfiles-work/`,
+`~/.dotfiles-private/`, … paths).
 
 ---
 
-### 2.6 `dotfiles validate` Subcommand
+### 2.6 `dotfiles validate` Subcommand — ✅ Shipped (see 1.2)
 
-Provide a way to lint all modules without installing them. Useful before committing changes.
-
-**Scope:**
-- Parse and validate every `module.yml` in all configured paths (see 2.5)
-- Check for:
-  - Required field presence
-  - Unknown fields (typo detection)
-  - Dependency references to non-existent modules
-  - `files:` source paths that don't exist within the module directory
-  - Circular dependency detection (already in resolver, expose it here)
-- Exit code 0 = all valid, 1 = validation failures found
-- Machine-readable output with `--json` flag
-- Run this in CI as a pre-merge check
+Delivered: `dotfiles validate [modules...]` lints every `module.yml` (required fields,
+invalid values, broken references) with `--json` and `--strict`, exit 0/1 for CI use. Any
+further checks (e.g. `files:` source-path existence) fold into 1.2's remaining work.
 
 ---
 
@@ -305,7 +283,7 @@ A way to discover and share modules beyond the built-in set.
 **Concept:**
 - A community registry of modules at a known URL
 - `dotfiles search <tool>` queries the registry
-- `dotfiles add garygentry/my-module` adds an external module to `module_paths`
+- `dotfiles add you/my-module` adds an external module to `module_paths`
 - Registry format: a simple git repo with an index YAML
 
 ---
@@ -339,6 +317,13 @@ For users who don't use a dedicated password manager, store secrets in the OS ke
 
 For context, these items were delivered in the most recent development cycle:
 
+- **Content overlay (phases 1–4)**: optional `$DOTFILES_CONTENT_DIR` overlay of
+  `config.yml`/`profiles/`/`modules/`, deep-merged over the generic engine with
+  content-wins override precedence and `built-in`/`override`/`custom` tags; bootstrap
+  acquisition (`--content-repo`), depersonalized defaults, and ssh `key_source`/`key_item`.
+  See [Content Overlay](docs/content-overlay.md).
+- **Module uninstall & schema validation**: `dotfiles uninstall` reversal (1.1) and the
+  `dotfiles validate` subcommand (1.2 / 2.6) shipped.
 - **v2.1.0**: Full UX overhaul — compact grid module selector, collapsible script output with auto-expanding errors, real-time progress bar with time estimates, smart output pattern recognition
 - **Idempotence system**: SHA256 change detection for modules and files, user modification protection, `--force` / `--skip-failed` / `--update-only` flags
 - **`github_clone` helper**: Standardized pattern for cloning GitHub repos from module scripts

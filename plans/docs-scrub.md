@@ -228,17 +228,17 @@ if you ship the template-context PR separately, do these four together.)
       Start/**Content Overlay**/**Extending** read as a "Getting started" cluster. If you
       touch the sidebar, keep manifest↔sidebar parity + order (§5).
 
-### E. Top-level artifacts, ROADMAP, CONTRIBUTING
-- [ ] **DELETE** `DOCUMENTATION_UPDATES.md` (376 lines) and `UX_ENHANCEMENT_SUMMARY.md`
+### E. Top-level artifacts, ROADMAP, CONTRIBUTING ✅ DONE (branch `docs/scrub-artifacts`)
+- [x] **DELETE** `DOCUMENTATION_UPDATES.md` (376 lines) and `UX_ENHANCEMENT_SUMMARY.md`
       (288 lines) — one-off v2.1.0 summaries whose content is already in `CHANGELOG.md`
       (§6-D2, decided: delete). Remove any inbound links (grep first).
-- [ ] `ROADMAP.md`: `:308` genericize `dotfiles add garygentry/my-module` →
+- [x] `ROADMAP.md`: `:308` genericize `dotfiles add garygentry/my-module` →
       `you/my-module`. Re-verify statuses against what shipped (uninstall/rollback-history,
       schema validation partially advanced — see `plans/README.md` "Overlap" note); mark
       accordingly. Optionally add a one-line pointer to the content-overlay/extending docs.
-- [ ] `CONTRIBUTING.md`: quick pass for stale build/test commands and to mention the
+- [x] `CONTRIBUTING.md`: quick pass for stale build/test commands and to mention the
       overlay/plans workflow; no known hard errors — verify.
-- [ ] `config.yml` / `config.overlay.example.yml` / `modules/ssh/install.sh` comments: fold
+- [x] `config.yml` / `config.overlay.example.yml` / `modules/ssh/install.sh` comments: fold
       the new ssh `key_item` default wording (§4.H) into these — they must show the new
       generic default, not `op://Personal/SSH Key`.
 
