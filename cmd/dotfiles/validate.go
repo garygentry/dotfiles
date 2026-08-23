@@ -79,6 +79,7 @@ Exit code is 0 when all modules pass, 1 when any module fails.`,
 		for _, m := range modules {
 			errs := module.Validate(m)
 			errs = append(errs, module.ValidateFiles(m)...)
+			errs = append(errs, module.ValidateSymlinkTargets(m)...)
 			if se := strictErrs[m.Name]; se != "" {
 				errs = append(errs, "unknown YAML key: "+se)
 			}

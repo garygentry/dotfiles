@@ -35,6 +35,10 @@ _starship_bin="$(command -v starship 2>/dev/null || echo "${_starship_bin_dir}/s
 _preset="${DOTFILES_PROMPT_STARSHIP_PRESET:-nerd-font-symbols}"
 _starship_cfg="${DOTFILES_XDG_CONFIG_HOME}/starship.toml"
 
+# Older releases symlinked this path out of the repo; redirecting into a symlink
+# would follow it and clobber the repo source. Migrate any legacy link first.
+demote_symlink "$_starship_cfg"
+
 if is_dry_run; then
     log_info "[dry-run] Would apply starship preset: ${_preset}"
 else

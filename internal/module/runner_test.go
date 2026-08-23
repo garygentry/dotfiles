@@ -16,12 +16,12 @@ import (
 // testUI is a minimal RunnerUI implementation for testing that records
 // calls but does not produce terminal output.
 type testUI struct {
-	infos    []string
-	warns    []string
-	errs     []string
+	infos     []string
+	warns     []string
+	errs      []string
 	successes []string
-	debugs   []string
-	verbose  bool
+	debugs    []string
+	verbose   bool
 }
 
 func (t *testUI) Info(msg string)    { t.infos = append(t.infos, msg) }
@@ -52,8 +52,8 @@ func (t *testUI) PromptMultiSelect(_ string, _ []MultiSelectOption, preSelected 
 	return preSelected, nil
 }
 
-func (t *testUI) PrintCollapsedOutput(scriptName, output string) {}
-func (t *testUI) StartProgressBar(total int) ProgressTracker     { return nil }
+func (t *testUI) PrintCollapsedOutput(scriptName, output string)                   {}
+func (t *testUI) StartProgressBar(total int) ProgressTracker                       { return nil }
 func (t *testUI) UpdateProgress(p ProgressTracker, current int, moduleName string) {}
 func (t *testUI) RecordModuleTime(p ProgressTracker, duration time.Duration)       {}
 func (t *testUI) FinishProgress(p ProgressTracker, summary *ProgressSummary)       {}
@@ -117,18 +117,18 @@ func TestBuildEnvVars(t *testing.T) {
 
 	// Verify standard DOTFILES_* variables.
 	checks := map[string]string{
-		"DOTFILES_OS":          "linux",
-		"DOTFILES_ARCH":        "amd64",
-		"DOTFILES_PKG_MGR":     "apt",
-		"DOTFILES_HAS_SUDO":    "true",
-		"DOTFILES_HOME":           cfg.SysInfo.HomeDir,
+		"DOTFILES_OS":              "linux",
+		"DOTFILES_ARCH":            "amd64",
+		"DOTFILES_PKG_MGR":         "apt",
+		"DOTFILES_HAS_SUDO":        "true",
+		"DOTFILES_HOME":            cfg.SysInfo.HomeDir,
 		"DOTFILES_XDG_CONFIG_HOME": cfg.SysInfo.XDGConfigHome,
-		"DOTFILES_DIR":            cfg.SysInfo.DotfilesDir,
-		"DOTFILES_MODULE_DIR":  "/tmp/modules/test-module",
-		"DOTFILES_MODULE_NAME": "test-module",
-		"DOTFILES_INTERACTIVE": "false", // Unattended=true => interactive=false
-		"DOTFILES_DRY_RUN":     "false",
-		"DOTFILES_VERBOSE":     "true",
+		"DOTFILES_DIR":             cfg.SysInfo.DotfilesDir,
+		"DOTFILES_MODULE_DIR":      "/tmp/modules/test-module",
+		"DOTFILES_MODULE_NAME":     "test-module",
+		"DOTFILES_INTERACTIVE":     "false", // Unattended=true => interactive=false
+		"DOTFILES_DRY_RUN":         "false",
+		"DOTFILES_VERBOSE":         "true",
 	}
 
 	for key, want := range checks {
@@ -457,6 +457,198 @@ func TestDeploySymlink(t *testing.T) {
 	}
 	if string(data) != "config-content" {
 		t.Errorf("content through symlink = %q, want %q", string(data), "config-content")
+	}
+}
+
+// Migrating from the old model (a config symlinked straight out of the repo) to
+// the new model (a rendered template/copy at the same dest) must replace the
+// symlink with a real file WITHOUT following it — following would clobber and
+// re-dirty the repo source. A link into a managed root holds no unique content,
+// so no backup is taken.
+func TestDeployFiles_MigratesLegacySymlinkIntoManagedRoot(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "mymod")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The repo file the OLD symlink points at.
+	repoSrc := filepath.Join(modDir, "files", "legacy.conf")
+	if err := os.WriteFile(repoSrc, []byte("REPO-ORIGINAL"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The NEW template source managed at the same destination.
+	newSrc := filepath.Join(modDir, "files", "app.tmpl")
+	if err := os.WriteFile(newSrc, []byte("NEW-CONTENT"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(cfg.SysInfo.HomeDir, "app.conf")
+	if err := os.Symlink(repoSrc, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "mymod",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/app.tmpl", Dest: "~/app.conf", Type: "template"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	// Prior state records the legacy symlink deployment (type change forces redeploy).
+	prior := &state.ModuleState{Name: mod.Name, FileStates: []state.FileState{{
+		Source: "files/legacy.conf", Dest: dest, Type: "symlink",
+	}}}
+
+	ms := &state.ModuleState{Name: mod.Name}
+	deployed, _, err := deployFiles(cfg, mod, tctx, ms, prior)
+	if err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	if deployed != 1 {
+		t.Fatalf("deployed=%d, want 1", deployed)
+	}
+
+	fi, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("dest is still a symlink after migration")
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "NEW-CONTENT" {
+		t.Errorf("dest = %q, want NEW-CONTENT", string(got))
+	}
+	// The write must NOT have followed the old link back into the repo.
+	if got, _ := os.ReadFile(repoSrc); string(got) != "REPO-ORIGINAL" {
+		t.Errorf("repo source was modified via write-through: %q", string(got))
+	}
+	for _, op := range ms.Operations {
+		if op.Type == "file_deploy" && op.Path == dest && op.Metadata["backup_path"] != "" {
+			t.Errorf("unexpected backup for a managed legacy symlink: %s", op.Metadata["backup_path"])
+		}
+	}
+}
+
+// A legacy symlink pointing OUTSIDE any managed root may reference real user
+// content, so its resolved content is backed up before the link is replaced, and
+// the pointed-at file itself is never disturbed.
+func TestDeployFiles_MigratesExternalSymlinkWithBackup(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "mymod")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newSrc := filepath.Join(modDir, "files", "app.conf")
+	if err := os.WriteFile(newSrc, []byte("NEW-CONTENT"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "user-real.conf")
+	if err := os.WriteFile(external, []byte("USER-REAL"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(cfg.SysInfo.HomeDir, "app.conf")
+	if err := os.Symlink(external, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "mymod",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/app.conf", Dest: "~/app.conf", Type: "copy"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	if got, _ := os.ReadFile(dest); string(got) != "NEW-CONTENT" {
+		t.Errorf("dest = %q, want NEW-CONTENT", string(got))
+	}
+	if got, _ := os.ReadFile(external); string(got) != "USER-REAL" {
+		t.Errorf("external target modified: %q", string(got))
+	}
+	var backupPath string
+	for _, op := range ms.Operations {
+		if op.Type == "file_deploy" && op.Path == dest {
+			backupPath = op.Metadata["backup_path"]
+		}
+	}
+	if backupPath == "" {
+		t.Fatal("no backup recorded when migrating an external symlink")
+	}
+	if got, _ := os.ReadFile(backupPath); string(got) != "USER-REAL" {
+		t.Errorf("backup content = %q, want USER-REAL", string(got))
+	}
+}
+
+// A dangling legacy symlink (its repo target already deleted, e.g. after an
+// engine update removed the old source) must be removed cleanly — never
+// re-created via write-through — and the new file deployed.
+func TestDeployFiles_MigratesDanglingSymlink(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "mymod")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newSrc := filepath.Join(modDir, "files", "app.tmpl")
+	if err := os.WriteFile(newSrc, []byte("NEW"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Points into the managed repo, but the target does not exist.
+	danglingTarget := filepath.Join(modDir, "files", "gone.conf")
+	dest := filepath.Join(cfg.SysInfo.HomeDir, "app.conf")
+	if err := os.Symlink(danglingTarget, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "mymod",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/app.tmpl", Dest: "~/app.conf", Type: "template"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	fi, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("dest is still a symlink")
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "NEW" {
+		t.Errorf("dest = %q, want NEW", string(got))
+	}
+	if _, err := os.Stat(danglingTarget); !os.IsNotExist(err) {
+		t.Error("write-through re-created the dangling target inside the repo")
+	}
+}
+
+func TestIsInsideManagedRoot(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.Config.ContentDir = t.TempDir()
+	outside := t.TempDir()
+
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "x", "y"), true},
+		{filepath.Join(cfg.Config.ContentDir, "modules", "x"), true},
+		{filepath.Join(outside, "elsewhere"), false},
+		{"/etc/passwd", false},
+	}
+	for _, c := range cases {
+		if got := isInsideManagedRoot(c.path, cfg); got != c.want {
+			t.Errorf("isInsideManagedRoot(%q) = %v, want %v", c.path, got, c.want)
+		}
 	}
 }
 

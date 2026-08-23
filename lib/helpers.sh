@@ -190,6 +190,48 @@ _backup_file() {
     fi
 }
 
+# demote_symlink PATH
+#   Ensure PATH is safe to write a real file to, migrating away from the older
+#   deployment model that symlinked configs straight out of the repo. If PATH is
+#   a symlink, generating a config by redirecting into it (e.g. `cmd > PATH`)
+#   would FOLLOW the link and clobber/recreate the repo source. This removes such
+#   a link first, deterministically and conservatively:
+#     - link into a managed root ($DOTFILES_DIR / $DOTFILES_CONTENT_DIR): we
+#       created it and it holds no unique content -> remove, no backup.
+#     - link anywhere else: may point at user content -> back it up, then remove.
+#     - not a symlink (regular file or absent): left untouched for the caller.
+#   Call this before writing a generated (non-file-engine) config to PATH.
+demote_symlink() {
+    local path="$1"
+    [[ -L "$path" ]] || return 0   # only act on symlinks
+
+    local target
+    target="$(readlink "$path")"
+    # Resolve a relative link target against the link's own directory.
+    case "$target" in
+        /*) : ;;
+        *)  target="$(dirname "$path")/$target" ;;
+    esac
+
+    local managed=0 root
+    for root in "${DOTFILES_DIR:-}" "${DOTFILES_CONTENT_DIR:-}"; do
+        [[ -n "$root" && "$target" == "$root"/* ]] && managed=1
+    done
+
+    if is_dry_run; then
+        log_info "[dry-run] Would migrate legacy symlink: $path (-> $target)"
+        return 0
+    fi
+
+    # Back up real content that lives outside our repos before discarding the link.
+    if [[ "$managed" -eq 0 && -e "$path" ]]; then
+        _backup_file "$path"   # moves the link aside, preserving its target content
+    else
+        rm -f "$path"
+        log_info "Migrated legacy symlink: $path"
+    fi
+}
+
 # link_file SOURCE DEST
 #   Create a symlink DEST -> SOURCE.  If DEST already exists and is the
 #   correct symlink, do nothing.  Otherwise back up the existing file first.

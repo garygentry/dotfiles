@@ -162,6 +162,23 @@ files:
 - **copy** - Copies file preserving permissions
 - **template** - Renders as Go template before writing
 
+> **Invariant — never symlink a config the tool rewrites.** A `symlink` points
+> the destination straight at the repo source, so anything that writes to that
+> path at runtime (a shell appending to `~/.zshrc`, `git config --global`,
+> `starship` rewriting `~/.config/starship.toml`) writes *back into the repo* and
+> permanently dirties the checkout — which then blocks `git pull` on the next
+> update. Use `symlink` only for **read-only reference files** the owning tool
+> never modifies. For anything the tool may rewrite, use `template` or `copy` so
+> the deployed file is a materialized copy the tool can change freely. If a
+> generated config is produced by your `install.sh` via a redirect
+> (`cmd > "$DEST"`), call `demote_symlink "$DEST"` from `lib/helpers.sh` first so
+> a pre-existing legacy symlink is migrated instead of followed. `dotfiles
+> validate` flags a `symlink` aimed at a known tool-writable destination.
+>
+> Migrating an existing module from `symlink` to `template`/`copy` is safe and
+> automatic: on the next install the engine replaces the old link with a real
+> file, backing up any content that lives outside a managed repo first.
+
 ### Prompts
 
 Interactive questions to ask during installation:

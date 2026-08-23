@@ -193,6 +193,20 @@ assert_output_contains "--help shows 'Available Commands' or command info" "dotf
 INSTALL_HELP=$("$DOTFILES_BIN" install --help 2>&1)
 assert_output_contains "install help shows --prompt-dependencies" "prompt-dependencies" "$INSTALL_HELP"
 
+# --- Migration + repo-cleanliness fixtures (asserted after the full install) ---
+# 1. Simulate an OLD-MODEL deployment: ~/.zshrc as a symlink straight into the
+#    repo. The new model manages ~/.zshrc as a rendered template; a correct
+#    install must migrate the link to a real file WITHOUT writing back through it
+#    into the repo source. (On this first, stateless install existingFile==nil,
+#    so the deploy — and thus the migration — runs.)
+LEGACY_ZSHRC_TARGET="${DOTFILES_DIR}/modules/zsh/zshrc.tmpl"
+rm -f "$HOME/.zshrc"
+ln -s "$LEGACY_ZSHRC_TARGET" "$HOME/.zshrc"
+# 2. Snapshot the repo's modules/ tree so we can prove the install never writes
+#    back into it (the failure that dirties the checkout and breaks git pull).
+REPO_MANIFEST_BEFORE="$(mktemp)"
+( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_BEFORE"
+
 # --- Test 4: Full installation ---
 echo ""
 echo "--- Test: dotfiles install --unattended (full install) ---"
@@ -291,6 +305,52 @@ if [[ ! -e "$HOME/.config/nvim/init.lua" ]]; then
     pass "engine ships no init.lua (config comes from an overlay)"
 else
     fail "engine unexpectedly shipped ~/.config/nvim/init.lua"
+fi
+
+# --- Test 9: Legacy symlink migration + repo cleanliness ---
+echo ""
+echo "--- Test: legacy symlink migration and repo cleanliness ---"
+
+# The pre-seeded legacy ~/.zshrc symlink must have become a real file.
+if [[ -f "$HOME/.zshrc" && ! -L "$HOME/.zshrc" ]]; then
+    pass "legacy ~/.zshrc symlink was migrated to a regular file"
+else
+    fail "legacy ~/.zshrc symlink was migrated to a regular file"
+fi
+
+# The repo source the old link pointed at must not have been written through.
+if grep -q "text/template" "$LEGACY_ZSHRC_TARGET"; then
+    pass "repo source zshrc.tmpl not clobbered via write-through"
+else
+    fail "repo source zshrc.tmpl not clobbered via write-through"
+fi
+
+# The install must not have modified ANY file under modules/ (no write-back).
+REPO_MANIFEST_AFTER="$(mktemp)"
+( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_AFTER"
+if diff -q "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_AFTER" >/dev/null; then
+    pass "install left the repo modules/ tree byte-for-byte unchanged"
+else
+    fail "install modified the repo modules/ tree (write-back detected)"
+    echo "--- modules/ tree diff ---"
+    diff "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_AFTER" || true
+    echo "--- end diff ---"
+fi
+
+# A second install is idempotent AND still leaves the repo clean.
+RERUN_OUTPUT=$("$DOTFILES_BIN" install --unattended 2>&1) || true
+RERUN_EXIT=$?
+if [ "$RERUN_EXIT" -eq 0 ]; then
+    pass "second install --unattended exits 0 (idempotent)"
+else
+    fail "second install --unattended exits 0 (idempotent) (got: $RERUN_EXIT)"
+fi
+REPO_MANIFEST_RERUN="$(mktemp)"
+( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_RERUN"
+if diff -q "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_RERUN" >/dev/null; then
+    pass "re-install still left the repo modules/ tree unchanged"
+else
+    fail "re-install modified the repo modules/ tree"
 fi
 
 # ==============================================================================

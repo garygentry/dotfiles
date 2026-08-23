@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -67,7 +68,7 @@ type Prompt struct {
 	Key       string            `yaml:"key"`
 	Message   string            `yaml:"message"`
 	Default   string            `yaml:"default"`
-	Type      string            `yaml:"type"`      // input, confirm, or choice
+	Type      string            `yaml:"type"` // input, confirm, or choice
 	Options   []string          `yaml:"options"`
 	ShowWhen  string            `yaml:"show_when"`  // always, explicit_install, or interactive (default: explicit_install)
 	DependsOn *PromptDependency `yaml:"depends_on"` // only show when another prompt equals a value
@@ -219,6 +220,56 @@ func ValidateFiles(m *Module) []string {
 		fullPath := filepath.Join(m.Dir, f.Source)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			errs = append(errs, fmt.Sprintf("files[%d].source %q does not exist", i, f.Source))
+		}
+	}
+	return errs
+}
+
+// writableSymlinkDests are destinations that their owning tool/shell rewrites at
+// runtime. Deploying these as a symlink would point them straight at the repo
+// source, so any runtime write flows back through the link and dirties the
+// checkout (the exact failure that broke `git pull` during bootstrap). Such
+// destinations must be deployed as "template" or "copy" — a materialized file
+// the tool can rewrite freely without touching the repo. Keys are dest paths
+// normalized relative to $HOME (see normalizeDest).
+var writableSymlinkDests = map[string]bool{
+	".zshrc":                      true,
+	".zshenv":                     true,
+	".zprofile":                   true,
+	".bashrc":                     true,
+	".bash_profile":               true,
+	".profile":                    true,
+	".gitconfig":                  true,
+	".config/starship.toml":       true,
+	".config/fish/fish_variables": true,
+}
+
+// normalizeDest reduces a files[].dest to a $HOME-relative slash path so it can
+// be matched against writableSymlinkDests. It resolves the "~/", "$HOME/", and
+// "${HOME}/" prefixes the engine expands at deploy time; a dest anchored
+// elsewhere is returned unchanged (and simply won't match).
+func normalizeDest(dest string) string {
+	for _, prefix := range []string{"~/", "$HOME/", "${HOME}/"} {
+		if strings.HasPrefix(dest, prefix) {
+			return strings.TrimPrefix(dest, prefix)
+		}
+	}
+	return dest
+}
+
+// ValidateSymlinkTargets flags any files[] entry that symlinks a destination the
+// owning tool rewrites at runtime — an invariant violation that re-dirties the
+// repo on every use. Pure (no disk access); called from the validate subcommand.
+func ValidateSymlinkTargets(m *Module) []string {
+	var errs []string
+	for i, f := range m.Files {
+		if f.Type != "symlink" {
+			continue
+		}
+		if writableSymlinkDests[normalizeDest(f.Dest)] {
+			errs = append(errs, fmt.Sprintf(
+				"files[%d].dest %q is rewritten by its tool at runtime and must use type %q or %q, not %q — a symlink writes back into the repo",
+				i, f.Dest, "template", "copy", "symlink"))
 		}
 	}
 	return errs
