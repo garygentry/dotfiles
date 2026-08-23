@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-23
+
 ### Changed
 
 - **Depersonalization pass: the engine now ships generic, unopinionated defaults**, with
@@ -30,6 +32,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed personal artifacts from the engine: `profiles/gwg-unattended.yml`,
     `profiles/debug-failing.yml` (and `scripts/testuser.sh` now defaults to `minimal`), the
     internal `plans/` dev-notes, and the README author/contact block.
+- **Bootstrap now force-syncs the engine checkout to `origin` instead of `git pull` (#30).**
+  `$DOTFILES_DIR` is a managed artifact (personalization lives in the content overlay), so
+  bootstrap `fetch`es and `reset --hard`s to `origin/$DOTFILES_REF` (plus `clean -fd`, which
+  preserves gitignored `.state/`/`.backups/`), saving any local drift to
+  `.backups/pre-update-<sha>.patch` first. It now **fails loudly** if it cannot update rather
+  than silently building from stale source — the failure mode that surfaced a wrong,
+  truncated module list on a previously-installed machine. New `DOTFILES_REF` env var
+  (default `main`).
+
+### Added
+
+- **Automatic migration of legacy symlink deployments to real files (#30).** When a config
+  that an older release symlinked straight out of the repo is now managed as a
+  `template`/`copy`, install replaces the link with a real file instead of following it
+  (following it wrote back into and dirtied the repo). Deterministic and conservative: a link
+  resolving into a managed repo is removed as engine-owned; a link elsewhere has its content
+  backed up to `.backups/` first; nothing is destructively overwritten. Old machines
+  self-heal on the next install/bootstrap. Adds the `demote_symlink` helper (`lib/helpers.sh`)
+  for shell-generated configs, and exports `DOTFILES_CONTENT_DIR` to module scripts.
+- **`dotfiles validate` flags tool-writable symlink destinations (#30).** A `symlink` aimed
+  at a config the owning tool rewrites at runtime (`~/.zshrc`, `~/.gitconfig`,
+  `~/.config/starship.toml`, …) is now reported — such a destination must be `template`/`copy`
+  or every runtime write flows back into the repo and dirties the checkout.
+
+### Fixed
+
+- **`copy`/`template` deploys no longer write through a pre-existing symlink at the
+  destination (#30)** — `os.WriteFile` followed the link and recreated/clobbered the repo
+  source. A changed deployment type (e.g. `symlink`→`template`) now also forces a redeploy.
 
 ## [2.3.0] - 2026-08-22
 
@@ -425,7 +456,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive and unattended modes
 - Comprehensive test suite
 
-[Unreleased]: https://github.com/garygentry/dotfiles/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/garygentry/dotfiles/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/garygentry/dotfiles/compare/v2.3.0...v3.0.0
 [2.3.0]: https://github.com/garygentry/dotfiles/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/garygentry/dotfiles/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/garygentry/dotfiles/compare/v2.0.0...v2.1.0
