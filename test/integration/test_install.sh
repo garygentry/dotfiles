@@ -204,8 +204,8 @@ rm -f "$HOME/.zshrc"
 ln -s "$LEGACY_ZSHRC_TARGET" "$HOME/.zshrc"
 # 2. Snapshot the repo's modules/ tree so we can prove the install never writes
 #    back into it (the failure that dirties the checkout and breaks git pull).
-REPO_MANIFEST_BEFORE="$(mktemp)"
-( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_BEFORE"
+#    Captured as a shell string (no temp file / diffutils dependency).
+REPO_MANIFEST_BEFORE="$(cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort)"
 
 # --- Test 4: Full installation ---
 echo ""
@@ -318,23 +318,23 @@ else
     fail "legacy ~/.zshrc symlink was migrated to a regular file"
 fi
 
-# The repo source the old link pointed at must not have been written through.
-if grep -q "text/template" "$LEGACY_ZSHRC_TARGET"; then
+# The repo source the old link pointed at must not have been written through:
+# it must still hold Go-template syntax, not the rendered shell output.
+if grep -q '{{' "$LEGACY_ZSHRC_TARGET"; then
     pass "repo source zshrc.tmpl not clobbered via write-through"
 else
     fail "repo source zshrc.tmpl not clobbered via write-through"
 fi
 
 # The install must not have modified ANY file under modules/ (no write-back).
-REPO_MANIFEST_AFTER="$(mktemp)"
-( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_AFTER"
-if diff -q "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_AFTER" >/dev/null; then
+# Compared as shell strings so no diffutils dependency (absent on the arch image).
+REPO_MANIFEST_AFTER="$(cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort)"
+if [ "$REPO_MANIFEST_BEFORE" = "$REPO_MANIFEST_AFTER" ]; then
     pass "install left the repo modules/ tree byte-for-byte unchanged"
 else
     fail "install modified the repo modules/ tree (write-back detected)"
-    echo "--- modules/ tree diff ---"
-    diff "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_AFTER" || true
-    echo "--- end diff ---"
+    echo "--- before ---"; printf '%s\n' "$REPO_MANIFEST_BEFORE"
+    echo "--- after ----"; printf '%s\n' "$REPO_MANIFEST_AFTER"
 fi
 
 # A second install is idempotent AND still leaves the repo clean.
@@ -345,9 +345,8 @@ if [ "$RERUN_EXIT" -eq 0 ]; then
 else
     fail "second install --unattended exits 0 (idempotent) (got: $RERUN_EXIT)"
 fi
-REPO_MANIFEST_RERUN="$(mktemp)"
-( cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort ) > "$REPO_MANIFEST_RERUN"
-if diff -q "$REPO_MANIFEST_BEFORE" "$REPO_MANIFEST_RERUN" >/dev/null; then
+REPO_MANIFEST_RERUN="$(cd "$DOTFILES_DIR" && find modules -type f -exec sha256sum {} + | sort)"
+if [ "$REPO_MANIFEST_BEFORE" = "$REPO_MANIFEST_RERUN" ]; then
     pass "re-install still left the repo modules/ tree unchanged"
 else
     fail "re-install modified the repo modules/ tree"
