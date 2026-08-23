@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **bootstrap now fast-forwards an already-materialized content overlay by default**, so
+  re-running the script alone brings a machine fully up to date — engine *and* personal
+  content. The refresh is `git pull --ff-only` (advances only on a clean fast-forward;
+  otherwise warns and keeps the existing checkout — never clobbers local edits), applied when
+  the overlay is a git clone with an upstream. No-ops for `--content-path` dirs, non-git
+  overlays, detached/upstream-less checkouts, and offline/unauthenticated runs. Opt out with
+  `--no-content-update` (or `DOTFILES_CONTENT_UPDATE=0`). This mirrors the engine's own
+  auto-update but stays `--ff-only`, never `reset --hard`, since the overlay can hold real
+  authoring work.
+
 ### Fixed
 
 - **starship**: the module now installs **or upgrades** to the latest release instead of
