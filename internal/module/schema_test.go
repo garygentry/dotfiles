@@ -507,6 +507,51 @@ legacy_paths:
 	}
 }
 
+func TestValidateSymlinkTargets(t *testing.T) {
+	cases := []struct {
+		name      string
+		files     []FileEntry
+		wantCount int
+	}{
+		{
+			name:      "writable dest as symlink is flagged",
+			files:     []FileEntry{{Source: "zshrc", Dest: "~/.zshrc", Type: "symlink"}},
+			wantCount: 1,
+		},
+		{
+			name:      "writable dest as template is fine",
+			files:     []FileEntry{{Source: "zshrc.tmpl", Dest: "~/.zshrc", Type: "template"}},
+			wantCount: 0,
+		},
+		{
+			name:      "starship.toml symlink flagged",
+			files:     []FileEntry{{Source: "starship.toml", Dest: "~/.config/starship.toml", Type: "symlink"}},
+			wantCount: 1,
+		},
+		{
+			name: "read-only reference files may be symlinked",
+			files: []FileEntry{
+				{Source: "aliases.zsh", Dest: "~/.config/zsh/aliases.zsh", Type: "symlink"},
+				{Source: "gitignore_global", Dest: "~/.gitignore_global", Type: "symlink"},
+			},
+			wantCount: 0,
+		},
+		{
+			name:      "$HOME-prefixed dest is normalized too",
+			files:     []FileEntry{{Source: "bashrc", Dest: "$HOME/.bashrc", Type: "symlink"}},
+			wantCount: 1,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := &Module{Name: "m", Files: c.files}
+			if got := ValidateSymlinkTargets(m); len(got) != c.wantCount {
+				t.Errorf("ValidateSymlinkTargets = %v (len %d), want len %d", got, len(got), c.wantCount)
+			}
+		})
+	}
+}
+
 func TestDiscoverSortByNameWhenPriorityEqual(t *testing.T) {
 	dir := t.TempDir()
 

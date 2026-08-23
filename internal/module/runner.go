@@ -85,12 +85,12 @@ type RunConfig struct {
 	Unattended         bool
 	FailFast           bool
 	Verbose            bool
-	ScriptTimeout      time.Duration       // Default timeout for scripts (0 = use default)
-	Force              bool                // Force reinstall even if up-to-date
-	SkipFailed         bool                // Skip modules that failed previously
-	UpdateOnly         bool                // Only update existing modules, don't install new
-	ExplicitModules    map[string]bool     // Tracks which modules were explicitly selected (not auto-included)
-	PromptDependencies bool                // Force prompts for auto-included dependencies
+	ScriptTimeout      time.Duration   // Default timeout for scripts (0 = use default)
+	Force              bool            // Force reinstall even if up-to-date
+	SkipFailed         bool            // Skip modules that failed previously
+	UpdateOnly         bool            // Only update existing modules, don't install new
+	ExplicitModules    map[string]bool // Tracks which modules were explicitly selected (not auto-included)
+	PromptDependencies bool            // Force prompts for auto-included dependencies
 }
 
 // ExecutionDecision represents the runner's decision about whether to execute a module.
@@ -600,21 +600,22 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 	binPath, _ := os.Executable()
 
 	env := map[string]string{
-		"DOTFILES_OS":          cfg.SysInfo.OS,
-		"DOTFILES_ARCH":        cfg.SysInfo.Arch,
-		"DOTFILES_PKG_MGR":     cfg.SysInfo.PkgMgr,
-		"DOTFILES_HAS_SUDO":             boolToStr(cfg.SysInfo.HasSudo),
+		"DOTFILES_OS":                    cfg.SysInfo.OS,
+		"DOTFILES_ARCH":                  cfg.SysInfo.Arch,
+		"DOTFILES_PKG_MGR":               cfg.SysInfo.PkgMgr,
+		"DOTFILES_HAS_SUDO":              boolToStr(cfg.SysInfo.HasSudo),
 		"DOTFILES_HAS_PASSWORDLESS_SUDO": boolToStr(cfg.SysInfo.HasPasswordlessSudo),
-		"DOTFILES_IS_ROOT":              boolToStr(cfg.SysInfo.IsRoot),
-		"DOTFILES_HOME":           cfg.SysInfo.HomeDir,
-		"DOTFILES_XDG_CONFIG_HOME": cfg.SysInfo.XDGConfigHome,
-		"DOTFILES_DIR":            cfg.SysInfo.DotfilesDir,
-		"DOTFILES_BIN":         binPath,
-		"DOTFILES_MODULE_DIR":  mod.Dir,
-		"DOTFILES_MODULE_NAME": mod.Name,
-		"DOTFILES_INTERACTIVE": boolToStr(!cfg.Unattended),
-		"DOTFILES_DRY_RUN":     boolToStr(cfg.DryRun),
-		"DOTFILES_VERBOSE":     boolToStr(cfg.Verbose),
+		"DOTFILES_IS_ROOT":               boolToStr(cfg.SysInfo.IsRoot),
+		"DOTFILES_HOME":                  cfg.SysInfo.HomeDir,
+		"DOTFILES_XDG_CONFIG_HOME":       cfg.SysInfo.XDGConfigHome,
+		"DOTFILES_DIR":                   cfg.SysInfo.DotfilesDir,
+		"DOTFILES_CONTENT_DIR":           cfg.Config.ContentDir,
+		"DOTFILES_BIN":                   binPath,
+		"DOTFILES_MODULE_DIR":            mod.Dir,
+		"DOTFILES_MODULE_NAME":           mod.Name,
+		"DOTFILES_INTERACTIVE":           boolToStr(!cfg.Unattended),
+		"DOTFILES_DRY_RUN":               boolToStr(cfg.DryRun),
+		"DOTFILES_VERBOSE":               boolToStr(cfg.Verbose),
 	}
 
 	// Add prompt answers as DOTFILES_PROMPT_<UPPER_KEY>.
@@ -1027,6 +1028,13 @@ func shouldDeployFile(fileEntry FileEntry, src, dest, sourceHash string,
 		return true, "not previously deployed"
 	}
 
+	// Deployment type changed (e.g. a config previously symlinked out of the
+	// repo is now managed as a template/copy) = must redeploy so the old
+	// destination can be migrated in place.
+	if existingFile.Type != "" && existingFile.Type != fileEntry.Type {
+		return true, "deployment type changed"
+	}
+
 	// Source content changed = must redeploy
 	if sourceHash != existingFile.SourceHash {
 		return true, "source file changed"
@@ -1153,19 +1161,35 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 		// restore it. Symlinks hold no user content, so they are not backed up.
 		var backupPath string
 		if f.Type != "symlink" {
-			if _, statErr := os.Lstat(dest); statErr == nil {
-				shouldBackup := existingFile == nil
-				if !shouldBackup && existingFile != nil {
-					if cur, herr := ComputeFileHash(dest); herr == nil && cur != existingFile.DeployedHash {
-						shouldBackup = true
+			if fi, statErr := os.Lstat(dest); statErr == nil {
+				if fi.Mode()&os.ModeSymlink != 0 {
+					// Legacy-model destination: an older release symlinked this
+					// config straight out of the repo. Writing a file now would
+					// follow the link and clobber/recreate the repo source, so we
+					// migrate the link to a real file first. migrateLegacySymlink
+					// backs up any content living OUTSIDE a managed root.
+					bp, merr := migrateLegacySymlink(dest, cfg, mod.Name)
+					if merr != nil {
+						return 0, 0, merr
 					}
-				}
-				if shouldBackup {
-					bp, berr := createBackup(dest, cfg, mod.Name)
-					if berr != nil {
-						cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, berr))
-					} else {
-						backupPath = bp
+					backupPath = bp
+				} else {
+					// Regular file we'd overwrite: preserve it if it holds content
+					// we never deployed (never-seen file) or that the user edited
+					// since our last deploy (on-disk hash != recorded DeployedHash).
+					shouldBackup := existingFile == nil
+					if !shouldBackup && existingFile != nil {
+						if cur, herr := ComputeFileHash(dest); herr == nil && cur != existingFile.DeployedHash {
+							shouldBackup = true
+						}
+					}
+					if shouldBackup {
+						bp, berr := createBackup(dest, cfg, mod.Name)
+						if berr != nil {
+							cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, berr))
+						} else {
+							backupPath = bp
+						}
 					}
 				}
 			}
@@ -1290,6 +1314,78 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 	}
 
 	return deployedCount, skippedCount, nil
+}
+
+// migrateLegacySymlink replaces a destination that currently exists as a
+// symlink so a copy/template deployment can write a real file there. Older
+// releases symlinked configs straight out of the repo (e.g. ~/.zshrc ->
+// modules/zsh/zshrc); writing through such a link would follow it and
+// clobber/recreate the repo source, dirtying the checkout and defeating the new
+// model. The reconciliation is deterministic and conservative:
+//
+//   - A symlink resolving INTO a managed root (the engine dir or the content
+//     overlay) was created by us and holds no unique content, so it is removed
+//     without a backup.
+//   - A symlink resolving anywhere else may point at real user content, so that
+//     content is copied into .backups/ before the link is removed.
+//   - A dangling symlink is removed (nothing to back up).
+//
+// It returns the backup path (empty if none) so the caller can record it on the
+// deploy operation for rollback. The caller only invokes this for a dest that
+// os.Lstat has already confirmed to be a symlink.
+func migrateLegacySymlink(dest string, cfg *RunConfig, moduleName string) (string, error) {
+	target, rerr := os.Readlink(dest)
+	if rerr == nil && !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(dest), target)
+	}
+	target = filepath.Clean(target)
+
+	var backupPath string
+	// Only back up when the link points outside our repos AND resolves to real
+	// content. os.Stat follows the link; failure means dangling -> nothing to save.
+	if rerr == nil && !isInsideManagedRoot(target, cfg) {
+		if _, statErr := os.Stat(dest); statErr == nil {
+			if bp, berr := createBackup(dest, cfg, moduleName); berr != nil {
+				cfg.UI.Warn(fmt.Sprintf("Backup failed for %s: %v", dest, berr))
+			} else {
+				backupPath = bp
+			}
+		}
+	}
+
+	if err := os.Remove(dest); err != nil {
+		return backupPath, fmt.Errorf("migrating legacy symlink %s: %w", dest, err)
+	}
+	cfg.UI.Debug(fmt.Sprintf("Migrated legacy symlink %s (was -> %s)", dest, target))
+	return backupPath, nil
+}
+
+// isInsideManagedRoot reports whether path lies within a repository this engine
+// manages: the engine dir ($DOTFILES_DIR) or the content overlay. Such a
+// location is engine-owned, so a symlink into it carries no content not already
+// tracked in git and is safe to remove without a backup.
+func isInsideManagedRoot(path string, cfg *RunConfig) bool {
+	roots := []string{cfg.SysInfo.DotfilesDir}
+	if cfg.Config != nil && cfg.Config.ContentDir != "" {
+		roots = append(roots, cfg.Config.ContentDir)
+	}
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(absRoot, path)
+		if err != nil {
+			continue
+		}
+		if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // deploySymlink creates a symbolic link at dest pointing to src. If dest
@@ -1470,7 +1566,7 @@ func handleInstallFailure(cfg *RunConfig, modState *state.ModuleState, mod *Modu
 		}
 
 		if rollbackErrors > 0 {
-			cfg.UI.Warn(fmt.Sprintf("Rolled back %d/%d operations (%d errors)", 
+			cfg.UI.Warn(fmt.Sprintf("Rolled back %d/%d operations (%d errors)",
 				rollbackCount, len(modState.Operations), rollbackErrors))
 		} else {
 			cfg.UI.Success(fmt.Sprintf("Successfully rolled back %d operations", rollbackCount))

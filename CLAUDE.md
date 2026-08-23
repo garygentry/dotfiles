@@ -41,7 +41,7 @@ make lint-all                 # go vet + shellcheck
 - **State files** (`~/.dotfiles/.state/<name>.json`) track version, status, checksums, file states, operations for rollback
 - **Module execution order**: OS script → install.sh → file deployment → verify.sh
 - **Shell scripts** inherit `set -euo pipefail`, use `lib/helpers.sh` functions, receive `DOTFILES_*` env vars from Go runner
-- **File deployment types**: symlink, copy, template (Go text/template)
+- **File deployment types**: symlink, copy, template (Go text/template). Invariant: only symlink read-only reference files — configs the owning tool rewrites at runtime (`~/.zshrc`, `~/.gitconfig`, `~/.config/starship.toml`) must be `template`/`copy`, else the tool writes back into the repo and dirties the checkout. `dotfiles validate` enforces this; the engine auto-migrates old symlink deployments to real files on the next install.
 
 ## Shell Script Conventions
 

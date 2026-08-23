@@ -32,6 +32,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/garygentry/dotfiles.git}"
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+DOTFILES_REF="${DOTFILES_REF:-main}"
 GO_VERSION="${GO_VERSION:-1.23.6}"
 
 # Content overlay acquisition (all opt-in; env vars provide non-flag defaults).
@@ -180,14 +181,58 @@ ensure_go() {
 # ---------------------------------------------------------------------------
 ensure_repo() {
     if [ -d "${DOTFILES_DIR}/.git" ]; then
-        info "Dotfiles repo already exists at ${DOTFILES_DIR}, pulling latest..."
-        git -C "$DOTFILES_DIR" pull --ff-only || warn "git pull failed; continuing with existing checkout"
-        ok "Dotfiles repo updated"
+        info "Dotfiles repo already exists at ${DOTFILES_DIR}, updating to origin/${DOTFILES_REF}..."
+        update_repo
     else
         info "Cloning dotfiles repo to ${DOTFILES_DIR}..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+        git clone --branch "$DOTFILES_REF" "$DOTFILES_REPO" "$DOTFILES_DIR" \
+            || git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
         ok "Dotfiles repo cloned to ${DOTFILES_DIR}"
     fi
+}
+
+# Force the engine checkout to match origin, and FAIL LOUDLY if it can't.
+#
+# The repo at $DOTFILES_DIR is a managed artifact: personalization lives in the
+# content overlay, never here, so nothing of value is ever lost by resetting it.
+# A merge/rebase would fail on a dirty tree (legacy deployments wrote back into
+# tracked files) and the old code silently continued on stale source — the exact
+# bug that surfaced a wrong, truncated module list. We reset instead, but never
+# silently: local drift is first captured to a recovery patch, and a fetch/reset
+# that genuinely cannot complete aborts rather than building from stale source.
+update_repo() {
+    local ref="$DOTFILES_REF"
+
+    if ! git -C "$DOTFILES_DIR" fetch --quiet origin "$ref"; then
+        fatal "Could not fetch origin/${ref} for ${DOTFILES_DIR}. Check the network/remote and re-run — refusing to build from stale source."
+    fi
+
+    # Preserve any local drift as a recovery patch before we discard it.
+    if ! git -C "$DOTFILES_DIR" diff --quiet HEAD 2>/dev/null; then
+        local backup_dir patch sha
+        backup_dir="${DOTFILES_DIR}/.backups"
+        sha="$(git -C "$DOTFILES_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        patch="${backup_dir}/pre-update-${sha}.patch"
+        mkdir -p "$backup_dir"
+        if git -C "$DOTFILES_DIR" diff HEAD > "$patch" 2>/dev/null && [ -s "$patch" ]; then
+            warn "Local changes in ${DOTFILES_DIR} saved to ${patch} before reset"
+        else
+            rm -f "$patch"
+        fi
+    fi
+
+    # reset --hard aligns tracked files to origin; clean -fd removes stray
+    # untracked files. Neither touches gitignored paths, so runtime state
+    # (.state/, .backups/) is preserved across the update.
+    if ! git -C "$DOTFILES_DIR" reset --hard --quiet "origin/${ref}"; then
+        fatal "Could not reset ${DOTFILES_DIR} to origin/${ref} — refusing to build from stale source."
+    fi
+    git -C "$DOTFILES_DIR" clean -fd --quiet -e '.backups' -e '.state' || true
+
+    local head_sha head_subject
+    head_sha="$(git -C "$DOTFILES_DIR" rev-parse --short HEAD)"
+    head_subject="$(git -C "$DOTFILES_DIR" log -1 --format=%s 2>/dev/null || echo '')"
+    ok "Dotfiles repo at origin/${ref} (${head_sha}: ${head_subject})"
 }
 
 # ---------------------------------------------------------------------------
