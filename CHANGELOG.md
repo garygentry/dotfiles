@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **starship**: the module now installs **or upgrades** to the latest release instead of
+  skipping when a starship binary is already present. A stale binary left by an older install
+  couldn't parse newer config keys (e.g. the `cpp` module or the `ALTLinux` OS symbol),
+  warning `Unknown key`/`unknown variant` on every shell. The official installer is run with
+  `-f`; the module version bump makes idempotence re-run it on existing machines.
+
 ## [3.0.0] - 2026-08-23
 
 ### Changed
