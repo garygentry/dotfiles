@@ -18,6 +18,14 @@
 #                              ssh-agent / unlock a credential). Ambient agents
 #                              (SSH / 1Password) need no hook.
 #   --no-persist-content-dir   Don't append DOTFILES_CONTENT_DIR to ~/.zshenv.
+#   --no-content-update        Don't fast-forward an already-materialized content
+#                              overlay; use whatever is checked out.
+# An already-present content overlay (a git clone, whether from a prior
+# --content-repo or a pre-set DOTFILES_CONTENT_DIR) is fast-forwarded to its
+# latest by default, so re-running this script alone brings a machine fully up to
+# date — engine AND personal content. The refresh is `pull --ff-only`: it never
+# overwrites, so local edits or a diverged branch fail cleanly and keep the
+# existing checkout. Non-git overlays and --content-path dirs are used as-is.
 # Every other argument is forwarded verbatim to `dotfiles install`. With no
 # content flags and no pre-set DOTFILES_CONTENT_DIR, behavior is unchanged.
 #
@@ -42,6 +50,9 @@ CONTENT_PATH="${DOTFILES_CONTENT_PATH:-}"
 CONTENT_DIR_DEST="${DOTFILES_CONTENT_DIR:-$HOME/.config/dotfiles}"
 CONTENT_AUTH_CMD="${DOTFILES_CONTENT_AUTH_CMD:-}"
 PERSIST_CONTENT_DIR=1
+# Fast-forward an already-materialized overlay clone to latest by default so a
+# bare re-bootstrap refreshes personal content too. Opt out via --no-content-update.
+CONTENT_UPDATE="${DOTFILES_CONTENT_UPDATE:-1}"
 # Populated by acquire_content: the resolved local content dir (if any) and
 # whether acquisition (clone/copy/in-place) actually ran this invocation.
 RESOLVED_CONTENT_DIR=""
@@ -292,6 +303,7 @@ parse_args() {
             --content-auth-cmd)   need_val $# "$1"; CONTENT_AUTH_CMD="$2"; shift 2 ;;
             --content-auth-cmd=*) CONTENT_AUTH_CMD="${1#*=}";  shift ;;
             --no-persist-content-dir) PERSIST_CONTENT_DIR=0;   shift ;;
+            --no-content-update)      CONTENT_UPDATE=0;        shift ;;
             --)                   shift; INSTALL_ARGS+=("$@"); break ;;
             *)                    INSTALL_ARGS+=("$1");        shift ;;
         esac
@@ -362,9 +374,37 @@ acquire_content() {
         return
     fi
 
-    # No acquisition requested: honor a pre-set DOTFILES_CONTENT_DIR unchanged.
+    # No acquisition requested: honor a pre-set DOTFILES_CONTENT_DIR, and (by
+    # default) fast-forward it if it's a git clone so a bare re-bootstrap also
+    # brings the overlay to latest.
     if [ -n "${DOTFILES_CONTENT_DIR:-}" ]; then
         RESOLVED_CONTENT_DIR="$(expand_tilde "$DOTFILES_CONTENT_DIR")"
+        refresh_overlay "$RESOLVED_CONTENT_DIR"
+    fi
+}
+
+# refresh_overlay DIR
+#   Fast-forward an existing overlay CLONE to its upstream so re-running the
+#   bootstrap alone refreshes personal content. Deliberately non-destructive:
+#   `pull --ff-only` advances only on a clean fast-forward and otherwise warns,
+#   so local edits or a diverged branch are never clobbered. No-ops for a
+#   non-git dir, a detached/upstream-less checkout, --no-content-update, or when
+#   offline/unauthenticated (falls back to the existing checkout).
+refresh_overlay() {
+    local dir="$1"
+    [ "$CONTENT_UPDATE" -eq 1 ] || return 0
+    [ -d "${dir}/.git" ] || return 0
+    git -C "$dir" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || return 0
+
+    info "Refreshing content overlay at ${dir} (ff-only)..."
+    if git -C "$dir" fetch --quiet --all --prune 2>/dev/null; then
+        if git -C "$dir" -c advice.diverging=false pull --ff-only --quiet 2>/dev/null; then
+            ok "Content overlay updated to latest"
+        else
+            warn "content overlay is not fast-forwardable (local edits or diverged branch); using existing checkout"
+        fi
+    else
+        warn "content overlay fetch failed (offline or auth?); using existing checkout"
     fi
 }
 
