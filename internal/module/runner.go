@@ -1204,6 +1204,15 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 		// "Remove directory: $HOME". (The rollback executor only rmdir's empty
 		// dirs, so this never deleted anything, but the plan was wrong/alarming.)
 		destDir := filepath.Dir(dest)
+		// A symlinked directory component on the path to dest makes os.MkdirAll
+		// fail with EEXIST. This bites after an engine upgrade leaves a dangling
+		// link from the old model (e.g. ~/.config/nvim -> the previous repo's
+		// files), so a content module deploying files beneath it can't create the
+		// tree. Reconcile such a link first — but only when it carries nothing we'd
+		// lose (see reconcileSymlinkedAncestorDir).
+		if err := reconcileSymlinkedAncestorDir(destDir, cfg, mod.Name); err != nil {
+			return 0, 0, err
+		}
 		_, destDirStatErr := os.Stat(destDir)
 		destDirExisted := destDirStatErr == nil
 		if err := os.MkdirAll(destDir, 0o755); err != nil {
@@ -1314,6 +1323,65 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 	}
 
 	return deployedCount, skippedCount, nil
+}
+
+// reconcileSymlinkedAncestorDir clears a symlinked directory component on the
+// path to a deploy destination that would otherwise make os.MkdirAll fail with
+// EEXIST (e.g. ~/.config/nvim left dangling after an engine upgrade, with files
+// deploying beneath it). It walks destDir's ancestry shallow->deep and acts on
+// the FIRST symlink it finds — the shallowest, since removing it lets MkdirAll
+// rebuild a real tree beneath it, and any deeper symlink would then be gone.
+//
+// To avoid destroying user content it reconciles ONLY a link that carries
+// nothing unique: a dangling link (its target is gone) or one resolving inside a
+// managed root. A symlink to a real EXTERNAL directory is user-owned and left
+// intact — MkdirAll then follows it and deploys into it, the prior behavior —
+// because the file-oriented backup in migrateLegacySymlink cannot preserve a
+// directory. Reconciled links therefore never produce a backup, so the returned
+// backup path is intentionally unused here.
+func reconcileSymlinkedAncestorDir(destDir string, cfg *RunConfig, moduleName string) error {
+	// Ancestors of destDir, shallowest first (including destDir itself).
+	var chain []string
+	for p := filepath.Clean(destDir); ; {
+		chain = append([]string{p}, chain...)
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+
+	for _, p := range chain {
+		fi, err := os.Lstat(p)
+		if err != nil {
+			return nil // nothing exists from here down; MkdirAll will create it
+		}
+		if fi.Mode()&os.ModeSymlink == 0 {
+			continue // real component; keep walking deeper
+		}
+
+		// Shallowest symlink on the path. Reconcile only if it holds nothing we'd
+		// lose: dangling (Stat, which follows the link, fails), or resolving into
+		// a managed root. Otherwise leave it for MkdirAll to follow.
+		reconcile := false
+		if _, serr := os.Stat(p); serr != nil {
+			reconcile = true // dangling: target gone
+		} else if target, rerr := os.Readlink(p); rerr == nil {
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(p), target)
+			}
+			if isInsideManagedRoot(filepath.Clean(target), cfg) {
+				reconcile = true
+			}
+		}
+		if reconcile {
+			if _, merr := migrateLegacySymlink(p, cfg, moduleName); merr != nil {
+				return merr
+			}
+		}
+		return nil // handled the shallowest symlink; MkdirAll builds the rest
+	}
+	return nil
 }
 
 // migrateLegacySymlink replaces a destination that currently exists as a

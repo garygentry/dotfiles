@@ -12,6 +12,7 @@ if [[ -n "$node_path" && "$node_path" != /mnt/* ]]; then
 fi
 
 # Install Node.js
+require_sudo "Node.js (package install)" || exit 0
 pkg_install nodejs npm
 
 log_success "Node.js installed"

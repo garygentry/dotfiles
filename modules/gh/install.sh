@@ -11,6 +11,8 @@ if is_dry_run; then
     return 0
 fi
 
+require_sudo "GitHub CLI (package install)" || return 0
+
 log_info "Installing GitHub CLI..."
 
 case "${DOTFILES_PKG_MGR}" in

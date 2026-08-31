@@ -19,6 +19,9 @@ if command -v nvim &>/dev/null; then
         log_warn "Neovim binary found but --version returned empty output"
         _nvim_errors=$((_nvim_errors + 1))
     fi
+elif ! sudo_usable; then
+    log_warn "Neovim not installed — skipped (no usable sudo); not a failure"
+    exit 0
 else
     log_error "Neovim (nvim) is not installed"
     _nvim_errors=$((_nvim_errors + 1))

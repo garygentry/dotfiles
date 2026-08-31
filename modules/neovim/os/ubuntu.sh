@@ -18,6 +18,8 @@ if is_dry_run; then
     return 0
 fi
 
+require_sudo "Neovim (apt/PPA/release install)" || return 0
+
 log_info "Adding Neovim PPA for latest version..."
 sudo_cmd add-apt-repository -y ppa:neovim-ppa/unstable 2>/dev/null || \
     log_warn "Failed to add Neovim PPA, falling back to default apt package"
