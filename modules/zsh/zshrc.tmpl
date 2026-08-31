@@ -129,8 +129,16 @@ typeset -U path                # Deduplicate PATH entries
 path=(
     "${HOME}/.local/bin"
     "${HOME}/bin"
-    "/usr/local/bin"
     "${DOTFILES_DIR:-$HOME/.dotfiles}/bin"
+    # Standard system dirs, listed explicitly so they are present even when
+    # /etc/profile is not sourced (e.g. zsh as root on Proxmox, where the
+    # sbin dirs hold the admin commands). typeset -U above dedupes.
+    "/usr/local/sbin"
+    "/usr/local/bin"
+    "/usr/sbin"
+    "/usr/bin"
+    "/sbin"
+    "/bin"
     $path
 )
 
