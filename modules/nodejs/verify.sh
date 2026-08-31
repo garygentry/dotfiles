@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
+# nodejs/verify.sh - Verify Node.js installation
 set -euo pipefail
-if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-    if ! sudo_usable; then
-        log_warn "Node.js not installed — skipped (no usable sudo); not a failure"
-        exit 0
-    fi
-    command -v node >/dev/null 2>&1 || { log_error "node not found"; exit 1; }
-    command -v npm >/dev/null 2>&1 || { log_error "npm not found"; exit 1; }
+
+_bin_dir="${DOTFILES_HOME:-$HOME}/.local/bin"
+_node="$(command -v node 2>/dev/null || { [[ -x "${_bin_dir}/node" ]] && echo "${_bin_dir}/node"; } || true)"
+_npm="$(command -v npm 2>/dev/null || { [[ -x "${_bin_dir}/npm" ]] && echo "${_bin_dir}/npm"; } || true)"
+
+if [[ -z "$_node" ]]; then
+    log_error "node not found"
+    exit 1
 fi
-log_success "Node.js verification passed"
+if [[ -z "$_npm" ]]; then
+    log_error "npm not found"
+    exit 1
+fi
+
+log_success "Node.js verification passed: $("$_node" --version 2>/dev/null) (npm $("$_npm" --version 2>/dev/null))"

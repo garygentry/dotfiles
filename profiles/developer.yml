@@ -10,3 +10,4 @@ modules:
   - btop
   - claude-code
   - nodejs
+  - bun

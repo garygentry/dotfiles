@@ -1,0 +1,10 @@
+name: bun
+description: Bun JavaScript runtime, bundler, and package manager
+version: 1.0.0
+priority: 50
+dependencies: []
+os: []
+tags:
+  - programming
+  - javascript
+  - bun
