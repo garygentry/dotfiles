@@ -405,6 +405,63 @@ func TestDeployFiles_RecordsDirCreateForNewDir(t *testing.T) {
 	}
 }
 
+// A module whose files deploy under a directory that is a DANGLING symlink (the
+// state hal was left in after an engine upgrade: ~/.config/nvim -> the previous
+// repo's files) must not fail: os.MkdirAll over the link would error with
+// EEXIST. deployFiles reconciles the symlinked parent (a link into a managed
+// root carries no unique content, so no backup) and creates a real directory.
+func TestDeployFiles_ReconcilesDanglingSymlinkParentDir(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "nvimcfg")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(modDir, "files", "init.lua")
+	if err := os.WriteFile(src, []byte("NVIM-CONFIG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The parent dir of the dest is a dangling symlink into a (now-gone) managed
+	// path — exactly what an engine upgrade leaves behind.
+	parent := filepath.Join(cfg.SysInfo.HomeDir, "nvimcfg")
+	danglingTarget := filepath.Join(cfg.SysInfo.DotfilesDir, "gone", "old-nvim")
+	if err := os.Symlink(danglingTarget, parent); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "nvimcfg",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/init.lua", Dest: "~/nvimcfg/init.lua", Type: "copy"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	deployed, _, err := deployFiles(cfg, mod, tctx, ms, nil)
+	if err != nil {
+		t.Fatalf("deploy over dangling-symlink parent: %v", err)
+	}
+	if deployed != 1 {
+		t.Fatalf("deployed=%d, want 1", deployed)
+	}
+
+	// The parent is now a real directory, not a symlink.
+	fi, err := os.Lstat(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("parent dir is still a symlink after reconciliation")
+	}
+	if !fi.IsDir() {
+		t.Fatalf("parent is not a directory (mode %v)", fi.Mode())
+	}
+	if got, _ := os.ReadFile(filepath.Join(parent, "init.lua")); string(got) != "NVIM-CONFIG" {
+		t.Errorf("deployed file content = %q, want NVIM-CONFIG", string(got))
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	cfg := newTestRunConfig(t)
 

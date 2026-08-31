@@ -6,6 +6,8 @@ if apt-cache show gh &>/dev/null 2>&1; then
     return 0
 fi
 
+require_sudo "GitHub CLI apt repository setup" || return 0
+
 log_info "Adding GitHub CLI apt repository..."
 
 # Add GitHub CLI keyring

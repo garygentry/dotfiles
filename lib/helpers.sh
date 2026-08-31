@@ -79,6 +79,30 @@ sudo_cmd() {
     fi
 }
 
+# sudo_usable
+#   True when a privileged command can actually run right now without hanging:
+#   already root, or passwordless sudo, or an interactive session with sudo
+#   (where a password prompt can be answered). In an UNATTENDED run without
+#   passwordless sudo there is no tty to answer a prompt, so this is false.
+sudo_usable() {
+    is_root || has_passwordless_sudo || { has_sudo && is_interactive; }
+}
+
+# require_sudo LABEL
+#   Guard for a step that can only proceed with root/sudo. Returns 0 when sudo is
+#   usable. Otherwise logs one actionable warning and returns 1, so a caller can
+#   `require_sudo "…" || exit 0` to SKIP (degrade) instead of hard-failing the
+#   whole profile. Package modules use this so a host without usable sudo installs
+#   what it can and clearly reports what it skipped.
+require_sudo() {
+    local label="${1:-this step}"
+    if sudo_usable; then
+        return 0
+    fi
+    log_warn "Skipping ${label}: needs sudo, but none is usable (not root, no passwordless sudo). Grant ${USER:-your user} passwordless sudo or install it manually."
+    return 1
+}
+
 # ===========================================================================
 # Package management
 # ===========================================================================
@@ -165,7 +189,14 @@ pkg_install() {
     fi
 
     log_info "Installing packages: ${to_install[*]}"
-    "${cmd[@]}" "${to_install[@]}"
+    # Return the installer's real exit status. Previously `log_success` ran
+    # unconditionally as the last statement, so pkg_install returned 0 even when
+    # the install failed — masking, for example, an apt failure under `if
+    # pkg_install …` so a caller's fallback never fired and verify then failed.
+    if ! "${cmd[@]}" "${to_install[@]}"; then
+        log_error "Failed to install: ${to_install[*]}"
+        return 1
+    fi
     log_success "Installed: ${to_install[*]}"
 }
 

@@ -11,6 +11,8 @@ if is_dry_run; then
     return 0
 fi
 
+require_sudo "btop (package install)" || return 0
+
 log_info "Installing btop..."
 pkg_install btop
 log_success "btop installed"

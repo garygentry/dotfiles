@@ -1204,6 +1204,18 @@ func deployFiles(cfg *RunConfig, mod *Module, tmplCtx *template.Context, modStat
 		// "Remove directory: $HOME". (The rollback executor only rmdir's empty
 		// dirs, so this never deleted anything, but the plan was wrong/alarming.)
 		destDir := filepath.Dir(dest)
+		// A symlinked destination directory makes os.MkdirAll fail with EEXIST.
+		// This bites after an engine upgrade leaves a dangling link from the old
+		// model (e.g. ~/.config/nvim -> the previous repo's roles/neovim/files),
+		// so a content module deploying files under it can't create the dir.
+		// Reconcile the link first with the same conservative migration used for a
+		// symlinked leaf dest (backs up out-of-managed-root content, removes the
+		// link) so a real directory can be created here.
+		if fi, lerr := os.Lstat(destDir); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+			if _, merr := migrateLegacySymlink(destDir, cfg, mod.Name); merr != nil {
+				return 0, 0, merr
+			}
+		}
 		_, destDirStatErr := os.Stat(destDir)
 		destDirExisted := destDirStatErr == nil
 		if err := os.MkdirAll(destDir, 0o755); err != nil {

@@ -4,16 +4,20 @@
 # Install neovim if not already present (OS-specific scripts handle the
 # platform-specific installation method; this is a fallback using pkg_install)
 if ! command -v nvim &>/dev/null; then
-    log_info "Neovim not found, installing..."
-    pkg_install neovim
+    if require_sudo "Neovim (package install)"; then
+        log_info "Neovim not found, installing..."
+        pkg_install neovim
+    fi
 else
     log_info "Neovim is already installed"
 fi
 
 # Install ripgrep (required by Telescope live_grep)
 if ! command -v rg &>/dev/null; then
-    log_info "ripgrep not found, installing..."
-    pkg_install ripgrep
+    if require_sudo "ripgrep (package install)"; then
+        log_info "ripgrep not found, installing..."
+        pkg_install ripgrep
+    fi
 else
     log_info "ripgrep is already installed"
 fi

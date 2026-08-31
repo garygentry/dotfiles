@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ssh `key_source: auto`** — a conservative default that resolves at runtime: **agent** when a
+  live SSH agent already holds a key (`ssh-add -l`), otherwise **generate** (reusing an existing
+  local key if present). Lets one setting work across a fleet where some hosts run the 1Password
+  agent and others (e.g. freshly provisioned guests) carry only a baked key.
+- **graceful no-sudo degradation for package modules** — new `sudo_usable`/`require_sudo` helpers.
+  `btop`, `nodejs`, `gh`, and `neovim` now **skip cleanly with a clear warning** when no usable
+  sudo is available (not root, no passwordless sudo, or an unattended run) instead of hard-failing
+  the whole profile; their `verify.sh` treats the skipped state as non-fatal.
 - **bootstrap now fast-forwards an already-materialized content overlay by default**, so
   re-running the script alone brings a machine fully up to date — engine *and* personal
   content. The refresh is `git pull --ff-only` (advances only on a clean fast-forward;
@@ -21,6 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ssh module no longer clobbers `~/.ssh/config`** — it now owns only a delimited
+  `# >>> dotfiles managed >>>` … `# <<< dotfiles managed <<<` block, splicing the rendered config
+  in (replacing the block in place on re-runs, appending after existing content on first adoption)
+  and preserving everything outside it. This protects a host-provisioned deploy-key
+  `Host github.com` entry, which an earlier full re-render would drop in `agent` mode (breaking
+  `git@github.com`). A symlinked config is demoted first; a one-time backup is taken on adoption.
+- **`pkg_install` now returns the installer's real exit status.** `log_success` previously ran
+  unconditionally as the last statement, so the function returned 0 even when the install failed —
+  masking failures (e.g. apt without sudo) and leaving `if pkg_install …` / `pkg_install … || …`
+  fallbacks (fzf, zoxide, zellij, golang, lazygit, ansible) dead. Fixes fzf's "not found after
+  install" verify mismatch at the root.
+- **file deployment survives a symlinked destination directory.** A content module deploying files
+  under a directory that is a dangling symlink (e.g. `~/.config/nvim` left pointing at a prior
+  engine's files after an upgrade) no longer fails `MkdirAll` with `EEXIST`; the link is reconciled
+  (backed up if it holds out-of-managed-root content) and a real directory is created.
 - **starship**: the module now installs **or upgrades** to the latest release instead of
   skipping when a starship binary is already present. A stale binary left by an older install
   couldn't parse newer config keys (e.g. the `cpp` module or the `ALTLinux` OS symbol),

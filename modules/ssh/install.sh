@@ -9,7 +9,15 @@
 #   agent      do NOT manage a local key; rely on an external SSH agent
 #              (e.g. the 1Password agent). The rendered config avoids pinning
 #              an IdentityFile / IdentitiesOnly so agent keys are offered.
+#   auto       resolve conservatively at runtime: agent mode when a live SSH
+#              agent already holds a key, otherwise generate mode (reusing an
+#              existing local key if present). The safe default for hosts that
+#              may or may not carry a baked key/agent (e.g. provisioned guests).
 #   none       leave ~/.ssh keys and config entirely untouched
+#
+# Only a delimited "# >>> dotfiles managed >>>" ... "# <<< dotfiles managed <<<"
+# block of ~/.ssh/config is owned by this module; content outside it (notably a
+# host-provisioned deploy-key `Host github.com` entry) is preserved across runs.
 #
 # For key_source=1password the item is configurable via modules.ssh.key_item
 # (DOTFILES_SETTING_KEY_ITEM), defaulting to "op://Private/SSH Key".
@@ -29,12 +37,25 @@ _ssh_key_item="${DOTFILES_SETTING_KEY_ITEM:-op://Private/SSH Key}"
 _ssh_key_item="${_ssh_key_item%/}"
 
 case "$_ssh_key_source" in
-    generate|1password|agent|none) ;;
+    generate|1password|agent|none|auto) ;;
     *)
-        log_error "Invalid ssh key_source '${_ssh_key_source}' (expected: generate, 1password, agent, none)"
+        log_error "Invalid ssh key_source '${_ssh_key_source}' (expected: generate, 1password, agent, none, auto)"
         exit 1
         ;;
 esac
+
+# 'auto' resolves to a concrete mode before anything else runs, so the rest of
+# the module (key acquisition, GitHub key resolution, the config template) sees
+# a plain agent/generate value and behaves exactly as if it were set explicitly.
+if [[ "$_ssh_key_source" == "auto" ]]; then
+    if ssh-add -l >/dev/null 2>&1; then
+        log_info "key_source=auto: a live SSH agent holds a key -> agent mode"
+        _ssh_key_source="agent"
+    else
+        log_info "key_source=auto: no agent key available -> generate mode (existing key reused if present)"
+        _ssh_key_source="generate"
+    fi
+fi
 log_info "SSH key source: ${_ssh_key_source}"
 
 # 'none' — hands off: do not touch keys or config.
@@ -191,10 +212,72 @@ if [[ "$_ssh_key_source" != "agent" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Back up existing config and render the new one
+# Render the module's config and splice it into ~/.ssh/config as a delimited
+# managed block, preserving everything the user or host provisioning put outside
+# it. The block is appended after existing content, so an earlier (e.g. baked
+# deploy-key) `Host github.com` entry wins under ssh's first-match-per-option rule.
 # ---------------------------------------------------------------------------
-if [[ -f "${_ssh_dir}/config" ]]; then
-    _backup_file "${_ssh_dir}/config"
-fi
+_ssh_begin_marker="# >>> dotfiles managed >>>"
+_ssh_end_marker="# <<< dotfiles managed <<<"
 
-render_template "${DOTFILES_MODULE_DIR}/config" "${_ssh_dir}/config"
+# _ssh_write_managed_block TARGET BODYFILE
+#   Write BODYFILE into TARGET between the managed markers: replace an existing
+#   block in place (position preserved), else append one, else create the file.
+_ssh_write_managed_block() {
+    local target="$1" body="$2" tmp
+    tmp="$(mktemp)"
+
+    if [[ -f "$target" ]] && grep -qxF "$_ssh_begin_marker" "$target"; then
+        awk -v begin="$_ssh_begin_marker" -v end="$_ssh_end_marker" -v bodyfile="$body" '
+            $0 == begin {
+                print begin
+                while ((getline line < bodyfile) > 0) print line
+                close(bodyfile)
+                print end
+                skip = 1
+                next
+            }
+            skip && $0 == end { skip = 0; next }
+            skip { next }
+            { print }
+        ' "$target" > "$tmp"
+    elif [[ -f "$target" ]]; then
+        cp "$target" "$tmp"
+        [[ -n "$(tail -c1 "$tmp")" ]] && printf '\n' >> "$tmp"   # ensure a trailing newline
+        {
+            printf '\n%s\n' "$_ssh_begin_marker"
+            cat "$body"
+            printf '%s\n' "$_ssh_end_marker"
+        } >> "$tmp"
+    else
+        {
+            printf '# SSH config — the block below is managed by dotfiles.\n'
+            printf '# Content outside the managed markers is preserved across runs.\n\n'
+            printf '%s\n' "$_ssh_begin_marker"
+            cat "$body"
+            printf '%s\n' "$_ssh_end_marker"
+        } > "$tmp"
+    fi
+
+    install -m 600 "$tmp" "$target"
+    rm -f "$tmp"
+}
+
+if is_dry_run; then
+    log_info "[dry-run] Would splice the managed block into ${_ssh_dir}/config (preserving external content)"
+else
+    # The target must be a real file we can splice into, not a symlink into a repo.
+    demote_symlink "${_ssh_dir}/config"
+
+    # Back up once, only when first adopting a pre-existing unmanaged config.
+    if [[ -f "${_ssh_dir}/config" ]] && ! grep -qxF "$_ssh_begin_marker" "${_ssh_dir}/config"; then
+        cp "${_ssh_dir}/config" "${_ssh_dir}/config.backup.$(date +%Y%m%d%H%M%S)"
+        log_warn "Backed up existing SSH config before adopting the managed block"
+    fi
+
+    _ssh_rendered="$(mktemp)"
+    render_template "${DOTFILES_MODULE_DIR}/config" "$_ssh_rendered"
+    _ssh_write_managed_block "${_ssh_dir}/config" "$_ssh_rendered"
+    rm -f "$_ssh_rendered"
+    log_success "Updated dotfiles-managed block in ${_ssh_dir}/config"
+fi
