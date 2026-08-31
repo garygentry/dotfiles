@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **claude-code installs non-interactively instead of hanging the profile.** The module no longer
+  pipes `curl https://claude.ai/install.sh | bash`, whose final step (`claude install`) is an
+  interactive TUI that never completes under automation — with a terminal it waits for keypresses,
+  and fully detached (setsid, closed stdin) it hangs before printing a line (occasionally exiting 0
+  having installed nothing), even with telemetry/autoupdate/nonessential-traffic disabled. On a
+  clean guest this stalled the whole run until the 5-minute per-module timeout and cascaded into
+  `claude-code-config` ("claude CLI not found"). The module now follows Anthropic's documented
+  direct-download path (Setup -> *Binary integrity and code signing*): resolve the release from
+  `…/claude-code-releases/{stable,latest}`, **GPG-verify the signed `manifest.json`** against the
+  pinned Anthropic release key (fingerprint `31DDDE24…`, imported into an ephemeral keyring — a
+  failed verification is fatal; a missing signature or absent gpg degrades to sha256-only with a
+  warning), sha256-check the native binary (linux/darwin x64/arm64, musl-aware), and install into
+  the **native installer's own on-disk layout**: the versioned binary under
+  `~/.local/share/claude/versions/<version>` with `~/.local/bin/claude` symlinked to it (a
+  hand-placed launcher is supported from v2.1.207+; auto-update leaves it in place). No TUI is ever
+  invoked; no sudo and no Node are required. Idempotent (fast-paths when `claude` is already
+  present) and pinnable via `DOTFILES_CLAUDE_CODE_VERSION` (default channel: `stable`).
 - **ssh module no longer clobbers `~/.ssh/config`** — it now owns only a delimited
   `# >>> dotfiles managed >>>` … `# <<< dotfiles managed <<<` block, splicing the rendered config
   in (replacing the block in place on re-runs, appending after existing content on first adoption)
