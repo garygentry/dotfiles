@@ -131,6 +131,16 @@ path=(
     "${HOME}/bin"
     "/usr/local/bin"
     "${DOTFILES_DIR:-$HOME/.dotfiles}/bin"
+    # Standard system dirs, listed explicitly so they are present even when
+    # /etc/profile is not sourced (e.g. zsh as root on Proxmox, where the
+    # sbin dirs hold the admin commands). typeset -U above dedupes, so the
+    # /usr/local/bin repeat above keeps its original leading position.
+    "/usr/local/sbin"
+    "/usr/local/bin"
+    "/usr/sbin"
+    "/usr/bin"
+    "/sbin"
+    "/bin"
     $path
 )
 
