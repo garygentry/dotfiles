@@ -462,6 +462,107 @@ func TestDeployFiles_ReconcilesDanglingSymlinkParentDir(t *testing.T) {
 	}
 }
 
+// The dangling symlink can be a HIGHER ancestor than the immediate parent: a
+// neovim config commonly deploys into ~/.config/nvim/lua/…, so when
+// ~/.config/nvim is the dangling link the blocked component is an ancestor of
+// destDir. The ancestor walk must find and reconcile it, not just the leaf parent.
+func TestDeployFiles_ReconcilesDanglingSymlinkMultiLevelAncestor(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "nvimcfg")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(modDir, "files", "init.lua")
+	if err := os.WriteFile(src, []byte("NVIM-CONFIG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// ~/nvimcfg is a dangling symlink; the deployed file sits a level DEEPER
+	// (~/nvimcfg/lua/init.lua), so the symlink is an ancestor of destDir.
+	linkRoot := filepath.Join(cfg.SysInfo.HomeDir, "nvimcfg")
+	if err := os.Symlink(filepath.Join(cfg.SysInfo.DotfilesDir, "gone", "old-nvim"), linkRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "nvimcfg",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/init.lua", Dest: "~/nvimcfg/lua/init.lua", Type: "copy"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy under dangling multi-level ancestor: %v", err)
+	}
+	fi, err := os.Lstat(linkRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+		t.Fatalf("~/nvimcfg is not a real directory after reconciliation (mode %v)", fi.Mode())
+	}
+	if got, _ := os.ReadFile(filepath.Join(linkRoot, "lua", "init.lua")); string(got) != "NVIM-CONFIG" {
+		t.Errorf("deployed file content = %q, want NVIM-CONFIG", string(got))
+	}
+}
+
+// A symlinked parent pointing at a REAL external directory (a user who symlinked
+// a config dir to their own tree) must be LEFT INTACT: MkdirAll follows it and
+// the deploy lands in the real target alongside the user's files. It must NOT be
+// removed (which would orphan that content, with no directory-capable backup).
+func TestDeployFiles_PreservesExternalSymlinkParentDir(t *testing.T) {
+	cfg := newTestRunConfig(t)
+
+	modDir := filepath.Join(cfg.SysInfo.DotfilesDir, "modules", "nvimcfg")
+	if err := os.MkdirAll(filepath.Join(modDir, "files"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(modDir, "files", "init.lua")
+	if err := os.WriteFile(src, []byte("NVIM-CONFIG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// ~/nvimcfg -> a real external dir the user owns, holding their own file.
+	external := t.TempDir()
+	if err := os.WriteFile(filepath.Join(external, "existing.lua"), []byte("USER-OWNED"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkRoot := filepath.Join(cfg.SysInfo.HomeDir, "nvimcfg")
+	if err := os.Symlink(external, linkRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := &Module{
+		Name:  "nvimcfg",
+		Dir:   modDir,
+		Files: []FileEntry{{Source: "files/init.lua", Dest: "~/nvimcfg/init.lua", Type: "copy"}},
+	}
+	tctx := buildTemplateContext(cfg, mod, buildEnvVars(cfg, mod, nil))
+
+	ms := &state.ModuleState{Name: mod.Name}
+	if _, _, err := deployFiles(cfg, mod, tctx, ms, nil); err != nil {
+		t.Fatalf("deploy under external symlink parent: %v", err)
+	}
+
+	// The symlink is preserved (not removed).
+	fi, err := os.Lstat(linkRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("external symlink parent was replaced/removed; user content would be orphaned")
+	}
+	// The user's file is intact and the deploy landed in the real target.
+	if got, _ := os.ReadFile(filepath.Join(external, "existing.lua")); string(got) != "USER-OWNED" {
+		t.Errorf("user file changed/lost: %q", string(got))
+	}
+	if got, _ := os.ReadFile(filepath.Join(external, "init.lua")); string(got) != "NVIM-CONFIG" {
+		t.Errorf("deploy did not land in the real target: %q", string(got))
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	cfg := newTestRunConfig(t)
 

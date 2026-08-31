@@ -221,34 +221,62 @@ _ssh_begin_marker="# >>> dotfiles managed >>>"
 _ssh_end_marker="# <<< dotfiles managed <<<"
 
 # _ssh_write_managed_block TARGET BODYFILE
-#   Write BODYFILE into TARGET between the managed markers: replace an existing
-#   block in place (position preserved), else append one, else create the file.
+#   Write BODYFILE into TARGET as a single delimited managed block, touching only
+#   what this module owns. The rules — chosen so external content is NEVER lost:
+#     - A "clean" block is a begin marker whose next marker line is an end marker
+#       (no intervening begin). The FIRST clean block's span is replaced in place;
+#       any further clean blocks are removed (coalesced to one).
+#     - Everything that is not part of a clean block is preserved verbatim,
+#       including a stray/orphan marker (e.g. a begin with no matching end, left by
+#       a truncated write or a manual edit) — such lines are never a delete anchor,
+#       so they can't swallow a following `Host` entry.
+#     - With no clean block, the rendered block is appended after existing content.
+#     - A brand-new file gets a short header plus the block.
+#   Marker matching tolerates a trailing CR so a CRLF config is handled correctly.
 _ssh_write_managed_block() {
     local target="$1" body="$2" tmp
     tmp="$(mktemp)"
 
-    if [[ -f "$target" ]] && grep -qxF "$_ssh_begin_marker" "$target"; then
+    if [[ -f "$target" ]]; then
         awk -v begin="$_ssh_begin_marker" -v end="$_ssh_end_marker" -v bodyfile="$body" '
-            $0 == begin {
+            function norm(s) { sub(/\r$/, "", s); return s }
+            function emit_block(   b) {
                 print begin
-                while ((getline line < bodyfile) > 0) print line
+                while ((getline b < bodyfile) > 0) print b
                 close(bodyfile)
                 print end
-                skip = 1
-                next
             }
-            skip && $0 == end { skip = 0; next }
-            skip { next }
-            { print }
+            { ln[NR] = $0; m[NR] = norm($0) }
+            END {
+                n = NR
+                # Mark every clean (non-nested) begin..end span for deletion;
+                # remember the first ones position as the in-place insert point.
+                insert = 0
+                i = 1
+                while (i <= n) {
+                    if (m[i] == begin) {
+                        j = i + 1
+                        while (j <= n && m[j] != begin && m[j] != end) j++
+                        if (j <= n && m[j] == end) {
+                            if (insert == 0) insert = i
+                            for (k = i; k <= j; k++) del[k] = 1
+                            i = j + 1
+                            continue
+                        }
+                    }
+                    i++
+                }
+                printed = 0
+                for (i = 1; i <= n; i++) {
+                    if (i == insert) { emit_block(); printed = 1 }
+                    if (!del[i]) print ln[i]
+                }
+                if (!printed) {          # no clean block existed: append one
+                    if (n > 0) print ""
+                    emit_block()
+                }
+            }
         ' "$target" > "$tmp"
-    elif [[ -f "$target" ]]; then
-        cp "$target" "$tmp"
-        [[ -n "$(tail -c1 "$tmp")" ]] && printf '\n' >> "$tmp"   # ensure a trailing newline
-        {
-            printf '\n%s\n' "$_ssh_begin_marker"
-            cat "$body"
-            printf '%s\n' "$_ssh_end_marker"
-        } >> "$tmp"
     else
         {
             printf '# SSH config — the block below is managed by dotfiles.\n'
@@ -270,7 +298,8 @@ else
     demote_symlink "${_ssh_dir}/config"
 
     # Back up once, only when first adopting a pre-existing unmanaged config.
-    if [[ -f "${_ssh_dir}/config" ]] && ! grep -qxF "$_ssh_begin_marker" "${_ssh_dir}/config"; then
+    # Substring match (not -x) so a CRLF marker line still counts as "managed".
+    if [[ -f "${_ssh_dir}/config" ]] && ! grep -qF -- "$_ssh_begin_marker" "${_ssh_dir}/config"; then
         cp "${_ssh_dir}/config" "${_ssh_dir}/config.backup.$(date +%Y%m%d%H%M%S)"
         log_warn "Backed up existing SSH config before adopting the managed block"
     fi
