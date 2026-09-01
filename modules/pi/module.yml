@@ -1,0 +1,19 @@
+name: pi
+description: "Install the pi coding agent CLI (pinned, sudo-free npm global)"
+version: "1.0.0"
+priority: 50            # installs the CLI; an overlay pi-config adapter (priority 60) wires resources
+dependencies:
+  - nodejs              # engine module: guarantees a runnable node/npm (and pi's engines.node floor)
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - npm
+tags:
+  - ai
+  - cli
+notes:
+  - "Version is PINNED via modules.pi.version (set it in your content overlay's config.yml — the estate BOM). Unset installs the npm 'latest' with a warning."
+  - "No dual ownership: this module never runs 'pi update'. A manual 'pi update' is corrected back to the pin on the next install."
+  - "Run 'pi' once interactively to authenticate; auth/trust state is machine-local and never managed here."
