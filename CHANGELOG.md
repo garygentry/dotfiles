@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`bun` module** (in the `developer` profile) — installs the official Bun release binary into
+  `~/.local` **sudo-free**, checksum-verified against the release's `SHASUMS256.txt`. Resolves the
+  latest release **without the GitHub API** (following the `/releases/latest` redirect, so a fleet
+  behind one NAT can't exhaust the 60-req/hr API limit). Handles linux/darwin, x64/aarch64, **musl**,
+  and the `-baseline` builds — detects a missing **AVX2** CPU (common on VMs) and installs
+  `-baseline` so bun doesn't die with "Illegal instruction"; extracts the zip with `unzip` or,
+  failing that, `python3` (no sudo either way). Symlinks `bun` + `bunx`, then runs the binary to
+  confirm it's not a wrong-arch dud. Pin with `DOTFILES_BUN_VERSION`.
 - **ssh `key_source: auto`** — a conservative default that resolves at runtime: **agent** when a
   live SSH agent already holds a key (`ssh-add -l`), otherwise **generate** (reusing an existing
   local key if present). Lets one setting work across a fleet where some hosts run the 1Password
@@ -29,6 +37,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`nodejs` installs sudo-free instead of degrading to nothing.** The module used
+  `require_sudo → pkg_install nodejs npm`, so on a host without usable sudo it skipped and left no
+  node at all (breaking anything downstream that needs `node`/`npm`). It now installs the official
+  Node.js prebuilt **tarball** into `~/.local/share/node` and symlinks `node`/`npm`/`npx` into
+  `~/.local/bin` — the same deterministic, sudo-free pattern as Go and claude-code — checksum-
+  verified against `nodejs.org`'s `SHASUMS256.txt` (which also supplies the newest patch of the
+  line, so no version is hardcoded). Pin the LTS line with `DOTFILES_NODE_MAJOR` (default 22).
+  `verify.sh` no longer needs its no-sudo escape hatch.
+- **claude-code installs non-interactively instead of hanging the profile.** The module no longer
+  pipes `curl https://claude.ai/install.sh | bash`, whose final step (`claude install`) is an
+  interactive TUI that never completes under automation — with a terminal it waits for keypresses,
+  and fully detached (setsid, closed stdin) it hangs before printing a line (occasionally exiting 0
+  having installed nothing), even with telemetry/autoupdate/nonessential-traffic disabled. On a
+  clean guest this stalled the whole run until the 5-minute per-module timeout and cascaded into
+  `claude-code-config` ("claude CLI not found"). The module now follows Anthropic's documented
+  direct-download path (Setup -> *Binary integrity and code signing*): resolve the release from
+  `…/claude-code-releases/{stable,latest}`, **GPG-verify the signed `manifest.json`** against the
+  pinned Anthropic release key (fingerprint `31DDDE24…`, imported into an ephemeral keyring — a
+  failed verification is fatal; a missing signature or absent gpg degrades to sha256-only with a
+  warning), sha256-check the native binary (linux/darwin x64/arm64, musl-aware), and install into
+  the **native installer's own on-disk layout**: the versioned binary under
+  `~/.local/share/claude/versions/<version>` with `~/.local/bin/claude` symlinked to it (a
+  hand-placed launcher is supported from v2.1.207+; auto-update leaves it in place). No TUI is ever
+  invoked; no sudo and no Node are required. Idempotent (fast-paths when `claude` is already
+  present) and pinnable via `DOTFILES_CLAUDE_CODE_VERSION` (default channel: `stable`).
 - **ssh module no longer clobbers `~/.ssh/config`** — it now owns only a delimited
   `# >>> dotfiles managed >>>` … `# <<< dotfiles managed <<<` block, splicing the rendered config
   in (replacing the block in place on re-runs, appending after existing content on first adoption)
