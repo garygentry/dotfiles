@@ -4,19 +4,22 @@
 # apt-based node needs sudo, so on a no-sudo host it degrades to installing
 # nothing. This installs the official Node.js prebuilt tarball into ~/.local
 # (the same deterministic, sudo-free pattern as Go and claude-code),
-# checksum-verified against nodejs.org's SHASUMS256.txt. Works on every host,
-# with or without sudo. Pin the LTS line with DOTFILES_NODE_MAJOR (default 22).
+# checksum-verified against nodejs.org's SHASUMS256.txt. Covers Linux (glibc)
+# and macOS; there is no official musl prebuilt (Alpine — see the guard below).
+# Pin the LTS line with DOTFILES_NODE_MAJOR (default 22).
 set -euo pipefail
 
 _home="${DOTFILES_HOME:-$HOME}"
 _bin="${_home}/.local/bin"
 _share="${_home}/.local/share/node"
 
-# On WSL the Windows PATH bleeds in, so `node` may resolve to a Windows install
-# under /mnt/c. Treat that as absent — we want a real Linux/macOS node.
+# Already installed? Match PATH (ignoring a Windows node under /mnt on WSL) OR
+# our own ~/.local/bin/node, which may not be on PATH yet on a fresh host.
 _node_path="$(command -v node 2>/dev/null || true)"
-if [[ -n "$_node_path" && "$_node_path" != /mnt/* ]]; then
-    log_info "Node.js already installed: $(node --version 2>/dev/null)"
+[[ -n "$_node_path" && "$_node_path" == /mnt/* ]] && _node_path=""
+[[ -z "$_node_path" && -x "${_bin}/node" ]] && _node_path="${_bin}/node"
+if [[ -n "$_node_path" ]]; then
+    log_info "Node.js already installed: $("$_node_path" --version 2>/dev/null)"
     exit 0
 fi
 
@@ -37,6 +40,13 @@ case "$(uname -m)" in
     *) log_error "Node.js: unsupported architecture $(uname -m)"; exit 1 ;;
 esac
 _platform="${_os}-${_arch}"
+
+# nodejs.org publishes no musl prebuilt — a glibc tarball won't run on Alpine.
+# Fail loudly with guidance rather than install a broken binary.
+if [[ "$_os" == "linux" ]] && { [[ -e /lib/libc.musl-x86_64.so.1 ]] || [[ -e /lib/libc.musl-aarch64.so.1 ]] || ldd /bin/ls 2>&1 | grep -q musl; }; then
+    log_error "Node.js: no official prebuilt for musl/Alpine — install it with your package manager (e.g. 'apk add nodejs npm')"
+    exit 1
+fi
 
 _major="${DOTFILES_NODE_MAJOR:-22}"
 _base="https://nodejs.org/dist/latest-v${_major}.x"
@@ -64,10 +74,9 @@ _work="$(mktemp -d)"
 trap 'rm -rf "$_work"' EXIT
 
 log_info "Installing Node.js ${_ver} (${_platform}, sudo-free)..."
-curl -fsSL -o "${_work}/node.tar.gz" "${_base}/${_file}"
-_actual="$(sha256sum "${_work}/node.tar.gz" | cut -d' ' -f1)"
-if [[ "$_actual" != "$_sum" ]]; then
-    log_error "Node.js: checksum mismatch (expected ${_sum}, got ${_actual})"
+# download_file does portable checksum (sha256sum/shasum) + curl/wget + abort.
+if ! download_file "${_base}/${_file}" "${_work}/node.tar.gz" "$_sum"; then
+    log_error "Node.js: download/checksum verification failed"
     exit 1
 fi
 

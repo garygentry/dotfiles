@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`bun` module** (in the `developer` profile) — installs the official Bun release binary into
-  `~/.local` **sudo-free**, checksum-verified against the release's `SHASUMS256.txt`. Detects a
-  missing **AVX2** CPU (common on VMs) and installs the `-baseline` build so bun doesn't die with
-  "Illegal instruction"; extracts the release zip with `unzip` or, failing that, `python3` (no sudo
-  either way). Symlinks `bun` and `bunx` into `~/.local/bin`. Pin with `DOTFILES_BUN_VERSION`.
+  `~/.local` **sudo-free**, checksum-verified against the release's `SHASUMS256.txt`. Resolves the
+  latest release **without the GitHub API** (following the `/releases/latest` redirect, so a fleet
+  behind one NAT can't exhaust the 60-req/hr API limit). Handles linux/darwin, x64/aarch64, **musl**,
+  and the `-baseline` builds — detects a missing **AVX2** CPU (common on VMs) and installs
+  `-baseline` so bun doesn't die with "Illegal instruction"; extracts the zip with `unzip` or,
+  failing that, `python3` (no sudo either way). Symlinks `bun` + `bunx`, then runs the binary to
+  confirm it's not a wrong-arch dud. Pin with `DOTFILES_BUN_VERSION`.
 - **ssh `key_source: auto`** — a conservative default that resolves at runtime: **agent** when a
   live SSH agent already holds a key (`ssh-add -l`), otherwise **generate** (reusing an existing
   local key if present). Lets one setting work across a fleet where some hosts run the 1Password
