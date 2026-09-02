@@ -54,3 +54,36 @@ func TestOnePassword_IsAuthenticated_NoTokenNoAccounts(t *testing.T) {
 		t.Error("IsAuthenticated() = true with no token and no accounts, want false")
 	}
 }
+
+// A service account is account-less, so GetSecret must NOT pass --account when a
+// token is present — otherwise it would be inconsistent with IsAuthenticated,
+// which certifies the SA account-less. Fake op fails if handed --account.
+func TestOnePassword_GetSecret_ServiceAccountOmitsAccount(t *testing.T) {
+	fakeOpOnPath(t, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--account\" ] && exit 9; done\nprintf 'secret-value'\n")
+	t.Setenv("OP_SERVICE_ACCOUNT_TOKEN", "ops_faketoken")
+
+	p := &OnePasswordProvider{account: "my.1password.com"}
+	got, err := p.GetSecret("op://Private/item/field")
+	if err != nil {
+		t.Fatalf("GetSecret under SA token errored (--account passed?): %v", err)
+	}
+	if got != "secret-value" {
+		t.Errorf("GetSecret = %q, want %q", got, "secret-value")
+	}
+}
+
+// A normal (non-SA) session must still address its configured account, so
+// GetSecret passes --account. Fake op succeeds only when it sees --account.
+func TestOnePassword_GetSecret_NormalPassesAccount(t *testing.T) {
+	fakeOpOnPath(t, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--account\" ] && { printf 'secret-value'; exit 0; }; done\nexit 9\n")
+	t.Setenv("OP_SERVICE_ACCOUNT_TOKEN", "")
+
+	p := &OnePasswordProvider{account: "my.1password.com"}
+	got, err := p.GetSecret("op://Private/item/field")
+	if err != nil {
+		t.Fatalf("GetSecret normal session errored (--account missing?): %v", err)
+	}
+	if got != "secret-value" {
+		t.Errorf("GetSecret = %q, want %q", got, "secret-value")
+	}
+}

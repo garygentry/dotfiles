@@ -51,8 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IsAuthenticated()` gated on `op account list`, which is empty for a service account, so a host
   driven by `OP_SERVICE_ACCOUNT_TOKEN` reported unauthenticated and the interactive
   `dotfiles install --profile gwg` asked "Set up 1Password?" even though secret resolution worked.
-  It now validates a present token directly via `op whoami` (no `--account`, which a token rejects)
-  before the account-list path, so a working service account counts as authenticated.
+  It now validates a present token directly via `op whoami`. A service account is **account-less**,
+  so the provider omits `--account` across `whoami`/`read`/`signin` when a token is present (via a
+  single `accountArgs` helper) — keeping the auth check and `GetSecret` consistent so a certified
+  SA can actually resolve secrets. A normal interactive session still passes `--account`.
 - **`nodejs` installs sudo-free instead of degrading to nothing.** The module used
   `require_sudo → pkg_install nodejs npm`, so on a host without usable sudo it skipped and left no
   node at all (breaking anything downstream that needs `node`/`npm`). It now installs the official
