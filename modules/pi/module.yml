@@ -17,3 +17,4 @@ notes:
   - "Version is PINNED via modules.pi.version (set it in your content overlay's config.yml — the estate BOM). Unset installs the npm 'latest' with a warning."
   - "No dual ownership: this module never runs 'pi update'. A manual 'pi update' is corrected back to the pin on the next install."
   - "Run 'pi' once interactively to authenticate; auth/trust state is machine-local and never managed here."
+  - "Fleet degrade posture (ADR 0025 D6): a missing npm or a failed global install (the no-registry/offline case) DEGRADES to a warning + success so a locked-down host still completes 'dotfiles install' — verify.sh is the gate that pi is actually present. Only a wrong resolved version (off the pin) or a WSL /mnt provenance miss is a hard failure. The nodejs dependency pins npm's global prefix to ~/.local and enforces Pi's engines.node floor (modules.nodejs.min_version); this module re-checks pi's own engines.node as a fatal belt-and-suspenders."

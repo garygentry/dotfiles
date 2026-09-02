@@ -29,4 +29,16 @@ if [[ -n "$_pi_pin" && "$_pi_ver" != "$_pi_pin" ]]; then
     return 1 2>/dev/null || exit 1
 fi
 
+# Resolution in a login AND a non-login shell (ADR 0025 D6): pi is a global npm bin;
+# a stable prefix (~/.local, the nodejs module's job) is what keeps it on PATH across
+# a Node switch. A login-only pi breaks non-interactive callers. Login is required;
+# a non-login miss is a warning (the shell PATH config, not pi, is then at fault).
+if ! bash -lc 'command -v pi >/dev/null 2>&1'; then
+    log_error "pi does not resolve in a login shell (bash -lc) — check the interactive PATH / npm global prefix"
+    return 1 2>/dev/null || exit 1
+fi
+if ! bash -c 'command -v pi >/dev/null 2>&1'; then
+    log_warn "pi does not resolve in a non-login shell (bash -c) — non-interactive callers may fail; ensure the npm global bin dir is on PATH for non-login shells"
+fi
+
 log_success "pi verification passed: ${_pi_ver}${_pi_pin:+ (pinned)}"
