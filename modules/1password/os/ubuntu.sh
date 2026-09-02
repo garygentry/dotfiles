@@ -11,6 +11,11 @@ if is_dry_run; then
     return 0
 fi
 
+# Every step below needs root (apt repo + package install). Degrade cleanly on a
+# host without usable sudo instead of hard-failing the whole profile, matching
+# gh/neovim. install.sh then warns that op is missing and points at manual setup.
+require_sudo "1Password CLI (apt install)" || return 0
+
 log_info "Adding 1Password apt repository..."
 
 # Add the 1Password GPG key

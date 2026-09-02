@@ -17,6 +17,13 @@ prompts:
       - ed25519
       - rsa
     show_when: explicit_install
+    # An existing key wins over the requested type (install.sh detects and
+    # reuses it), so the prompt is pure noise on a host that already has one.
+    # Keep this list in sync with install.sh's key detection (ed25519/rsa/ecdsa).
+    skip_if_file:
+      - ~/.ssh/id_ed25519
+      - ~/.ssh/id_rsa
+      - ~/.ssh/id_ecdsa
 tags:
   - security
   - ssh

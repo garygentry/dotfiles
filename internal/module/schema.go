@@ -65,13 +65,14 @@ type PromptDependency struct {
 
 // Prompt describes an interactive prompt to present during module installation.
 type Prompt struct {
-	Key       string            `yaml:"key"`
-	Message   string            `yaml:"message"`
-	Default   string            `yaml:"default"`
-	Type      string            `yaml:"type"` // input, confirm, or choice
-	Options   []string          `yaml:"options"`
-	ShowWhen  string            `yaml:"show_when"`  // always, explicit_install, or interactive (default: explicit_install)
-	DependsOn *PromptDependency `yaml:"depends_on"` // only show when another prompt equals a value
+	Key        string            `yaml:"key"`
+	Message    string            `yaml:"message"`
+	Default    string            `yaml:"default"`
+	Type       string            `yaml:"type"` // input, confirm, or choice
+	Options    []string          `yaml:"options"`
+	ShowWhen   string            `yaml:"show_when"`    // always, explicit_install, or interactive (default: explicit_install)
+	DependsOn  *PromptDependency `yaml:"depends_on"`   // only show when another prompt equals a value
+	SkipIfFile []string          `yaml:"skip_if_file"` // skip (use default) when any listed path already exists; ~ and ~/.config are expanded
 }
 
 // ParseModuleYAML reads a module.yml file at the given path and returns the

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`skip_if_file` on module prompts** — a prompt is suppressed (its default used) when any listed
+  path already exists (`~` and `~/.config` expanded; a dangling symlink counts). The `ssh` module
+  uses it for the `ssh_key_type` prompt, which is pure noise on a host that already has a key —
+  `install.sh` detects and reuses an existing key regardless of the answer.
 - **`bun` module** (in the `developer` profile) — installs the official Bun release binary into
   `~/.local` **sudo-free**, checksum-verified against the release's `SHASUMS256.txt`. Resolves the
   latest release **without the GitHub API** (following the `/releases/latest` redirect, so a fleet
@@ -37,6 +41,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`1password` no longer hard-fails on a no-sudo host.** The Ubuntu installer
+  (`modules/1password/os/ubuntu.sh`) ran its apt-repo + package-install steps through `sudo_cmd`
+  with no guard, so a host without usable sudo aborted the whole profile instead of degrading —
+  the pattern `gh`/`neovim` already avoid. It now leads with `require_sudo … || return 0`, so the
+  step skips cleanly with a warning and `install.sh` points at manual setup. (The macOS/Arch
+  installers already degraded — Arch falls back to a `~/.local/bin` download.)
+- **a working 1Password service-account token no longer triggers a spurious sign-in prompt.**
+  `IsAuthenticated()` gated on `op account list`, which is empty for a service account, so a host
+  driven by `OP_SERVICE_ACCOUNT_TOKEN` reported unauthenticated and the interactive
+  `dotfiles install --profile gwg` asked "Set up 1Password?" even though secret resolution worked.
+  It now validates a present token directly via `op whoami`. A service account is **account-less**,
+  so the provider omits `--account` across `whoami`/`read`/`signin` when a token is present (via a
+  single `accountArgs` helper) — keeping the auth check and `GetSecret` consistent so a certified
+  SA can actually resolve secrets. A normal interactive session still passes `--account`.
 - **`nodejs` installs sudo-free instead of degrading to nothing.** The module used
   `require_sudo → pkg_install nodejs npm`, so on a host without usable sudo it skipped and left no
   node at all (breaking anything downstream that needs `node`/`npm`). It now installs the official
