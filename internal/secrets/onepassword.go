@@ -45,10 +45,27 @@ func (p *OnePasswordProvider) Authenticate() error {
 }
 
 // IsAuthenticated performs a non-interactive check for a valid 1Password
-// session. It first verifies that at least one account is configured (via
-// "op account list") and then checks for an active session (via "op whoami").
-// Neither command triggers interactive prompts.
+// session. When a service-account token is present it validates that directly
+// via "op whoami". Otherwise it verifies that at least one account is configured
+// (via "op account list") and then checks for an active session (via "op whoami
+// --account"). None of these commands triggers interactive prompts.
 func (p *OnePasswordProvider) IsAuthenticated() bool {
+	// A service-account token authenticates non-interactively and is not tied to
+	// a configured account, so "op account list" is empty for it. Validate the
+	// token directly via "op whoami" (no --account, which a token rejects) so a
+	// working service account counts as authenticated and never triggers the
+	// interactive sign-in prompt.
+	if os.Getenv("OP_SERVICE_ACCOUNT_TOKEN") != "" {
+		ctxSA, cancelSA := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelSA()
+
+		saCmd := exec.CommandContext(ctxSA, "op", "whoami")
+		saCmd.Stdin = nil
+		saCmd.Stdout = nil
+		saCmd.Stderr = nil
+		return saCmd.Run() == nil
+	}
+
 	// Step 1: Check if any accounts are configured. This never prompts.
 	ctx1, cancel1 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel1()

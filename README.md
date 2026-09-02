@@ -300,6 +300,8 @@ prompts:
     options: [dark, light]
     default: dark
     show_when: explicit_install # Optional: only show if module explicitly selected
+    skip_if_file:               # Optional: skip (use default) if any path already exists
+      - ~/.config/mymodule/theme
 ```
 
 ### Example install.sh

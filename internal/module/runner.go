@@ -462,6 +462,18 @@ func handlePrompts(cfg *RunConfig, mod *Module) (map[string]string, error) {
 			}
 		}
 
+		// Skip prompts made moot because a listed file already exists (e.g. an
+		// existing SSH key makes the key-type prompt noise — install.sh reuses
+		// the key regardless of the answer). Use the default so downstream
+		// templates and scripts behave exactly as in unattended mode.
+		if promptSkippedByFile(p, cfg.SysInfo) {
+			answers[p.Key] = p.Default
+			if cfg.Verbose {
+				cfg.UI.Debug(fmt.Sprintf("Skipping prompt %s.%s: a skip_if_file path already exists", mod.Name, p.Key))
+			}
+			continue
+		}
+
 		// Check if we should show this prompt interactively
 		if !shouldShowPrompt(p, cfg, mod, isExplicit) {
 			answers[p.Key] = p.Default
@@ -1569,6 +1581,24 @@ func expandPaths(path, homeDir, xdgConfigHome string) string {
 		return filepath.Join(homeDir, path[2:])
 	}
 	return path
+}
+
+// promptSkippedByFile reports whether any of a prompt's skip_if_file paths
+// already exists on disk, in which case the prompt is moot and its default is
+// used. Paths are expanded the same way as file destinations (leading ~ and
+// ~/.config). A dangling symlink counts as present (Lstat), since the user has
+// clearly already set that path up.
+func promptSkippedByFile(p Prompt, sys *sysinfo.SystemInfo) bool {
+	for _, raw := range p.SkipIfFile {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		path := expandPaths(raw, sys.HomeDir, sys.XDGConfigHome)
+		if _, err := os.Lstat(path); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // boolToStr converts a bool to the string "true" or "false".

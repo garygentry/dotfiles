@@ -1588,3 +1588,68 @@ func TestHandlePromptsOhmyzshShowsAllQuestions(t *testing.T) {
 		t.Errorf("zsh_prompt = %q, want robbyrussell", answers["zsh_prompt"])
 	}
 }
+
+// A prompt with skip_if_file is suppressed (and its default used) when one of
+// the listed files already exists — e.g. the ssh key-type prompt is noise on a
+// host that already has a key, since install.sh reuses the existing key.
+func TestHandlePromptsSkipIfFileSuppressesWhenFileExists(t *testing.T) {
+	ui := &sequentialUI{choiceAnswers: []string{"rsa"}}
+	cfg := newTestRunConfig(t)
+	cfg.Unattended = false
+	cfg.UI = ui
+	cfg.ExplicitModules = map[string]bool{"ssh": true}
+
+	// Create ~/.ssh/id_ed25519 so the prompt should be skipped.
+	sshDir := filepath.Join(cfg.SysInfo.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatalf("mkdir .ssh: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sshDir, "id_ed25519"), []byte("key"), 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+
+	mod := &Module{
+		Name: "ssh",
+		Prompts: []Prompt{
+			{Key: "ssh_key_type", Message: "SSH key type", Default: "ed25519", Type: "choice", Options: []string{"ed25519", "rsa"}, ShowWhen: "explicit_install", SkipIfFile: []string{"~/.ssh/id_ed25519", "~/.ssh/id_rsa"}},
+		},
+	}
+
+	answers, err := handlePrompts(cfg, mod)
+	if err != nil {
+		t.Fatalf("handlePrompts error: %v", err)
+	}
+	if len(ui.promptsCalled) != 0 {
+		t.Errorf("prompts called = %v, want none (existing key)", ui.promptsCalled)
+	}
+	if answers["ssh_key_type"] != "ed25519" {
+		t.Errorf("ssh_key_type = %q, want default ed25519 (prompt skipped)", answers["ssh_key_type"])
+	}
+}
+
+// With no matching skip_if_file path present, the prompt is shown normally.
+func TestHandlePromptsSkipIfFileShowsWhenAbsent(t *testing.T) {
+	ui := &sequentialUI{choiceAnswers: []string{"rsa"}}
+	cfg := newTestRunConfig(t)
+	cfg.Unattended = false
+	cfg.UI = ui
+	cfg.ExplicitModules = map[string]bool{"ssh": true}
+
+	mod := &Module{
+		Name: "ssh",
+		Prompts: []Prompt{
+			{Key: "ssh_key_type", Message: "SSH key type", Default: "ed25519", Type: "choice", Options: []string{"ed25519", "rsa"}, ShowWhen: "explicit_install", SkipIfFile: []string{"~/.ssh/id_ed25519", "~/.ssh/id_rsa"}},
+		},
+	}
+
+	answers, err := handlePrompts(cfg, mod)
+	if err != nil {
+		t.Fatalf("handlePrompts error: %v", err)
+	}
+	if len(ui.promptsCalled) != 1 {
+		t.Errorf("prompts called = %v, want the key-type prompt", ui.promptsCalled)
+	}
+	if answers["ssh_key_type"] != "rsa" {
+		t.Errorf("ssh_key_type = %q, want rsa (user answer)", answers["ssh_key_type"])
+	}
+}
