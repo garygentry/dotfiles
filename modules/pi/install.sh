@@ -63,17 +63,25 @@ if is_dry_run; then
     return 0 2>/dev/null || exit 0
 fi
 
-# npm must be runnable (the nodejs dependency provides it). Guard explicitly so a
-# missing/broken npm gives a clear message instead of an opaque failure.
+# npm must be runnable (the nodejs dependency provides it). Its ABSENCE is an
+# environmental miss, not an operator-config error: DEFER (warn + succeed) exactly as
+# pi-config defers when python3 is absent — the nodejs module installs npm, so a host
+# where it hasn't run yet re-runs `dotfiles install pi` later. verify.sh is the gate
+# that a pi is actually present. (The estate's amber-on-environmental posture; ADR 0025.)
 if ! command -v npm >/dev/null 2>&1; then
-    log_error "pi: npm not found — the 'nodejs' module must run first (declared as a dependency)"
-    return 1 2>/dev/null || exit 1
+    log_warn "pi: npm not found — deferring (the 'nodejs' module provides it; install nodejs, then re-run 'dotfiles install pi')"
+    return 0 2>/dev/null || exit 0
 fi
 
 log_info "Installing ${_pi_spec} (sudo-free npm global)..."
 if ! npm install -g --ignore-scripts "$_pi_spec"; then
-    log_error "pi: 'npm install -g ${_pi_spec}' failed"
-    return 1 2>/dev/null || exit 1
+    # A failed global install is almost always environmental (no registry/network on a
+    # locked-down fleet host) — DEGRADE to a warning so the rest of `dotfiles install`
+    # completes green, and re-runs when connectivity returns; verify.sh stays the gate.
+    # (A genuinely bad BOM pin also lands here, but that self-surfaces at verify — a
+    # red at install on every offline host is the worse failure mode.)
+    log_warn "pi: 'npm install -g ${_pi_spec}' failed — deferring (no npm registry/network? a fleet host still installs; re-run when reachable, or check the pin if it persists)"
+    return 0 2>/dev/null || exit 0
 fi
 
 # --- Post-install verification (ADR 0025 Decision 1) ---------------------------
@@ -102,9 +110,13 @@ if [[ -n "$_pi_pin" && "$_pi_cur" != "$_pi_pin" ]]; then
 fi
 
 # Node minimum, derived from pi's OWN engines.node (no hard-coded version fact —
-# ADR 0025: version facts live in the BOM/package, not in this module). Non-fatal:
-# the authoritative proof is that `pi --version` ran above; this is a clear
-# diagnostic when a too-old node slips through.
+# ADR 0025: version facts live in the BOM/package, not in this module). FATAL
+# (ADR 0025 Decision 6 — guarantee pi's engines.node): a pi running on a node
+# below its own declared floor is an unsupported combination, not a warning. The
+# nodejs module's modules.nodejs.min_version should carry this same floor so the
+# runtime is corrected BEFORE pi installs; this is the belt-and-suspenders catch
+# for drift (pi bumping its floor past the BOM min). Only enforced when both
+# versions are readable — an unreadable package.json is a skip, not a failure.
 _pi_root="$(npm root -g 2>/dev/null || true)"
 _pi_pkgjson="${_pi_root:+${_pi_root}/${_pi_pkg}/package.json}"
 if [[ -n "$_pi_pkgjson" && -f "$_pi_pkgjson" ]]; then
@@ -114,7 +126,8 @@ if [[ -n "$_pi_pkgjson" && -f "$_pi_pkgjson" ]]; then
         # numeric major.minor.patch compare: is _node_cur >= _node_min?
         _lowest="$(printf '%s\n%s\n' "$_node_min" "$_node_cur" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)"
         if [[ "$_lowest" != "$_node_min" ]]; then
-            log_warn "pi: node ${_node_cur} is below pi's engines.node minimum ${_node_min} — bump DOTFILES_NODE_MAJOR"
+            log_error "pi: node ${_node_cur} is below pi's engines.node minimum ${_node_min} — set modules.nodejs.min_version=${_node_min} (or bump DOTFILES_NODE_MAJOR) so a compliant node installs first"
+            return 1 2>/dev/null || exit 1
         fi
     fi
 fi
