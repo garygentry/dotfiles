@@ -14,6 +14,10 @@ import (
 // distinguish "you asked for a profile that isn't there" from "the profile is broken".
 var ErrProfileNotFound = errors.New("profile not found")
 
+// ErrProfileCycle reports that a profile appears in its own ancestor chain through
+// `extends:` — a load-time error rather than a subtle runtime one.
+var ErrProfileCycle = errors.New("profile cycle")
+
 // SecretsConfig holds secrets provider settings.
 type SecretsConfig struct {
 	Provider string `yaml:"provider"`
@@ -37,8 +41,12 @@ type Config struct {
 	Modules     map[string]map[string]any `yaml:"modules"`
 }
 
-// profileFile represents the YAML structure of a profile file.
+// profileFile represents the YAML structure of a profile file. Both fields are optional:
+// a profile with only `extends:` inherits its modules from its parents (an alias), a
+// profile with only `modules:` behaves as it always has (backward-compatible), and a
+// profile with both composes parent modules with its own additions.
 type profileFile struct {
+	Extends []string `yaml:"extends"`
 	Modules []string `yaml:"modules"`
 }
 
@@ -224,29 +232,71 @@ func ResolveProfilePath(dotfilesDir, contentDir, name string) string {
 	return filepath.Join(dotfilesDir, "profiles", name+".yml")
 }
 
-// LoadProfile reads a profile and returns the module names defined under its "modules"
-// key. The name is resolved by ResolveProfilePath, so it may be a bare profile name
-// (looked up in the content dir then the engine) or a path to a profile file anywhere
-// on disk.
+// LoadProfile reads a profile and returns the module names it selects. The name is
+// resolved by ResolveProfilePath, so it may be a bare profile name (looked up in the
+// content dir then the engine) or a path to a profile file anywhere on disk.
 //
-// A missing file yields an error wrapping ErrProfileNotFound.
+// A profile may declare `extends: [<parent-name-or-path>, ...]` to compose its module
+// set from one or more parent profiles. Parents are resolved through the same
+// ResolveProfilePath (so content-over-engine precedence applies uniformly), recursively.
+// The returned list is the **union of module names, de-duped**, with each parent's
+// modules appearing before this profile's own additions (deterministic order — the
+// first occurrence of a name wins). This mirrors the resolver's treatment of a profile
+// as a set of names (see internal/module/resolver.go), where install order comes from
+// module priority + name, not from profile-list order.
+//
+// A profile appearing in its own ancestor chain is a hard load error wrapping
+// ErrProfileCycle. A missing file yields an error wrapping ErrProfileNotFound.
+//
+// Absent `extends:`, behavior is byte-for-byte the flat pre-extends form.
 func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
+	stack := make(map[string]bool)
+	seen := make(map[string]bool)
+	var order []string
+	if err := loadProfileInto(dotfilesDir, contentDir, name, stack, seen, &order); err != nil {
+		return nil, err
+	}
+	return order, nil
+}
+
+// loadProfileInto is the recursive core of LoadProfile. stack tracks the current
+// recursion path (canonical resolved paths) for cycle detection; seen dedupes module
+// names across the whole traversal; order records first-seen module names in insertion
+// order. A profile reached twice via distinct chains (a diamond) is loaded twice but
+// contributes each module only once — correct and cheap at realistic profile depths.
+func loadProfileInto(dotfilesDir, contentDir, name string, stack, seen map[string]bool, order *[]string) error {
 	profilePath := ResolveProfilePath(dotfilesDir, contentDir, name)
+	if stack[profilePath] {
+		return fmt.Errorf("%w: %s appears in its own ancestor chain", ErrProfileCycle, profilePath)
+	}
+	stack[profilePath] = true
+	defer delete(stack, profilePath)
 
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profilePath)
+			return fmt.Errorf("%w: %s", ErrProfileNotFound, profilePath)
 		}
-		return nil, fmt.Errorf("reading profile file %s: %w", profilePath, err)
+		return fmt.Errorf("reading profile file %s: %w", profilePath, err)
 	}
 
 	var pf profileFile
 	if err := yaml.Unmarshal(data, &pf); err != nil {
-		return nil, fmt.Errorf("parsing profile file %s: %w", profilePath, err)
+		return fmt.Errorf("parsing profile file %s: %w", profilePath, err)
 	}
 
-	return pf.Modules, nil
+	for _, parent := range pf.Extends {
+		if err := loadProfileInto(dotfilesDir, contentDir, parent, stack, seen, order); err != nil {
+			return err
+		}
+	}
+	for _, mod := range pf.Modules {
+		if !seen[mod] {
+			seen[mod] = true
+			*order = append(*order, mod)
+		}
+	}
+	return nil
 }
 
 // GetModuleSetting returns the value associated with key inside the named

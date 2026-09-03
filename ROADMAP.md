@@ -125,15 +125,14 @@ Integration tests currently only test successful first-run installation on Ubunt
 
 ---
 
-### 2.4 Profile Stacking and Inheritance
+### 2.4 Profile Stacking and Inheritance — ✅ Shipped (membership only)
 
-Currently a profile is a flat list of modules. Users with multiple machine types (workstation vs server, personal vs work) need composable profiles.
-
-**Scope:**
-- Add `extends:` field to profile YAML: `extends: [minimal, cloud-tools]`
-- Resolve extends recursively (with cycle detection)
-- Allow per-profile config overrides (e.g., override `git.default_branch` per profile)
-- Document profile inheritance in `docs/quick-start.md`
+Delivered: `extends: [<parent>, ...]` composes profile membership recursively
+(union-by-name, cycle-detected, backward-compatible when absent). Per-profile config
+overrides are **explicitly deferred** — per-module settings live in `config.yml`
+`modules.<name>` and merge globally by module name (see
+[content-overlay](docs/content-overlay.md)). This keeps composition to *which* modules
+install, and settings to a single source per module.
 
 **Example:**
 ```yaml
@@ -142,10 +141,10 @@ extends: [developer]
 modules:
   - aws
   - kubernetes
-modules_config:
-  git:
-    default_email: me@work.com
 ```
+
+If per-profile module config becomes a real need, it's a separate follow-up (the
+"modules_config on the profile" shape above), not an extension of this feature.
 
 ---
 
