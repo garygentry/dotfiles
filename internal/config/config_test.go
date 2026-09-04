@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -419,6 +420,247 @@ modules:
 	// fail fast on it rather than silently installing everything.
 	if _, err := LoadProfile(dotfilesDir, "", filepath.Join(projectDir, "absent.yml")); !errors.Is(err, ErrProfileNotFound) {
 		t.Errorf("error = %v, want one wrapping ErrProfileNotFound", err)
+	}
+}
+
+// writeProfile is a tiny helper for the extends tests below — the flat profile tests
+// above deliberately spell out the writes to stay legible in isolation.
+func writeProfile(t *testing.T, dir, name, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, "profiles"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "profiles", name+".yml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestLoadProfile_ExtendsSingle covers the smallest extends composition: one child
+// extends one parent, both contributing modules. The child's modules follow the
+// parent's, in first-seen order.
+func TestLoadProfile_ExtendsSingle(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "baseline", "modules:\n  - git\n  - tmux\n")
+	writeProfile(t, dir, "workstation", "extends: [baseline]\nmodules:\n  - zsh\n  - neovim\n")
+
+	got, err := LoadProfile(dir, "", "workstation")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	want := []string{"git", "tmux", "zsh", "neovim"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// TestLoadProfile_ExtendsAlias covers the common migration shape: an alias profile
+// with only `extends:` and no `modules:` of its own resolves to exactly its parent's
+// set. This is the shape a fleet-floor rename uses to preserve caller behavior when
+// a profile name changes without changing its module contents.
+func TestLoadProfile_ExtendsAlias(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "baseline", "modules:\n  - git\n  - tmux\n  - starship\n")
+	writeProfile(t, dir, "alias", "extends: [baseline]\n")
+
+	got, err := LoadProfile(dir, "", "alias")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	direct, err := LoadProfile(dir, "", "baseline")
+	if err != nil {
+		t.Fatalf("LoadProfile baseline: %v", err)
+	}
+	if !reflect.DeepEqual(got, direct) {
+		t.Errorf("alias resolved to %v, want set-equal to baseline %v", got, direct)
+	}
+}
+
+// TestLoadProfile_ExtendsDiamond covers the diamond case: two parents extend a shared
+// grandparent. Modules from the shared grandparent must appear exactly once, and each
+// parent's own additions must appear once (first-seen wins). This is the shape a
+// multi-role host uses when it expresses `extends: [gpu, workstation]` on a profile
+// whose parents both extend baseline.
+func TestLoadProfile_ExtendsDiamond(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "baseline", "modules:\n  - git\n  - tmux\n")
+	writeProfile(t, dir, "workstation", "extends: [baseline]\nmodules:\n  - zsh\n")
+	writeProfile(t, dir, "gpu", "extends: [baseline]\nmodules:\n  - nvtop\n")
+	writeProfile(t, dir, "host", "extends: [workstation, gpu]\n")
+
+	got, err := LoadProfile(dir, "", "host")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	// baseline modules first (via workstation), then zsh, then baseline seen again via
+	// gpu (skipped as duplicates), then nvtop.
+	want := []string{"git", "tmux", "zsh", "nvtop"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// TestLoadProfile_ExtendsMultiLevel covers chains deeper than one level (a >  b > c).
+// The engine handles arbitrary depth via the recursive resolver.
+func TestLoadProfile_ExtendsMultiLevel(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "c", "modules:\n  - alpha\n")
+	writeProfile(t, dir, "b", "extends: [c]\nmodules:\n  - beta\n")
+	writeProfile(t, dir, "a", "extends: [b]\nmodules:\n  - gamma\n")
+
+	got, err := LoadProfile(dir, "", "a")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	want := []string{"alpha", "beta", "gamma"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// TestLoadProfile_ExtendsCycle covers direct and indirect cycles. The engine must
+// fail at load with ErrProfileCycle, not recurse until the stack blows up.
+func TestLoadProfile_ExtendsCycle(t *testing.T) {
+	dir := t.TempDir()
+
+	// Direct self-cycle: a extends a.
+	writeProfile(t, dir, "a", "extends: [a]\n")
+	if _, err := LoadProfile(dir, "", "a"); !errors.Is(err, ErrProfileCycle) {
+		t.Errorf("self-cycle: err = %v, want one wrapping ErrProfileCycle", err)
+	}
+
+	// Indirect cycle: b extends c, c extends b.
+	writeProfile(t, dir, "b", "extends: [c]\n")
+	writeProfile(t, dir, "c", "extends: [b]\n")
+	if _, err := LoadProfile(dir, "", "b"); !errors.Is(err, ErrProfileCycle) {
+		t.Errorf("indirect cycle: err = %v, want one wrapping ErrProfileCycle", err)
+	}
+}
+
+// TestLoadProfile_FlatBehavior pins the flat-profile (no `extends:`) shape: the module
+// list is returned in file order; duplicates within a single list are collapsed (a
+// small behaviour change vs. the pre-extends form, documented on LoadProfile); an
+// empty list resolves to nil.
+func TestLoadProfile_FlatBehavior(t *testing.T) {
+	t.Run("ordered no duplicates", func(t *testing.T) {
+		dir := t.TempDir()
+		writeProfile(t, dir, "flat", "modules:\n  - git\n  - zsh\n  - neovim\n")
+		got, err := LoadProfile(dir, "", "flat")
+		if err != nil {
+			t.Fatalf("LoadProfile: %v", err)
+		}
+		if want := []string{"git", "zsh", "neovim"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+	t.Run("duplicates within one list are deduped", func(t *testing.T) {
+		// Pre-extends: this returned [git, tmux, git]. Post-extends: dedupe runs on
+		// every load, so the flat form loses the duplicate too. Downstream treats
+		// the list as a set, so this is safe — but pinned here so anyone reasoning
+		// about the caller sees the actual behaviour, not the old one.
+		dir := t.TempDir()
+		writeProfile(t, dir, "dup", "modules:\n  - git\n  - tmux\n  - git\n")
+		got, err := LoadProfile(dir, "", "dup")
+		if err != nil {
+			t.Fatalf("LoadProfile: %v", err)
+		}
+		if want := []string{"git", "tmux"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v (duplicate should be collapsed)", got, want)
+		}
+	})
+}
+
+// TestLoadProfile_ExtendsMissingParent pins the three properties the missing-parent
+// error path must have: it wraps ErrProfileNotFound (not ErrProfileCycle), the error
+// mentions the child profile that referenced the missing parent (so a deep chain
+// isn't opaque), and the returned slice is nil (not a silent empty set).
+func TestLoadProfile_ExtendsMissingParent(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "child", "extends: [nosuch]\nmodules:\n  - git\n")
+
+	mods, err := LoadProfile(dir, "", "child")
+	if !errors.Is(err, ErrProfileNotFound) {
+		t.Fatalf("err = %v, want one wrapping ErrProfileNotFound", err)
+	}
+	if errors.Is(err, ErrProfileCycle) {
+		t.Errorf("err = %v, unexpectedly matches ErrProfileCycle", err)
+	}
+	if mods != nil {
+		t.Errorf("modules = %v, want nil on error", mods)
+	}
+	if !strings.Contains(err.Error(), "child") {
+		t.Errorf("err = %q, want it to name the originating child profile", err.Error())
+	}
+	if !strings.Contains(err.Error(), "nosuch") {
+		t.Errorf("err = %q, want it to name the missing parent", err.Error())
+	}
+}
+
+// TestLoadProfile_ExtendsAcrossContentBoundary pins that content-over-engine precedence
+// applies to *parents* pulled via `extends:`, not just to the top-level profile. Without
+// this, a refactor of ResolveProfilePath could quietly change parent resolution while the
+// rest of the extends suite (which writes everything to a single dir) stayed green.
+func TestLoadProfile_ExtendsAcrossContentBoundary(t *testing.T) {
+	engine := t.TempDir()
+	content := t.TempDir()
+	writeProfile(t, engine, "baseline", "modules:\n  - engine-baseline-only\n")
+	writeProfile(t, content, "baseline", "modules:\n  - content-baseline-only\n")
+	writeProfile(t, content, "child", "extends: [baseline]\nmodules:\n  - childmod\n")
+
+	got, err := LoadProfile(engine, content, "child")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	// The content-dir baseline wins over the engine baseline (matches
+	// ResolveProfilePath's precedence when the parent is a bare name).
+	want := []string{"content-baseline-only", "childmod"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v (content baseline should shadow engine baseline)", got, want)
+	}
+}
+
+// TestLoadProfile_ExtendsRejectsUnknownField covers the highest-severity silent-failure
+// class the extends primitive would otherwise introduce: a typo of `extend:` (singular)
+// or any other unrecognised top-level key would parse silently under yaml.Unmarshal's
+// default mode, dropping the inheritance and installing the wrong module set.
+// KnownFields(true) rejects them at parse time.
+func TestLoadProfile_ExtendsRejectsUnknownField(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("singular extend typo", func(t *testing.T) {
+		writeProfile(t, dir, "typo", "extend: [baseline]\nmodules: [git]\n")
+		if _, err := LoadProfile(dir, "", "typo"); err == nil {
+			t.Errorf("LoadProfile: expected error on `extend:` typo, got nil")
+		}
+	})
+	t.Run("unrecognised top-level key", func(t *testing.T) {
+		writeProfile(t, dir, "unknown", "requires: [foo]\nmodules: [git]\n")
+		if _, err := LoadProfile(dir, "", "unknown"); err == nil {
+			t.Errorf("LoadProfile: expected error on unknown top-level key, got nil")
+		}
+	})
+}
+
+// TestLoadProfile_EmptyExtendsElement covers the case where an `extends:` list contains
+// an empty string (`extends: [""]` or `extends: [baseline, ""]`) — a straightforward
+// authoring mistake that would otherwise yield a confusing "profile not found:
+// /…/profiles/.yml" error. Reject at load with a clear message.
+func TestLoadProfile_EmptyExtendsElement(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "baseline", "modules: [git]\n")
+	writeProfile(t, dir, "child", "extends: [\"\"]\nmodules: [zsh]\n")
+	if _, err := LoadProfile(dir, "", "child"); err == nil {
+		t.Errorf("LoadProfile: expected error on empty parent name, got nil")
+	}
+}
+
+// TestLoadProfile_EmptyProfileFile covers a profile file that declares neither
+// `extends:` nor `modules:`. Almost always a typo; silent empty membership is exactly
+// the outcome we don't want.
+func TestLoadProfile_EmptyProfileFile(t *testing.T) {
+	dir := t.TempDir()
+	writeProfile(t, dir, "empty", "# nothing here\n")
+	if _, err := LoadProfile(dir, "", "empty"); err == nil {
+		t.Errorf("LoadProfile: expected error on all-empty profile, got nil")
 	}
 }
 
