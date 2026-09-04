@@ -76,15 +76,25 @@ resolution, module execution, and summary output.`,
 
 		profileModules, profileErr := config.LoadProfile(sys.DotfilesDir, cfg.ContentDir, cfg.Profile)
 		if profileErr != nil {
-			if explicitProfile {
-				u.Error(fmt.Sprintf("Requested profile %q could not be loaded", cfg.Profile))
+			// Only ErrProfileNotFound on an implicit (config.yml) profile is safe to
+			// treat as "no profile → fall back to all modules." Every other error
+			// (cycle, malformed YAML, missing parent under `extends:`, IO) is a real
+			// failure that must not silently install the whole module set: a user
+			// editing config.yml to add a broken `extends:` chain would otherwise get
+			// a fleet-wide install with only a Debug-level trace.
+			if !explicitProfile && errors.Is(profileErr, config.ErrProfileNotFound) {
+				u.Debug(fmt.Sprintf("No profile %q found, using all modules", cfg.Profile))
+			} else {
+				u.Error(fmt.Sprintf("Profile %q could not be loaded: %v", cfg.Profile, profileErr))
 				if errors.Is(profileErr, config.ErrProfileNotFound) && !config.ProfileIsPath(cfg.Profile) {
 					u.Info(fmt.Sprintf("Profiles live in %s; --profile also accepts a path to a profile file.",
 						filepath.Join(sys.DotfilesDir, "profiles")))
 				}
+				if errors.Is(profileErr, config.ErrProfileCycle) {
+					u.Info("A profile appears in its own `extends:` ancestor chain; fix the cycle in the profile files.")
+				}
 				return profileErr
 			}
-			u.Debug(fmt.Sprintf("No profile %q found, using all modules", cfg.Profile))
 		}
 
 		// Determine requested modules: CLI args > profile > all.

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -41,10 +42,13 @@ type Config struct {
 	Modules     map[string]map[string]any `yaml:"modules"`
 }
 
-// profileFile represents the YAML structure of a profile file. Both fields are optional:
-// a profile with only `extends:` inherits its modules from its parents (an alias), a
-// profile with only `modules:` behaves as it always has (backward-compatible), and a
-// profile with both composes parent modules with its own additions.
+// profileFile represents the YAML structure of a profile file. At least one of
+// `extends:` or `modules:` must be present: only `extends:` inherits from parents (an
+// alias), only `modules:` behaves as flat profiles always have, and both compose the
+// parents with this profile's own additions. Neither is a load error (almost always a
+// typo, silent empty set otherwise). Unknown top-level keys are rejected by the
+// KnownFields(true) decoder in loadProfileInto — a common footgun (`extend:` singular)
+// would otherwise silently drop the field.
 type profileFile struct {
 	Extends []string `yaml:"extends"`
 	Modules []string `yaml:"modules"`
@@ -239,16 +243,25 @@ func ResolveProfilePath(dotfilesDir, contentDir, name string) string {
 // A profile may declare `extends: [<parent-name-or-path>, ...]` to compose its module
 // set from one or more parent profiles. Parents are resolved through the same
 // ResolveProfilePath (so content-over-engine precedence applies uniformly), recursively.
-// The returned list is the **union of module names, de-duped**, with each parent's
-// modules appearing before this profile's own additions (deterministic order — the
-// first occurrence of a name wins). This mirrors the resolver's treatment of a profile
-// as a set of names (see internal/module/resolver.go), where install order comes from
-// module priority + name, not from profile-list order.
+// The returned list is the **union of module names, de-duped in first-seen order**,
+// with each parent's modules appearing before this profile's own additions. Dedup runs
+// on every load, so a duplicate name in a flat `modules:` list is also collapsed — a
+// small behaviour change vs. the pre-extends form, made safely because the downstream
+// resolver (`internal/module/resolver.go`) treats the list as a set. An empty result
+// is returned as `nil`, not a zero-length slice.
 //
-// A profile appearing in its own ancestor chain is a hard load error wrapping
-// ErrProfileCycle. A missing file yields an error wrapping ErrProfileNotFound.
+// A profile file that declares neither `extends:` nor `modules:` is rejected — almost
+// always a typo, and a silent empty set is exactly the outcome we don't want.
 //
-// Absent `extends:`, behavior is byte-for-byte the flat pre-extends form.
+// Errors:
+//   - a missing profile file (this profile, or any ancestor pulled via `extends:`)
+//     wraps ErrProfileNotFound;
+//   - a profile appearing in its own ancestor chain wraps ErrProfileCycle;
+//   - unknown YAML keys (a `extend:` typo, an unrecognised field) are rejected at
+//     parse time — the alternative silently drops the field.
+//
+// Chain errors are wrapped with the child profile that referenced the failing parent,
+// so a deep failure names both the originating profile and the offending ancestor.
 func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
 	stack := make(map[string]bool)
 	seen := make(map[string]bool)
@@ -259,18 +272,34 @@ func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
 	return order, nil
 }
 
-// loadProfileInto is the recursive core of LoadProfile. stack tracks the current
-// recursion path (canonical resolved paths) for cycle detection; seen dedupes module
-// names across the whole traversal; order records first-seen module names in insertion
-// order. A profile reached twice via distinct chains (a diamond) is loaded twice but
-// contributes each module only once — correct and cheap at realistic profile depths.
+// loadProfileInto is the recursive core of LoadProfile. The cycle-detection key is the
+// resolved-and-abs-cleaned profile path — enough to catch a cycle expressed through
+// mixed bare-name/absolute/relative spellings of the same file. Symlinks are NOT
+// resolved, so a cycle expressed through symlink aliases would only be caught when
+// recursion depth explodes; that's an accepted limitation, not a hidden claim.
+//
+// A profile reached twice via distinct chains (a diamond) is loaded twice but
+// contributes each module only once. Cost is O(B^D) file reads at fan-out B and depth
+// D — negligible for the shapes we expect (D ≤ 3, B ≤ 3); revisit with a
+// per-invocation parse cache if a deep diamond ever becomes real.
 func loadProfileInto(dotfilesDir, contentDir, name string, stack, seen map[string]bool, order *[]string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("empty profile name in extends chain")
+	}
 	profilePath := ResolveProfilePath(dotfilesDir, contentDir, name)
-	if stack[profilePath] {
+	key, err := filepath.Abs(profilePath)
+	if err != nil {
+		// filepath.Abs only fails when the working directory can't be read; if we hit
+		// that, fall back to the un-normalised path so cycle detection still catches
+		// the common case rather than panicking. The abs-normalisation is a safety
+		// net on top of ResolveProfilePath, not the primary correctness lever.
+		key = profilePath
+	}
+	if stack[key] {
 		return fmt.Errorf("%w: %s appears in its own ancestor chain", ErrProfileCycle, profilePath)
 	}
-	stack[profilePath] = true
-	defer delete(stack, profilePath)
+	stack[key] = true
+	defer delete(stack, key)
 
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
@@ -281,13 +310,21 @@ func loadProfileInto(dotfilesDir, contentDir, name string, stack, seen map[strin
 	}
 
 	var pf profileFile
-	if err := yaml.Unmarshal(data, &pf); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&pf); err != nil {
 		return fmt.Errorf("parsing profile file %s: %w", profilePath, err)
+	}
+	if len(pf.Extends) == 0 && len(pf.Modules) == 0 {
+		return fmt.Errorf("profile %s declares neither `extends:` nor `modules:` — nothing to load", profilePath)
 	}
 
 	for _, parent := range pf.Extends {
+		if strings.TrimSpace(parent) == "" {
+			return fmt.Errorf("empty parent name in `extends:` of %s", profilePath)
+		}
 		if err := loadProfileInto(dotfilesDir, contentDir, parent, stack, seen, order); err != nil {
-			return err
+			return fmt.Errorf("loading parent %q referenced from %s: %w", parent, profilePath, err)
 		}
 	}
 	for _, mod := range pf.Modules {
