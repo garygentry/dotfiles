@@ -191,15 +191,23 @@ ensure_go() {
 # Clone or update the dotfiles repository
 # ---------------------------------------------------------------------------
 ensure_repo() {
-    if [ -d "${DOTFILES_DIR}/.git" ]; then
-        info "Dotfiles repo already exists at ${DOTFILES_DIR}, updating to origin/${DOTFILES_REF}..."
-        update_repo
-    else
+    # Fresh host: clone the default branch, then converge to the requested ref
+    # exactly like an existing checkout does (below). We deliberately do NOT
+    # `git clone --branch "$DOTFILES_REF"`: --branch rejects a raw commit SHA, so
+    # a SHA pin (DOTFILES_REF, client-deploy-model D5) would fail the clone and
+    # the old `|| git clone` fallback would land on the default branch — a SILENT
+    # pin bypass. Cloning default then update_repo makes SHA / tag / branch refs
+    # all resolve through one path (fetch + reset FETCH_HEAD).
+    if [ ! -d "${DOTFILES_DIR}/.git" ]; then
         info "Cloning dotfiles repo to ${DOTFILES_DIR}..."
-        git clone --branch "$DOTFILES_REF" "$DOTFILES_REPO" "$DOTFILES_DIR" \
-            || git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+        git clone --quiet "$DOTFILES_REPO" "$DOTFILES_DIR" \
+            || fatal "Could not clone ${DOTFILES_REPO} to ${DOTFILES_DIR}. Check the network/remote and re-run."
         ok "Dotfiles repo cloned to ${DOTFILES_DIR}"
+    else
+        info "Dotfiles repo already exists at ${DOTFILES_DIR}..."
     fi
+    info "Checking out engine ref ${DOTFILES_REF}..."
+    update_repo
 }
 
 # Force the engine checkout to match origin, and FAIL LOUDLY if it can't.
@@ -214,8 +222,14 @@ ensure_repo() {
 update_repo() {
     local ref="$DOTFILES_REF"
 
+    # Fetch the requested ref by name — a branch, a tag, or a full commit SHA
+    # (GitHub serves reachable SHAs). The fetched tip lands in FETCH_HEAD, which
+    # we reset onto below. This is why the ref must be fetched by NAME, not read
+    # as "origin/${ref}": a remote-tracking ref exists only for branches, so
+    # "origin/<sha>" and "origin/<tag>" do not resolve — the old form worked for
+    # branches only and broke every SHA/tag pin (client-deploy-model D5).
     if ! git -C "$DOTFILES_DIR" fetch --quiet origin "$ref"; then
-        fatal "Could not fetch origin/${ref} for ${DOTFILES_DIR}. Check the network/remote and re-run — refusing to build from stale source."
+        fatal "Could not fetch ref '${ref}' from origin for ${DOTFILES_DIR}. The ref may not exist (typo, deleted, or unreachable SHA) — refusing to build from stale source."
     fi
 
     # Preserve any local drift as a recovery patch before we discard it.
@@ -232,18 +246,19 @@ update_repo() {
         fi
     fi
 
-    # reset --hard aligns tracked files to origin; clean -fd removes stray
-    # untracked files. Neither touches gitignored paths, so runtime state
-    # (.state/, .backups/) is preserved across the update.
-    if ! git -C "$DOTFILES_DIR" reset --hard --quiet "origin/${ref}"; then
-        fatal "Could not reset ${DOTFILES_DIR} to origin/${ref} — refusing to build from stale source."
+    # reset --hard aligns tracked files to the fetched ref (FETCH_HEAD, set by the
+    # fetch above); clean -fd removes stray untracked files. Neither touches
+    # gitignored paths, so runtime state (.state/, .backups/) is preserved across
+    # the update. FETCH_HEAD resolves uniformly for a branch, tag, or SHA.
+    if ! git -C "$DOTFILES_DIR" reset --hard --quiet FETCH_HEAD; then
+        fatal "Could not reset ${DOTFILES_DIR} to ref '${ref}' (FETCH_HEAD) — refusing to build from stale source."
     fi
     git -C "$DOTFILES_DIR" clean -fd --quiet -e '.backups' -e '.state' || true
 
     local head_sha head_subject
     head_sha="$(git -C "$DOTFILES_DIR" rev-parse --short HEAD)"
     head_subject="$(git -C "$DOTFILES_DIR" log -1 --format=%s 2>/dev/null || echo '')"
-    ok "Dotfiles repo at origin/${ref} (${head_sha}: ${head_subject})"
+    ok "Dotfiles repo at ref '${ref}' (${head_sha}: ${head_subject})"
 }
 
 # ---------------------------------------------------------------------------
