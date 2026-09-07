@@ -139,6 +139,31 @@ func uninstallModule(u *ui.UI, store *state.Store, moduleName string) error {
 	return nil
 }
 
+// removeModuleForPrune reverses a module's recorded operations and drops its
+// state WITHOUT interactive confirmation. Prune's consent is the per-host
+// --allow-prune opt-in (plus the drift report and --dry-run preview), so it must
+// not prompt per module the way `uninstall` does. It reuses the same
+// rollbackOperation machinery, so — like uninstall — it only ever undoes
+// engine-recorded operations (created files/dirs restored/removed; packages and
+// scripts are left, per rollbackOperation). Returns any operation errors; the
+// caller keeps pruning the remaining modules. A no-op under global dryRun.
+func removeModuleForPrune(u *ui.UI, store *state.Store, ms *state.ModuleState) []string {
+	if dryRun {
+		return nil
+	}
+	var errs []string
+	for i := len(ms.Operations) - 1; i >= 0; i-- {
+		if err := rollbackOperation(u, ms.Operations[i]); err != nil {
+			errs = append(errs, fmt.Sprintf("operation %d: %v", i, err))
+			u.Warn(fmt.Sprintf("  %s: operation %d failed: %v", ms.Name, i, err))
+		}
+	}
+	if err := store.Remove(ms.Name); err != nil {
+		errs = append(errs, fmt.Sprintf("removing state: %v", err))
+	}
+	return errs
+}
+
 func rollbackOperation(u *ui.UI, op state.Operation) error {
 	switch op.Type {
 	case "file_deploy":
