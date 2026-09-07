@@ -158,6 +158,13 @@ func removeModuleForPrune(u *ui.UI, store *state.Store, ms *state.ModuleState) [
 			u.Warn(fmt.Sprintf("  %s: operation %d failed: %v", ms.Name, i, err))
 		}
 	}
+	// Preserve state (and its rollback metadata) when any op failed, so the module
+	// stays a prune candidate for the next reconcile instead of becoming an
+	// untracked orphan (files left on disk with no record). Mirrors uninstall's
+	// abort-before-state-removal on error. Only a fully clean rollback drops state.
+	if len(errs) > 0 {
+		return errs
+	}
 	if err := store.Remove(ms.Name); err != nil {
 		errs = append(errs, fmt.Sprintf("removing state: %v", err))
 	}

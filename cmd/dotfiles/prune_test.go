@@ -135,3 +135,35 @@ func TestRemoveModuleForPrune(t *testing.T) {
 		t.Fatal("state should be removed")
 	}
 }
+
+// A failed rollback must PRESERVE state so the module stays a prune candidate for
+// the next reconcile — never an untracked orphan (file left, state gone).
+func TestRemoveModuleForPrunePreservesStateOnRollbackError(t *testing.T) {
+	dir := t.TempDir()
+	store := state.NewStore(dir)
+	u := ui.New(false)
+	dryRun = false
+
+	// Record a "created" op whose Path is a NON-EMPTY directory: rollback does
+	// os.Remove(path), which fails on a non-empty dir → an op error.
+	busyDir := filepath.Join(dir, "busy")
+	if err := os.MkdirAll(busyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(busyDir, "child"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ms := &state.ModuleState{Name: "stuck", Status: "installed"}
+	ms.RecordOperation(state.Operation{Type: "file_deploy", Action: "created", Path: busyDir})
+	if err := store.Set(ms); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := removeModuleForPrune(u, store, ms)
+	if len(errs) == 0 {
+		t.Fatal("expected a rollback error for a non-empty dir")
+	}
+	if got, _ := store.Get("stuck"); got == nil {
+		t.Fatal("state must be PRESERVED on rollback error (no orphaning)")
+	}
+}
