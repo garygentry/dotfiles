@@ -61,6 +61,12 @@ func loadAdditionsManifest(path string) (map[string]bool, error) {
 	if err := dec.Decode(&af); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parsing additions manifest %s: %w", path, err)
 	}
+	// Single document only. A stray `---` would silently drop the protections in
+	// every document after the first (T2), wrongly pruning those modules — so a
+	// second document is a hard error, not a half-read allowlist.
+	if err := dec.Decode(new(additionsFile)); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("additions manifest %s must be a single YAML document", path)
+	}
 	for _, m := range af.Modules {
 		if m != "" {
 			protect[m] = true

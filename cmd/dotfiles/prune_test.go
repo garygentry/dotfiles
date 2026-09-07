@@ -53,6 +53,16 @@ func TestLoadAdditionsManifest(t *testing.T) {
 	if _, err := loadAdditionsManifest(bad); err == nil {
 		t.Fatal("malformed manifest: expected error, got nil")
 	}
+
+	// Multi-document manifest → HARD error: a stray `---` would silently drop every
+	// protection after the first document, wrongly pruning those modules (T2).
+	multi := filepath.Join(dir, "multi.yml")
+	if err := os.WriteFile(multi, []byte("modules:\n  - foo\n---\nmodules:\n  - bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadAdditionsManifest(multi); err == nil {
+		t.Fatal("multi-document manifest: expected error, got nil")
+	}
 }
 
 func TestComputePruneCandidates(t *testing.T) {
