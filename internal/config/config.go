@@ -280,8 +280,13 @@ func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
 // are in resolved `extends` order — each parent before the profile that extends it —
 // so folding them last-wins (see ComposeModules) makes a child override its parents.
 // A profile reached twice through a diamond contributes its layer once (first-seen),
-// so the fold order is deterministic regardless of the diamond. Errors match
-// LoadProfile.
+// so the fold order is deterministic regardless of the diamond. One corner follows
+// from first-seen: if a profile is reached both as an ancestor and directly (e.g.
+// `top: extends [overlayA, base]` where `overlayA` itself extends `base`), `base`'s
+// layer is pinned at its earlier ancestor position, so `overlayA` wins the fold even
+// though `top` lists `base` last. This is deliberate — a more-specific descendant
+// overrides an ancestor — but overlay authors should read `extends:` as a dependency
+// DAG, not a raw last-wins list. Errors match LoadProfile.
 func LoadProfileResolved(dotfilesDir, contentDir, name string) ([]string, []map[string]map[string]any, error) {
 	stack := make(map[string]bool)
 	acc := &profileAcc{seen: make(map[string]bool), layerSeen: make(map[string]bool)}

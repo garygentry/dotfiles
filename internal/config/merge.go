@@ -147,12 +147,22 @@ func LoadHostConfig(path string) (map[string]map[string]any, error) {
 	if err := dec.Decode(&lc); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parsing host config %s: %w", path, err)
 	}
-	// A host-owned file is a single document. A stray `---` (or two snippets a
-	// provisioning template concatenated) would leave every override after the
-	// first silently unapplied — the exact silent drop T2 forbids — so reject a
-	// second document rather than half-apply the file.
-	if err := dec.Decode(new(layerConfig)); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("host config %s must be a single YAML document", path)
+	if err := ErrIfSecondYAMLDoc(dec, fmt.Sprintf("host config %s", path)); err != nil {
+		return nil, err
 	}
 	return lc.Modules, nil
+}
+
+// ErrIfSecondYAMLDoc returns an error when dec — a decoder that has already read one
+// document — has a further document remaining. Host-owned files (LoadHostConfig here,
+// loadAdditionsManifest in the prune command) are single-document by contract: a stray
+// `---` would leave every override/protection after the first silently unapplied, the
+// exact T2 violation both readers exist to prevent. Shared so the guard can never
+// diverge between the two readers. A malformed second document is likewise a hard
+// error (its non-EOF decode error trips the guard).
+func ErrIfSecondYAMLDoc(dec *yaml.Decoder, what string) error {
+	if err := dec.Decode(new(map[string]any)); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%s must be a single YAML document", what)
+	}
+	return nil
 }

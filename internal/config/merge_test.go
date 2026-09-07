@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // runComposePipeline replays exactly what install.go does to compose the layered
@@ -81,6 +82,34 @@ func TestComposeModules_Precedence(t *testing.T) {
 	}
 	if limits["tokens"] != 1000 {
 		t.Errorf("limits.tokens = %v, want 1000 (earlier-only key survives deep-merge)", limits["tokens"])
+	}
+}
+
+// TestMergeConfig_NestedDeepMerge pins the content-overlay path's shift from shallow
+// per-key replace to recursive deep-merge (§D-b): a nested module map in an overlay
+// config.yml merges key-by-key with the base instead of replacing the whole subtree,
+// so a base key the overlay does not mention survives. Inert in-tree today (the estate
+// overlay's modules.* are all flat scalars) but pinned so the semantics can't drift.
+func TestMergeConfig_NestedDeepMerge(t *testing.T) {
+	base := &Config{Modules: map[string]map[string]any{
+		"cc": {"env": map[string]any{"A": 1, "B": 2}},
+	}}
+	overlay := &Config{Modules: map[string]map[string]any{
+		"cc": {"env": map[string]any{"A": 9, "C": 3}},
+	}}
+	mergeConfig(base, overlay)
+	env, ok := base.Modules["cc"]["env"].(map[string]any)
+	if !ok {
+		t.Fatalf("env = %T, want map", base.Modules["cc"]["env"])
+	}
+	if env["A"] != 9 {
+		t.Errorf("env.A = %v, want 9 (overridden)", env["A"])
+	}
+	if env["B"] != 2 {
+		t.Errorf("env.B = %v, want 2 (base key survives deep-merge)", env["B"])
+	}
+	if env["C"] != 3 {
+		t.Errorf("env.C = %v, want 3 (overlay key added)", env["C"])
 	}
 }
 
@@ -316,9 +345,13 @@ func TestComposePipeline_EndToEnd(t *testing.T) {
 }
 
 // TestRCFG4_ProjectLocalSettingsUntouched pins R-CFG-4: the layered config pipeline is
-// out-of-governance for project-local settings — it never reads or writes a project's
-// .claude/settings.local.json. A full compose runs against a seeded project dir; the
-// file must be byte-for-byte and mtime unchanged, and no new file may appear.
+// out-of-governance for project-local settings — it never reads or writes a
+// .claude/settings.local.json. To be a real guard (not a tautology on a file the
+// pipeline was never handed), it plants a settings.local.json in BOTH places a future
+// scanning regression could reach — inside the dotfiles tree the pipeline actually
+// reads (config.yml + profiles/), and in the working directory the reconcile runs from
+// — then composes and asserts each is byte-for-byte and mtime unchanged with no sibling
+// created. A regression that consumed or rewrote a found settings.local.json would fail.
 func TestRCFG4_ProjectLocalSettingsUntouched(t *testing.T) {
 	t.Setenv("DOTFILES_CONTENT_DIR", "")
 	t.Setenv("DOTFILES_PROFILE", "")
@@ -340,48 +373,64 @@ func TestRCFG4_ProjectLocalSettingsUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A developer's project that happens to live where the reconcile runs.
-	project := t.TempDir()
-	claudeDir := filepath.Join(project, ".claude")
-	if err := os.MkdirAll(claudeDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	settings := filepath.Join(claudeDir, "settings.local.json")
 	want := []byte(`{"permissions":{"allow":["Bash(git status)"]},"private":true}`)
-	if err := os.WriteFile(settings, want, 0644); err != nil {
-		t.Fatal(err)
+	seed := func(root string) (path string, mtime time.Time) {
+		cd := filepath.Join(root, ".claude")
+		if err := os.MkdirAll(cd, 0755); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(cd, "settings.local.json")
+		if err := os.WriteFile(p, want, 0644); err != nil {
+			t.Fatal(err)
+		}
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p, fi.ModTime()
 	}
-	fiBefore, err := os.Stat(settings)
+	inTree, inTreeMtime := seed(dir) // inside the tree the pipeline reads
+	project := t.TempDir()
+	inCwd, inCwdMtime := seed(project) // the working directory the reconcile runs from
+
+	// Compose from within the project dir, so a CWD-relative scan-or-write regression
+	// would trip against the project's settings.
+	prevWd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chdir(project); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(prevWd)
 
-	// Run the whole layered compose the reconcile uses.
 	if got := runComposePipeline(t, dir, host); got["cc"]["endpoint"] != "host" {
 		t.Fatalf("pipeline precedence broke: endpoint = %v", got["cc"]["endpoint"])
 	}
 
-	// The project-local settings file is untouched: same bytes, same mtime.
-	gotBytes, err := os.ReadFile(settings)
-	if err != nil {
-		t.Fatalf("settings.local.json gone after compose: %v", err)
+	assertUntouched := func(label, p string, mtime time.Time) {
+		gotBytes, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("%s: settings.local.json gone after compose: %v", label, err)
+		}
+		if string(gotBytes) != string(want) {
+			t.Errorf("%s: content changed:\n got %s\nwant %s", label, gotBytes, want)
+		}
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !fi.ModTime().Equal(mtime) {
+			t.Errorf("%s: mtime changed: %v -> %v", label, mtime, fi.ModTime())
+		}
+		entries, err := os.ReadDir(filepath.Dir(p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "settings.local.json" {
+			t.Errorf("%s: .claude dir changed: %v, want only settings.local.json", label, entries)
+		}
 	}
-	if string(gotBytes) != string(want) {
-		t.Errorf("settings.local.json content changed:\n got %s\nwant %s", gotBytes, want)
-	}
-	fiAfter, err := os.Stat(settings)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !fiAfter.ModTime().Equal(fiBefore.ModTime()) {
-		t.Errorf("settings.local.json mtime changed: %v -> %v", fiBefore.ModTime(), fiAfter.ModTime())
-	}
-	// No new files created under the project's .claude dir.
-	entries, err := os.ReadDir(claudeDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 || entries[0].Name() != "settings.local.json" {
-		t.Errorf(".claude dir changed: %v, want only settings.local.json", entries)
-	}
+	assertUntouched("dotfiles tree", inTree, inTreeMtime)
+	assertUntouched("working dir", inCwd, inCwdMtime)
 }
