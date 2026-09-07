@@ -232,6 +232,68 @@ resolution, module execution, and summary output.`,
 
 		u.PrintExecutionPlan(plan.Modules, plan.Skipped)
 
+		// Prune reconcile (ADR 0028 §D6): only in a full PROFILE reconcile. Gates:
+		// no module args (else plan.Modules is a subset), not --update-only, and a
+		// profile actually in effect (never prune against the "all modules"
+		// fallback). The desired set is the PROFILE's resolved closure — computed
+		// fresh from profileModules, NOT from `plan`/`requested`, so an interactive
+		// multi-select (or any subset the operator picked this run) can't turn a
+		// still-desired module into a prune target. Candidates are computed now so
+		// they show in the plan / dry-run; execution happens after a clean install.
+		var pruneCandidates []string
+		var pruneOptedIn bool
+		pruneEligible := len(args) == 0 && !updateOnly && !noPrune && profileErr == nil && len(profileModules) > 0
+		if pruneEligible {
+			profilePlan, pErr := module.Resolve(allModules, profileModules, sys.OS)
+			if pErr != nil {
+				// Never prune against an uncertain desired set — disable, don't guess.
+				u.Warn(fmt.Sprintf("Prune disabled: could not resolve the profile's desired set: %v", pErr))
+				pruneEligible = false
+			} else {
+				// Desired = resolved profile modules + deps, PLUS OS-skipped desired
+				// modules: a module the profile wants but that isn't applicable to this
+				// OS is not drift and must never be pruned.
+				effectiveNames := make(map[string]bool, len(profilePlan.Modules)+len(profilePlan.Skipped))
+				for _, m := range profilePlan.Modules {
+					effectiveNames[m.Name] = true
+				}
+				for _, m := range profilePlan.Skipped {
+					effectiveNames[m.Name] = true
+				}
+
+				protect, mErr := loadAdditionsManifest(additionsManifest)
+				if mErr != nil {
+					return mErr // malformed manifest: hard fail, never prune blind
+				}
+				stateStore := state.NewStore(filepath.Join(sys.DotfilesDir, ".state"))
+				pruneCandidates, err = computePruneCandidates(stateStore, effectiveNames, protect)
+				if err != nil {
+					return fmt.Errorf("computing prune candidates: %w", err)
+				}
+				pruneOptedIn = hasPruneOptIn(sys.DotfilesDir) || allowPrune
+
+				// Fail CLOSED: if we would actually remove modules but no additions
+				// manifest path is configured, the host-local protect list is silently
+				// absent (a real hazard under `ssh … bash -lc`, which strips DOTFILES_*
+				// env). Refuse to prune rather than delete with nothing protected;
+				// install still proceeds.
+				if pruneOptedIn && len(pruneCandidates) > 0 && additionsManifest == "" {
+					u.Warn("Prune disabled: no additions manifest configured (--additions-manifest / DOTFILES_ADDITIONS_MANIFEST).")
+					u.Warn("Refusing to prune with nothing protected. Configure the path (an absent file = empty allowlist) to enable prune.")
+					pruneEligible = false
+				} else if len(pruneCandidates) > 0 {
+					list := strings.Join(pruneCandidates, ", ")
+					if pruneOptedIn {
+						u.Warn(fmt.Sprintf("Prune: %d module(s) not in the profile will be removed: %s", len(pruneCandidates), list))
+					} else {
+						u.Warn(fmt.Sprintf("Drift: %d installed module(s) not in the profile: %s", len(pruneCandidates), list))
+						u.Info("Not removed — this host has not opted into prune. Pass --allow-prune to remove them")
+						u.Info("(recorded per host), or list them under `modules:` in the additions manifest to keep them.")
+					}
+				}
+			}
+		}
+
 		if dryRun {
 			u.Info("Dry-run mode: no changes will be made")
 			return nil
@@ -293,8 +355,62 @@ resolution, module execution, and summary output.`,
 			}
 		}
 
+		// Phase 6: Prune — remove modules absent from the profile. ONLY on a CLEAN
+		// reconcile: if any install failed, skip prune AND skip recording the opt-in
+		// (a durable destructive policy must not be armed by a failed run, and a
+		// partial state must not drive removals).
+		var prunedWithErrors int
+		if pruneEligible {
+			if failed > 0 {
+				if pruneOptedIn && len(pruneCandidates) > 0 {
+					u.Warn(fmt.Sprintf("Prune skipped: %d module(s) failed — not pruning on a partial reconcile.", failed))
+				}
+			} else {
+				if allowPrune && !hasPruneOptIn(sys.DotfilesDir) {
+					if err := recordPruneOptIn(sys.DotfilesDir); err != nil {
+						u.Warn(fmt.Sprintf("could not record prune opt-in: %v", err))
+					} else {
+						u.Info("Recorded prune opt-in for this host; future reconciles prune automatically.")
+					}
+				}
+				if pruneOptedIn && len(pruneCandidates) > 0 {
+					stateStore := state.NewStore(filepath.Join(sys.DotfilesDir, ".state"))
+					var pruned int
+					for _, name := range pruneCandidates {
+						ms, gErr := stateStore.Get(name)
+						if gErr != nil {
+							u.Warn(fmt.Sprintf("Prune: could not read state for %s: %v (skipping)", name, gErr))
+							prunedWithErrors++
+							continue
+						}
+						if ms == nil {
+							continue // already gone
+						}
+						u.Info(fmt.Sprintf("Pruning %s (not in profile)...", name))
+						if errs := removeModuleForPrune(u, stateStore, ms); len(errs) > 0 {
+							// State is preserved (removeModuleForPrune keeps it on error) so
+							// the module stays a candidate for the next reconcile.
+							prunedWithErrors++
+							u.Warn(fmt.Sprintf("Prune of %s incomplete (%d error(s)); state kept for retry", name, len(errs)))
+						} else {
+							pruned++
+							u.Success(fmt.Sprintf("Pruned %s", name))
+						}
+					}
+					if pruned > 0 {
+						u.Success(fmt.Sprintf("Pruned %d module(s) not in the profile", pruned))
+					}
+				}
+			}
+		}
+
 		if failed > 0 {
 			return fmt.Errorf("%d module(s) failed", failed)
+		}
+		if prunedWithErrors > 0 {
+			// Surface prune failures as a non-zero exit so an unattended fleet
+			// reconcile does not report success while modules were only half-removed.
+			return fmt.Errorf("%d module(s) failed to prune cleanly", prunedWithErrors)
 		}
 		return nil
 	},
@@ -307,5 +423,8 @@ func init() {
 	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
 	installCmd.Flags().BoolVar(&promptDependencies, "prompt-dependencies", false, "Show prompts for auto-included dependency modules (default: use defaults)")
 	installCmd.Flags().StringVar(&profile, "profile", "", "Use a specific profile: a name from profiles/ (e.g. minimal, developer) or a path to a profile file")
+	installCmd.Flags().BoolVar(&allowPrune, "allow-prune", false, "Opt this host into prune: remove installed modules absent from the profile, and record the opt-in so future reconciles prune automatically (ADR 0028 §D6)")
+	installCmd.Flags().BoolVar(&noPrune, "no-prune", false, "Skip prune for this run even if the host has opted in")
+	installCmd.Flags().StringVar(&additionsManifest, "additions-manifest", os.Getenv("DOTFILES_ADDITIONS_MANIFEST"), "Path to the host-owned additions manifest (modules to protect from prune); the estate sets /etc/gnet/local-additions.yml")
 	rootCmd.AddCommand(installCmd)
 }
