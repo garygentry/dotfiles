@@ -52,6 +52,11 @@ type Config struct {
 type profileFile struct {
 	Extends []string `yaml:"extends"`
 	Modules []string `yaml:"modules"`
+	// Config is this layer's config-value contribution (Phase 5, ADR 0028 §D10):
+	// a `config:` block folded last-wins along the resolved `extends` order, so a
+	// child profile overrides its parents. Only `modules:` is accepted inside it
+	// (KnownFields rejects identity fields), fencing the layered path to modules.*.
+	Config *layerConfig `yaml:"config"`
 }
 
 // Load reads config.yml from dotfilesDir, applies defaults, then applies
@@ -148,11 +153,12 @@ func loadOverlay(path string) (*Config, error) {
 	return &overlay, nil
 }
 
-// mergeConfig applies an overlay onto base in place. Scalars override only when
-// the overlay sets a non-empty value, so an overlay that omits a field leaves the
-// base value intact. Module settings merge per key, so an overlay can change a
-// single modules.<name>.<key> without redefining the whole module's settings.
-// DotfilesDir/ContentDir are engine-resolved and never taken from an overlay.
+// mergeConfig applies an overlay onto base in place. Typed scalars (Profile/Secrets/
+// User) override only when the overlay sets a non-empty value, so an overlay that
+// omits a field leaves the base value intact. Module settings deep-merge recursively
+// (deepMergeMap), so an overlay can change a single nested modules.<name>.<key>
+// without redefining the whole subtree. DotfilesDir/ContentDir are engine-resolved
+// and never taken from an overlay.
 func mergeConfig(base, overlay *Config) {
 	if overlay.Profile != "" {
 		base.Profile = overlay.Profile
@@ -175,13 +181,14 @@ func mergeConfig(base, overlay *Config) {
 	if base.Modules == nil {
 		base.Modules = make(map[string]map[string]any)
 	}
+	// Deep-merge each module's settings (Phase 5, §D-b): the content overlay uses the
+	// same recursive last-wins semantics as the profile/host layers, so a nested
+	// setting overrides key-by-key instead of the whole subtree being replaced.
 	for mod, settings := range overlay.Modules {
 		if base.Modules[mod] == nil {
 			base.Modules[mod] = make(map[string]any)
 		}
-		for k, v := range settings {
-			base.Modules[mod][k] = v
-		}
+		deepMergeMap(base.Modules[mod], settings)
 	}
 }
 
@@ -263,13 +270,40 @@ func ResolveProfilePath(dotfilesDir, contentDir, name string) string {
 // Chain errors are wrapped with the child profile that referenced the failing parent,
 // so a deep failure names both the originating profile and the offending ancestor.
 func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
+	modules, _, err := LoadProfileResolved(dotfilesDir, contentDir, name)
+	return modules, err
+}
+
+// LoadProfileResolved walks a profile the same way as LoadProfile and returns both
+// the selected module names (union, first-seen order) and the ordered config layers
+// contributed by each profile's `config:` block (Phase 5, ADR 0028 §D10). The layers
+// are in resolved `extends` order — each parent before the profile that extends it —
+// so folding them last-wins (see ComposeModules) makes a child override its parents.
+// A profile reached twice through a diamond contributes its layer once (first-seen),
+// so the fold order is deterministic regardless of the diamond. One corner follows
+// from first-seen: if a profile is reached both as an ancestor and directly (e.g.
+// `top: extends [overlayA, base]` where `overlayA` itself extends `base`), `base`'s
+// layer is pinned at its earlier ancestor position, so `overlayA` wins the fold even
+// though `top` lists `base` last. This is deliberate — a more-specific descendant
+// overrides an ancestor — but overlay authors should read `extends:` as a dependency
+// DAG, not a raw last-wins list. Errors match LoadProfile.
+func LoadProfileResolved(dotfilesDir, contentDir, name string) ([]string, []map[string]map[string]any, error) {
 	stack := make(map[string]bool)
-	seen := make(map[string]bool)
-	var order []string
-	if err := loadProfileInto(dotfilesDir, contentDir, name, stack, seen, &order); err != nil {
-		return nil, err
+	acc := &profileAcc{seen: make(map[string]bool), layerSeen: make(map[string]bool)}
+	if err := loadProfileInto(dotfilesDir, contentDir, name, stack, acc); err != nil {
+		return nil, nil, err
 	}
-	return order, nil
+	return acc.order, acc.layers, nil
+}
+
+// profileAcc accumulates the result of a profile walk across the recursion: module
+// names (deduped first-seen) and config layers (deduped per profile, first-seen), so
+// modules and config ride the same DAG traversal.
+type profileAcc struct {
+	seen      map[string]bool // module names already added
+	order     []string        // module names, first-seen order
+	layerSeen map[string]bool // profile paths whose config layer was already appended
+	layers    []map[string]map[string]any
 }
 
 // loadProfileInto is the recursive core of LoadProfile. The cycle-detection key is the
@@ -282,7 +316,7 @@ func LoadProfile(dotfilesDir, contentDir, name string) ([]string, error) {
 // contributes each module only once. Cost is O(B^D) file reads at fan-out B and depth
 // D — negligible for the shapes we expect (D ≤ 3, B ≤ 3); revisit with a
 // per-invocation parse cache if a deep diamond ever becomes real.
-func loadProfileInto(dotfilesDir, contentDir, name string, stack, seen map[string]bool, order *[]string) error {
+func loadProfileInto(dotfilesDir, contentDir, name string, stack map[string]bool, acc *profileAcc) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("empty profile name in extends chain")
 	}
@@ -323,15 +357,21 @@ func loadProfileInto(dotfilesDir, contentDir, name string, stack, seen map[strin
 		if strings.TrimSpace(parent) == "" {
 			return fmt.Errorf("empty parent name in `extends:` of %s", profilePath)
 		}
-		if err := loadProfileInto(dotfilesDir, contentDir, parent, stack, seen, order); err != nil {
+		if err := loadProfileInto(dotfilesDir, contentDir, parent, stack, acc); err != nil {
 			return fmt.Errorf("loading parent %q referenced from %s: %w", parent, profilePath, err)
 		}
 	}
 	for _, mod := range pf.Modules {
-		if !seen[mod] {
-			seen[mod] = true
-			*order = append(*order, mod)
+		if !acc.seen[mod] {
+			acc.seen[mod] = true
+			acc.order = append(acc.order, mod)
 		}
+	}
+	// Append this profile's config layer after its parents' (so a child overrides
+	// parents when folded last-wins), once per profile even through a diamond.
+	if pf.Config != nil && len(pf.Config.Modules) > 0 && !acc.layerSeen[key] {
+		acc.layerSeen[key] = true
+		acc.layers = append(acc.layers, pf.Config.Modules)
 	}
 	return nil
 }

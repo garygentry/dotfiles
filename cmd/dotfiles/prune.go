@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/garygentry/dotfiles/internal/config"
 	"github.com/garygentry/dotfiles/internal/state"
 	"gopkg.in/yaml.v3"
 )
@@ -60,6 +61,11 @@ func loadAdditionsManifest(path string) (map[string]bool, error) {
 	dec.KnownFields(true) // reject typos (e.g. `module:`), matching the engine's config decoder
 	if err := dec.Decode(&af); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parsing additions manifest %s: %w", path, err)
+	}
+	// Single document only (shared T2 guard): a stray `---` would silently drop the
+	// protections in every document after the first, wrongly pruning those modules.
+	if err := config.ErrIfSecondYAMLDoc(dec, fmt.Sprintf("additions manifest %s", path)); err != nil {
+		return nil, err
 	}
 	for _, m := range af.Modules {
 		if m != "" {

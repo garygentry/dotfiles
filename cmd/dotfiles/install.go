@@ -24,6 +24,7 @@ var (
 	updateOnly         bool
 	promptDependencies bool
 	profile            string
+	hostConfig         string
 )
 
 var installCmd = &cobra.Command{
@@ -74,7 +75,7 @@ resolution, module execution, and summary output.`,
 			}
 		}
 
-		profileModules, profileErr := config.LoadProfile(sys.DotfilesDir, cfg.ContentDir, cfg.Profile)
+		profileModules, profileConfigLayers, profileErr := config.LoadProfileResolved(sys.DotfilesDir, cfg.ContentDir, cfg.Profile)
 		if profileErr != nil {
 			// Only ErrProfileNotFound on an implicit (config.yml) profile is safe to
 			// treat as "no profile → fall back to all modules." Every other error
@@ -102,6 +103,20 @@ resolution, module execution, and summary output.`,
 		if len(requested) == 0 && profileErr == nil {
 			requested = profileModules
 		}
+
+		// Phase 5 (ADR 0028 §D10): layer config values estate-default → baseline →
+		// overlays (declared order) → host. estate-default (the config.yml chain) is
+		// already in cfg.Modules; apply the profile `config:` layers in resolved
+		// extends order, then the host-owned layer last — it wins over everything, and
+		// the reconcile only ever reads it. A malformed host file is a hard error
+		// (T2 discipline); an absent one is simply no host overrides. Layering always
+		// applies, independent of which modules this run installs.
+		hostModules, hostErr := config.LoadHostConfig(hostConfig)
+		if hostErr != nil {
+			u.Error(fmt.Sprintf("Host config %q could not be loaded: %v", hostConfig, hostErr))
+			return hostErr
+		}
+		cfg.Modules = config.ComposeModules(cfg.Modules, profileConfigLayers, hostModules)
 
 		// Phase 2: Secrets authentication.
 		provider := secrets.NewProvider(cfg.Secrets.Provider, cfg.Secrets.Account)
@@ -426,5 +441,6 @@ func init() {
 	installCmd.Flags().BoolVar(&allowPrune, "allow-prune", false, "Opt this host into prune: remove installed modules absent from the profile, and record the opt-in so future reconciles prune automatically (ADR 0028 §D6)")
 	installCmd.Flags().BoolVar(&noPrune, "no-prune", false, "Skip prune for this run even if the host has opted in")
 	installCmd.Flags().StringVar(&additionsManifest, "additions-manifest", os.Getenv("DOTFILES_ADDITIONS_MANIFEST"), "Path to the host-owned additions manifest (modules to protect from prune); the estate sets /etc/gnet/local-additions.yml")
+	installCmd.Flags().StringVar(&hostConfig, "host-config", os.Getenv("DOTFILES_HOST_CONFIG"), "Path to the host-owned config layer (settings this host overrides/adds, applied last); the estate sets /etc/gnet/local-config.yml (ADR 0028 §D10)")
 	rootCmd.AddCommand(installCmd)
 }
