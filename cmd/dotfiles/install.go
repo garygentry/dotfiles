@@ -25,6 +25,7 @@ var (
 	promptDependencies bool
 	profile            string
 	hostConfig         string
+	metricsTextfile    string
 )
 
 var installCmd = &cobra.Command{
@@ -33,9 +34,34 @@ var installCmd = &cobra.Command{
 	Long: `Install runs the specified modules (or all modules if none specified)
 through a 5-phase flow: config loading, secret authentication, dependency
 resolution, module execution, and summary output.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		start := time.Now()
 		u := ui.New(verbose)
+
+		// Phase 7 (D13): reconcile observability. The emitter runs as a defer so it
+		// fires on EVERY return path (the closure has ~15) — exit_status and
+		// last_run_timestamp are always published. drift/armed/dir/profile are
+		// captured into these vars as the run proceeds; the defer reads their final
+		// values. Skipped when the feature is off (no --metrics-textfile, the estate
+		// seam) or on a dry-run (no real reconcile happened, so don't move mtime).
+		var (
+			metricsDir   string
+			metricsDrift int
+			metricsArmed bool
+		)
+		defer func() {
+			if metricsTextfile == "" || dryRun {
+				return
+			}
+			writeReconcileMetrics(u, metricsTextfile, reconcileMetrics{
+				start:       start,
+				exitStatus:  boolToExit(rerr != nil),
+				driftCount:  metricsDrift,
+				pruneArmed:  metricsArmed,
+				dotfilesDir: metricsDir,
+				profile:     profile,
+			})
+		}()
 
 		// Phase 1: System detection and config loading.
 		u.Info("Detecting system...")
@@ -43,6 +69,7 @@ resolution, module execution, and summary output.`,
 		if err != nil {
 			return fmt.Errorf("system detection: %w", err)
 		}
+		metricsDir = sys.DotfilesDir // for the pin_sha git read at emit time
 		u.Success(fmt.Sprintf("System: %s/%s (pkg: %s)", sys.OS, sys.Arch, sys.PkgMgr))
 
 		// Auto-enable unattended mode when stdin is not interactive (e.g. curl | bash).
@@ -287,6 +314,14 @@ resolution, module execution, and summary output.`,
 				}
 				pruneOptedIn = hasPruneOptIn(sys.DotfilesDir) || allowPrune
 
+				// Phase 7 (D-d): report real drift for visibility on every host, but
+				// "arm" the drift alert only where the host has opted into prune — so
+				// migration hosts (additive-only) surface drift_count without tripping
+				// ReconcileDrift (P7-3). Captured before the fail-closed flip below so
+				// drift is reported honestly even when prune is disabled for safety.
+				metricsDrift = len(pruneCandidates)
+				metricsArmed = pruneOptedIn
+
 				// Fail CLOSED: if we would actually remove modules but no additions
 				// manifest path is configured, the host-local protect list is silently
 				// absent (a real hazard under `ssh … bash -lc`, which strips DOTFILES_*
@@ -442,5 +477,6 @@ func init() {
 	installCmd.Flags().BoolVar(&noPrune, "no-prune", false, "Skip prune for this run even if the host has opted in")
 	installCmd.Flags().StringVar(&additionsManifest, "additions-manifest", os.Getenv("DOTFILES_ADDITIONS_MANIFEST"), "Path to the host-owned additions manifest (modules to protect from prune); the estate sets /etc/gnet/local-additions.yml")
 	installCmd.Flags().StringVar(&hostConfig, "host-config", os.Getenv("DOTFILES_HOST_CONFIG"), "Path to the host-owned config layer (settings this host overrides/adds, applied last); the estate sets /etc/gnet/local-config.yml (ADR 0028 §D10)")
+	installCmd.Flags().StringVar(&metricsTextfile, "metrics-textfile", os.Getenv("DOTFILES_METRICS_TEXTFILE"), "Path to write reconcile metrics as a node_exporter textfile (empty = off); the estate sets /var/lib/node_exporter/textfile/gnet_reconcile.prom (ADR 0028 §D13)")
 	rootCmd.AddCommand(installCmd)
 }
