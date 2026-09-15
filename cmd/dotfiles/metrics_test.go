@@ -107,9 +107,21 @@ func TestWriteReconcileMetrics(t *testing.T) {
 		}
 	}
 
-	// Atomic write leaves no temp file behind.
-	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
-		t.Errorf(".tmp file should not survive a successful write: %v", err)
+	// Atomic write leaves no temp file behind (unique tmp name → glob the dir).
+	entries, _ := filepath.Glob(filepath.Join(dir, "*.tmp"))
+	if len(entries) != 0 {
+		t.Errorf("no .tmp file should survive a successful write, found: %v", entries)
+	}
+
+	// The published file MUST be world-readable — node_exporter reads it as an
+	// unprivileged user (nobody / node_exporter). os.CreateTemp defaults to 0600,
+	// so this guards the chmod that keeps the metric family visible.
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o644 {
+		t.Errorf("published .prom mode = %o, want 0644 (world-readable)", fi.Mode().Perm())
 	}
 }
 

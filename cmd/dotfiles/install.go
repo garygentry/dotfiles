@@ -39,28 +39,40 @@ resolution, module execution, and summary output.`,
 		u := ui.New(verbose)
 
 		// Phase 7 (D13): reconcile observability. The emitter runs as a defer so it
-		// fires on EVERY return path (the closure has ~15) — exit_status and
-		// last_run_timestamp are always published. drift/armed/dir/profile are
-		// captured into these vars as the run proceeds; the defer reads their final
-		// values. Skipped when the feature is off (no --metrics-textfile, the estate
-		// seam) or on a dry-run (no real reconcile happened, so don't move mtime).
+		// fires on every return path AND on a panic (so a crashed run never publishes
+		// a green exit_status). It emits ONLY for a full-profile reconcile — the
+		// operation Phase 7 observes — never for a targeted `install <mod>` or a
+		// no-profile fallback: because the estate sets DOTFILES_METRICS_TEXTFILE
+		// globally, any ad-hoc `install <x>` would otherwise overwrite the shared
+		// .prom with drift/armed=0 and a fresh timestamp, masking the real reconcile's
+		// signal. drift/armed/dir/profile/full are captured as the run proceeds; the
+		// defer reads their final values. Also skipped when off or on a dry-run.
 		var (
-			metricsDir   string
-			metricsDrift int
-			metricsArmed bool
+			metricsDir     string
+			metricsProfile string
+			metricsDrift   int
+			metricsArmed   bool
+			metricsFull    bool
 		)
 		defer func() {
-			if metricsTextfile == "" || dryRun {
+			r := recover()
+			if metricsTextfile == "" || dryRun || !metricsFull {
+				if r != nil {
+					panic(r) // preserve the crash; we just weren't emitting
+				}
 				return
 			}
 			writeReconcileMetrics(u, metricsTextfile, reconcileMetrics{
 				start:       start,
-				exitStatus:  boolToExit(rerr != nil),
+				exitStatus:  boolToExit(rerr != nil || r != nil),
 				driftCount:  metricsDrift,
 				pruneArmed:  metricsArmed,
 				dotfilesDir: metricsDir,
-				profile:     profile,
+				profile:     metricsProfile,
 			})
+			if r != nil {
+				panic(r) // re-raise after publishing exit_status=1
+			}
 		}()
 
 		// Phase 1: System detection and config loading.
@@ -91,6 +103,7 @@ resolution, module execution, and summary output.`,
 			cfg.Profile = profile
 		}
 		u.Debug(fmt.Sprintf("Profile: %s (explicit: %t)", cfg.Profile, explicitProfile))
+		metricsProfile = cfg.Profile // the RESOLVED profile, not just the flag (metrics info label)
 
 		// Surface the content overlay, and catch a mistyped DOTFILES_CONTENT_DIR
 		// (set but no such directory) rather than silently ignoring it.
@@ -130,6 +143,12 @@ resolution, module execution, and summary output.`,
 		if len(requested) == 0 && profileErr == nil {
 			requested = profileModules
 		}
+
+		// A full-profile reconcile — no module args, a real resolved profile — is the
+		// only shape the observability contract (Phase 7 / D13) publishes metrics for.
+		// A targeted `install <mod>` or a no-profile all-modules fallback is not a
+		// reconcile and must not overwrite the reconcile's .prom (see the emitter defer).
+		metricsFull = len(args) == 0 && profileErr == nil && len(profileModules) > 0
 
 		// Phase 5 (ADR 0028 §D10): layer config values estate-default → baseline →
 		// overlays (declared order) → host. estate-default (the config.yml chain) is

@@ -1,6 +1,7 @@
 package dotfiles
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,7 +42,11 @@ func enginePinSHA(dir string) string {
 	if dir == "" {
 		return "unknown"
 	}
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
+	// A timeout so a wedged/hung mount under dir can't block the exit-time defer
+	// forever. rev-parse is local + non-interactive, so 5s is generous.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return "unknown"
 	}
@@ -91,9 +96,37 @@ func writeReconcileMetrics(u *ui.UI, path string, m reconcileMetrics) {
 	fmt.Fprintf(&b, "# TYPE gnet_reconcile_info gauge\n")
 	fmt.Fprintf(&b, "gnet_reconcile_info{pin_sha=\"%s\",profile=\"%s\"} 1\n", pin, prof)
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o644); err != nil {
+	// Write to a UNIQUE temp file in the same dir, then rename — so two concurrent
+	// reconciles (e.g. a scheduled run overlapping a manual one) can never truncate
+	// each other's tmp and publish a torn .prom (which node_exporter would drop
+	// wholesale). The *.tmp suffix keeps the in-progress file out of the *.prom
+	// scrape glob. os.CreateTemp gives the per-write unique name.
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, "gnet_reconcile.*.prom.tmp")
+	if err != nil {
+		u.Warn(fmt.Sprintf("reconcile metrics: could not create temp in %s: %v (metrics not published)", dir, err))
+		return
+	}
+	tmp := f.Name()
+	// os.CreateTemp makes the file 0600; node_exporter reads it as an UNPRIVILEGED
+	// user (the upstream image runs as `nobody`, and the native unit as the
+	// `node_exporter` user), so the published file MUST be world-readable or the
+	// whole gnet_reconcile_* family silently vanishes. Chmod before the rename.
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
+		u.Warn(fmt.Sprintf("reconcile metrics: could not chmod %s: %v (metrics not published)", tmp, err))
+		return
+	}
+	if _, err := f.WriteString(b.String()); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
 		u.Warn(fmt.Sprintf("reconcile metrics: could not write %s: %v (metrics not published)", tmp, err))
+		return
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		u.Warn(fmt.Sprintf("reconcile metrics: could not close %s: %v (metrics not published)", tmp, err))
 		return
 	}
 	if err := os.Rename(tmp, path); err != nil {
