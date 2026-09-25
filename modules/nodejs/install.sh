@@ -76,6 +76,44 @@ _ensure_npm_prefix() {
 # so even the already-installed fast path below leaves npm deterministic.
 _ensure_npm_prefix
 
+# Provider (modules.nodejs.provider): "tarball" (default) = the sudo-free
+# nodejs.org install below; "mise" = node is installed and owned by mise, at the
+# EXACT version in modules.nodejs.version (declared in conf.d/nodejs.toml via
+# mise_sync_tools; needs the mise module). Either way the npm prefix above
+# applies, so `npm i -g` globals survive a Node switch, and the floor is enforced.
+_provider="${DOTFILES_SETTING_PROVIDER:-tarball}"
+case "$_provider" in
+    tarball) ;;
+    mise)
+        _mver_want="${DOTFILES_SETTING_VERSION:-}"
+        _mver_want="${_mver_want#v}"
+        if [[ ! "$_mver_want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            log_error "Node.js: provider 'mise' needs an exact modules.nodejs.version (e.g. \"22.19.0\"), got '${_mver_want}'"
+            exit 1
+        fi
+        if [[ -n "$_min" ]] && ! _ver_ge "$_mver_want" "$_min"; then
+            log_error "Node.js: modules.nodejs.version ${_mver_want} is below the required floor ${_min}"
+            exit 1
+        fi
+        mise_sync_tools "nodejs" "node@${_mver_want}"
+        is_dry_run && exit 0
+        # Resolve from $HOME so a project mise.toml in the runner's cwd can't answer.
+        _mise="$(mise_bin)"
+        _mnode="$( { cd "$_home" && "$_mise" which node; } 2>/dev/null )" || _mnode=""
+        _mver="$([[ -n "$_mnode" ]] && _node_ver_of "$_mnode")" || _mver=""
+        if [[ "$_mver" != "$_mver_want" ]]; then
+            log_error "Node.js: mise resolves node '${_mver:-none}' (${_mnode:-not found}), expected ${_mver_want}; a ~/.config/mise/config.toml pin may be overriding it"
+            exit 1
+        fi
+        log_success "Node.js v${_mver} provided by mise (${_mnode})${_min:+, floor >=${_min}}"
+        exit 0
+        ;;
+    *)
+        log_error "Node.js: unknown provider '${_provider}' (expected 'tarball' or 'mise')"
+        exit 1
+        ;;
+esac
+
 # Already installed? Match PATH (ignoring a Windows node under /mnt on WSL) OR
 # our own ~/.local/bin/node, which may not be on PATH yet on a fresh host.
 _node_path="$(command -v node 2>/dev/null || true)"

@@ -145,4 +145,9 @@ fi
 # shellcheck disable=SC2016  # literal $HOME/$path: expanded by zsh at startup, not here
 upsert_managed_block "${DOTFILES_HOME}/.zshenv" "path" \
 'typeset -U path
-path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'
+path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)
+# mise shims (if the mise module is in use) win over stale copies in ~/.local/bin;
+# checked here so the result does not depend on which managed block comes first.
+if [[ -d "${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims" ]]; then
+    path=("${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims" $path)
+fi'

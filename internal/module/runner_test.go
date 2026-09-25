@@ -1653,3 +1653,28 @@ func TestHandlePromptsSkipIfFileShowsWhenAbsent(t *testing.T) {
 		t.Errorf("ssh_key_type = %q, want rsa (user answer)", answers["ssh_key_type"])
 	}
 }
+
+func TestSettingToStr_NonScalars(t *testing.T) {
+	tests := []struct {
+		name string
+		in   any
+		want string
+	}{
+		{"nil", nil, ""},
+		{"string", "ed25519", "ed25519"},
+		{"bool", true, "true"},
+		{"int", 42, "42"},
+		{"list one per line", []any{"a", 2, true}, "a\n2\ntrue"},
+		{"empty list", []any{}, ""},
+		{"map sorted key=value", map[string]any{"node": "22.19.0", "fzf": "0.65.2"}, "fzf=0.65.2\nnode=22.19.0"},
+		{"map value nil", map[string]any{"k": nil}, "k="},
+		{"empty map", map[string]any{}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := settingToStr(tt.in); got != tt.want {
+				t.Errorf("settingToStr(%v) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

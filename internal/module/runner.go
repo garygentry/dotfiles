@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -661,9 +662,42 @@ func buildEnvVars(cfg *RunConfig, mod *Module, promptAnswers map[string]string) 
 }
 
 // settingToStr renders a module config setting value as a string suitable for
-// an environment variable. Scalars render naturally (true, 42, ed25519); nil
-// becomes empty. Non-scalar values fall back to Go's default formatting.
+// an environment variable, in a shape shell scripts can read line by line:
+//   - scalars render naturally (true, 42, ed25519); nil becomes empty;
+//   - a list renders one item per line;
+//   - a map renders one "key=value" line per entry, sorted by key.
+//
+// So `tools: {fzf: "0.65.2", node: "22.19.0"}` reaches a script as
+// "fzf=0.65.2\nnode=22.19.0", readable with `while IFS== read -r k v`.
+// Values nested inside a list or map are rendered as scalars; deeper nesting
+// falls back to Go's default formatting.
 func settingToStr(v any) string {
+	switch t := v.(type) {
+	case []any:
+		lines := make([]string, 0, len(t))
+		for _, item := range t {
+			lines = append(lines, scalarToStr(item))
+		}
+		return strings.Join(lines, "\n")
+	case map[string]any:
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		lines := make([]string, 0, len(keys))
+		for _, k := range keys {
+			lines = append(lines, k+"="+scalarToStr(t[k]))
+		}
+		return strings.Join(lines, "\n")
+	default:
+		return scalarToStr(v)
+	}
+}
+
+// scalarToStr renders a single value: nil as empty, strings verbatim, anything
+// else with Go's default formatting.
+func scalarToStr(v any) string {
 	switch t := v.(type) {
 	case nil:
 		return ""

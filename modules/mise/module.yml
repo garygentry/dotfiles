@@ -1,0 +1,22 @@
+name: mise
+description: "mise: pinned, checksum-verified CLI tools and language runtimes in user space (opt-in; declare tools in config)"
+version: "1.0.0"
+priority: 45            # before runtimes (50) at the same dependency level; shim precedence doesn't depend on module order
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - cli
+  - programming
+notes:
+  - "Installs the mise binary to ~/.local/bin/mise (sudo-free, verified against the release SHASUMS256.txt). Pin it with modules.mise.version (unset = latest, with a warning). mise's own self-update is not used; bump the pin instead."
+  - "Tools are declared in config, never hard-coded: modules.mise.tools maps a tool to an EXACT version (e.g. ripgrep: \"14.1.1\"). The engine ships an empty list. ANY module can declare its own tools the same way (a `tools:` setting plus `mise_sync_tools \"$DOTFILES_MODULE_NAME\"` in its install.sh), so a tool set follows whichever profile selects that module. Each module's tools go to ~/.config/mise/conf.d/<module>.toml and are removed when the module is uninstalled or pruned. Your own ~/.config/mise/config.toml (mise use -g) is left alone."
+  - "modules.mise.settings is rendered to ~/.config/mise/conf.d/dotfiles-settings.toml (e.g. trusted_config_paths, minimum_release_age, github_attestations)."
+  - "Optional modules.mise.lockfile: a path (relative to the content overlay, else the engine dir) to a mise.lock made with `mise lock --global --platform ...`. When set, the engine OWNS ~/.config/mise/mise.lock, and every module's declared tools install with --locked (checksummed URLs; no GitHub API calls). Lock the union of all declared tools. Declare global tools in config rather than with `mise use -g`."
+  - "Optional modules.mise.github_token_command: a command whose stdout is a GitHub token. It is used only for the install step (to avoid the 60 req/h anonymous API limit when resolving versions without a lockfile)."
+  - "Shims (~/.local/share/mise/shims) go on PATH for every shell: managed blocks in ~/.zshenv, the login profile and ~/.bashrc. That covers `ssh host cmd`, `bash -lc`, cron-less scripts and agent tool shells. Interactive zsh also runs `mise activate` (per-directory env and hooks). Set modules.mise.activate: false to use shims alone."
+  - "systemd units and cron entries don't read shell rc files. Call tools by absolute path or via `~/.local/bin/mise exec -- <cmd>`."

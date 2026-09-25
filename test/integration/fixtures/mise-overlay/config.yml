@@ -1,0 +1,21 @@
+# Content-overlay fixture for the mise integration test. Tools are declared by three
+# modules: mise itself (fzf), an overlay module (extra-tools: ripgrep), and nodejs with
+# provider=mise (node). The lockfile covers their union and was made with
+#   mise lock --global --platform linux-x64,linux-arm64,macos-arm64
+# so installs run --locked with no GitHub API calls.
+modules:
+  mise:
+    version: "2026.9.14"
+    lockfile: mise.lock
+    tools:
+      fzf: "0.65.2"
+    settings:
+      minimum_release_age: "7d"
+      trusted_config_paths: ["~/workspace"]
+  extra-tools:
+    tools:
+      ripgrep: "14.1.1"
+  nodejs:
+    provider: mise
+    version: "22.19.0"
+    min_version: "22.19.0"
