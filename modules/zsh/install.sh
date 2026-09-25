@@ -94,11 +94,19 @@ fi
 # This starts zsh on login even when chsh hasn't taken effect yet (e.g.,
 # requires a password, container environment, or system restart). Only fires
 # in interactive sessions so batch/script logins are unaffected.
+#
+# The block MUST be POSIX sh: on Linux ~/.profile is also read by dash for any
+# `sh -l` (e.g. tools that run detached commands via `/bin/sh -lc`). The original
+# bash-only form (`[[ ]]`, `&>`) misparses under dash — `&>/dev/null` becomes a
+# background job plus an always-true empty redirect — so it exec'd `zsh -l` in
+# NON-interactive `sh -lc` shells too, silently swallowing the command.
 _zsh_autoexec_marker="# dotfiles: auto-exec zsh on login"
 _zsh_autoexec_block="${_zsh_autoexec_marker}
-if [[ -z \"\${ZSH_VERSION}\" ]] && [[ \$- == *i* ]] && command -v zsh &>/dev/null; then
-    exec zsh -l
-fi"
+case \$- in
+    *i*) if [ -z \"\${ZSH_VERSION:-}\" ] && command -v zsh >/dev/null 2>&1; then exec zsh -l; fi ;;
+esac"
+# The legacy bash-only block's condition line (see above); migrated in place.
+_zsh_autoexec_legacy='[[ $- == *i* ]] && command -v zsh &>/dev/null; then'
 
 # macOS uses ~/.bash_profile; Linux uses ~/.profile
 if is_macos; then
@@ -109,6 +117,18 @@ fi
 
 if is_dry_run; then
     log_info "[dry-run] Would add zsh auto-exec to ${_login_profile}"
+elif grep -qF -- "$_zsh_autoexec_legacy" "${_login_profile}" 2>/dev/null; then
+    # Drop the legacy 4-line block (marker, if, exec, fi) and append the POSIX one.
+    _zsh_tmp="$(mktemp)"
+    awk -v m="$_zsh_autoexec_marker" '
+        $0 == m { skip = 4 }
+        skip > 0 { skip--; next }
+        { print }
+    ' "${_login_profile}" > "$_zsh_tmp"
+    printf '%s\n' "${_zsh_autoexec_block}" >> "$_zsh_tmp"
+    cat "$_zsh_tmp" > "${_login_profile}"
+    rm -f "$_zsh_tmp"
+    log_success "Migrated zsh auto-exec in ${_login_profile} to POSIX sh"
 elif grep -qF "$_zsh_autoexec_marker" "${_login_profile}" 2>/dev/null; then
     log_info "Zsh auto-exec already configured in ${_login_profile}"
 else
