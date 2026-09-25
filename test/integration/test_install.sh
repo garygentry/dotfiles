@@ -385,6 +385,60 @@ else
     fail "re-install modified the repo modules/ tree"
 fi
 
+# --- Test: mise module (opt-in; driven by a fixture content overlay) ---
+# Runs LAST: it installs node through mise and changes PATH blocks. No GitHub token
+# is set here, so a passing --locked install proves no API calls were needed.
+echo ""
+echo "--- Test: mise module + nodejs provider=mise (fixture overlay) ---"
+MISE_FIXTURE="${DOTFILES_DIR}/test/integration/fixtures/mise-overlay"
+MISE_OUT="$(env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN DOTFILES_CONTENT_DIR="$MISE_FIXTURE" \
+    ./bin/dotfiles install --unattended mise nodejs 2>&1)" || true
+assert_output_contains "mise + nodejs install succeeded" "0 failed" "$MISE_OUT"
+assert_file_exists "mise binary at ~/.local/bin/mise" "$HOME/.local/bin/mise"
+if [[ "$("$HOME/.local/bin/mise" --version 2>/dev/null | awk '{print $1}')" == "2026.9.14" ]]; then
+    pass "mise is the pinned version"
+else
+    fail "mise is the pinned version"
+fi
+assert_file_exists "declared tools rendered to conf.d/dotfiles.toml" "$HOME/.config/mise/conf.d/dotfiles.toml"
+if cmp -s "$MISE_FIXTURE/mise.lock" "$HOME/.config/mise/mise.lock"; then
+    pass "managed mise.lock installed from the overlay"
+else
+    fail "managed mise.lock installed from the overlay"
+fi
+_shims="$HOME/.local/share/mise/shims"
+if [[ "$(zsh -c 'print -r -- $path[1]' 2>/dev/null)" == "$_shims" ]]; then
+    pass "non-interactive zsh puts the mise shims first"
+else
+    fail "non-interactive zsh puts the mise shims first"
+fi
+for _t in "node:v22.19.0" "fzf:0.65.2" "rg:ripgrep 14.1.1"; do
+    _bin="${_t%%:*}"; _want="${_t#*:}"
+    if zsh -c "$_bin --version" 2>/dev/null | head -1 | grep -qF "$_want"; then
+        pass "zsh -c resolves $_bin ($_want)"
+    else
+        fail "zsh -c resolves $_bin ($_want)"
+    fi
+done
+if [[ "$(sh -lc 'command -v node' 2>/dev/null)" == "$_shims/node" ]]; then
+    pass "login sh (sh -lc) resolves node through the shims"
+else
+    fail "login sh (sh -lc) resolves node through the shims"
+fi
+if [[ "$(zsh -c 'npm config get prefix' 2>/dev/null)" == "$HOME/.local" ]]; then
+    pass "npm global prefix stays ~/.local under the mise provider"
+else
+    fail "npm global prefix stays ~/.local under the mise provider"
+fi
+MISE_OUT2="$(env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN DOTFILES_CONTENT_DIR="$MISE_FIXTURE" \
+    ./bin/dotfiles install --unattended mise nodejs 2>&1)" || true
+assert_output_contains "mise re-install is a no-op" "0 succeeded, 0 failed" "$MISE_OUT2"
+if [[ "$(grep -cxF '# >>> dotfiles: mise >>>' "$HOME/.zshenv")" == "1" ]]; then
+    pass "~/.zshenv mise block appears exactly once"
+else
+    fail "~/.zshenv mise block appears exactly once"
+fi
+
 # ==============================================================================
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

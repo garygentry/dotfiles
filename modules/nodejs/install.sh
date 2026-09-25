@@ -76,6 +76,50 @@ _ensure_npm_prefix() {
 # so even the already-installed fast path below leaves npm deterministic.
 _ensure_npm_prefix
 
+# Provider (modules.nodejs.provider): "tarball" (default) = the sudo-free
+# nodejs.org install below; "mise" = Node is owned by the mise module (declare
+# e.g. `node: "22.19.0"` in modules.mise.tools). Under mise this module installs
+# nothing: it asserts that mise provides node and that it meets the floor. The
+# npm prefix above still applies, so `npm i -g` globals survive a Node switch
+# either way.
+_provider="${DOTFILES_SETTING_PROVIDER:-tarball}"
+case "$_provider" in
+    tarball) ;;
+    mise)
+        _mise="$(command -v mise 2>/dev/null || true)"
+        [[ -z "$_mise" && -x "${_home}/.local/bin/mise" ]] && _mise="${_home}/.local/bin/mise"
+        if [[ -z "$_mise" ]]; then
+            log_error "Node.js: provider 'mise' needs the mise module (add 'mise' to your profile)"
+            exit 1
+        fi
+        if is_dry_run; then
+            log_info "[dry-run] Would check that mise provides node${_min:+ (floor >=${_min})}"
+            exit 0
+        fi
+        # Resolve from $HOME so a project mise.toml in the runner's cwd can't answer.
+        _mnode="$( { cd "$_home" && "$_mise" which node; } 2>/dev/null )" || _mnode=""
+        if [[ -z "$_mnode" ]]; then
+            log_error "Node.js: provider 'mise' but mise provides no node; declare it in modules.mise.tools (e.g. node: \"22.19.0\")"
+            exit 1
+        fi
+        _mver="$(_node_ver_of "$_mnode")"
+        if [[ -z "$_mver" ]]; then
+            log_error "Node.js: mise's node does not run (${_mnode})"
+            exit 1
+        fi
+        if [[ -n "$_min" ]] && ! _ver_ge "$_mver" "$_min"; then
+            log_error "Node.js: mise provides node ${_mver}, below the required floor ${_min}; raise the node version in modules.mise.tools"
+            exit 1
+        fi
+        log_success "Node.js v${_mver} provided by mise (${_mnode})${_min:+, floor >=${_min}}"
+        exit 0
+        ;;
+    *)
+        log_error "Node.js: unknown provider '${_provider}' (expected 'tarball' or 'mise')"
+        exit 1
+        ;;
+esac
+
 # Already installed? Match PATH (ignoring a Windows node under /mnt on WSL) OR
 # our own ~/.local/bin/node, which may not be on PATH yet on a fresh host.
 _node_path="$(command -v node 2>/dev/null || true)"

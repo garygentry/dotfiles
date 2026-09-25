@@ -510,10 +510,12 @@ render_template() {
         return 0
     fi
 
+    # --module takes the module NAME (it selects modules.<name> settings for .Module).
+    # It used to be passed DOTFILES_MODULE_DIR, a path, so .Module was always empty.
     "${DOTFILES_BIN}" render-template \
         --src "$src" \
         --dest "$dest" \
-        --module "${DOTFILES_MODULE_DIR}"
+        --module "${DOTFILES_MODULE_NAME}"
 }
 
 # get_secret REF

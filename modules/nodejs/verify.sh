@@ -11,6 +11,11 @@ set -euo pipefail
 _home="${DOTFILES_HOME:-$HOME}"
 _bin_dir="${_home}/.local/bin"
 _min="${DOTFILES_SETTING_MIN_VERSION:-}"
+# Under provider=mise, node/npm live behind mise shims; the runner's PATH predates
+# the install, so put the shims first for the checks below.
+if [[ "${DOTFILES_SETTING_PROVIDER:-tarball}" == "mise" ]]; then
+    PATH="${XDG_DATA_HOME:-${_home}/.local/share}/mise/shims:${PATH}"
+fi
 _node="$(command -v node 2>/dev/null || { [[ -x "${_bin_dir}/node" ]] && echo "${_bin_dir}/node"; } || true)"
 _npm="$(command -v npm 2>/dev/null || { [[ -x "${_bin_dir}/npm" ]] && echo "${_bin_dir}/npm"; } || true)"
 
@@ -67,6 +72,22 @@ if ! _shell_resolves "-l"; then
 fi
 if ! _shell_resolves ""; then
     log_warn "node/npm do not resolve in a non-login shell (bash -c) — non-interactive callers may fail; ensure ${_bin_dir} is on PATH for non-login shells"
+fi
+
+# Provenance under provider=mise: the node a login shell runs must be mise's,
+# not a system or tarball node shadowing it (one owner per binary).
+if [[ "${DOTFILES_SETTING_PROVIDER:-tarball}" == "mise" ]]; then
+    # What PATH actually resolves (a mise shim or, with activation, a mise install
+    # dir), NOT `mise which node`, which reports mise's node even when shadowed.
+    _lnode="$(bash -lc 'command -v node' 2>/dev/null || true)"
+    _mdata="${XDG_DATA_HOME:-${_home}/.local/share}/mise"
+    case "$_lnode" in
+        "${_mdata}"/*) log_success "node is provided by mise (${_lnode})" ;;
+        *)
+            log_error "provider is 'mise' but a login shell's node is '${_lnode:-none}', not under ${_mdata}"
+            exit 1
+            ;;
+    esac
 fi
 
 log_success "Node.js verification passed: ${_nv} (npm ${_npv}, prefix ${_prefix}${_min:+, floor >=${_min}})"

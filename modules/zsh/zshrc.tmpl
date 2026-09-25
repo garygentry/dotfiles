@@ -171,6 +171,19 @@ path=(
     $path
 )
 
+# mise (optional; see the mise module). Shims first, matching the ~/.zshenv block,
+# so a tool resolves the same way in interactive and non-interactive shells even
+# when a stale copy sits in ~/.local/bin. Then `mise activate` for real install
+# paths, per-directory [env] and hooks. It is skipped for `zsh -i -c cmd` (shims
+# already resolve correctly there, and it costs time per invocation) and when the
+# mise module sets DOTFILES_MISE_ACTIVATE=0 (modules.mise.activate: false).
+_mise_shims="${XDG_DATA_HOME:-${HOME}/.local/share}/mise/shims"
+[[ -d "$_mise_shims" ]] && path=("$_mise_shims" $path)
+unset _mise_shims
+if (( $+commands[mise] )) && [[ -z "${ZSH_EXECUTION_STRING:-}" && "${DOTFILES_MISE_ACTIVATE:-1}" != 0 ]]; then
+    eval "$(mise activate zsh)"
+fi
+
 # =============================================================================
 # Source Additional Configuration
 # =============================================================================

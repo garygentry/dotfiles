@@ -55,6 +55,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **zsh: startup-time check in `verify.sh`.** Reports the median of five interactive starts (`zsh -i </dev/null`). It fails only when
   `modules.zsh.startup_budget_ms` is set, and a non-numeric budget is warned about and ignored.
 
+- **`mise` module (opt-in).** Installs [mise](https://mise.jdx.dev) and the CLI tools and runtimes
+  you declare. The engine ships no tool list and no versions, and nothing changes unless you
+  select the module.
+  - The mise binary goes to `~/.local/bin/mise`, sudo-free, pinned with `modules.mise.version`,
+    and SHA-256-verified against the release `SHASUMS256.txt`. mise's self-update isn't used. A
+    mise installed some other way (Homebrew, a distro package) is used as-is, never replaced.
+  - `modules.mise.tools` (tool to exact version) and `modules.mise.settings` are rendered to
+    `~/.config/mise/conf.d/dotfiles.toml`. Your own `~/.config/mise/config.toml` is never touched.
+  - Optional `modules.mise.lockfile`: when set, the engine owns `~/.config/mise/mise.lock` and runs
+    `mise install --locked`, limited to the declared tools. Downloads then use checksummed URLs
+    with no GitHub API calls, and a version bumped without re-locking fails loudly.
+  - Optional `modules.mise.github_token_command` provides a token for the install step only.
+  - Shims go on PATH for every shell through managed blocks in `~/.zshenv`, the login profile and
+    `~/.bashrc`, so `ssh host cmd`, `bash -lc` and agent tool shells resolve the same tools as the
+    prompt. Interactive zsh also runs `mise activate` (turn it off with `modules.mise.activate:
+    false`).
+- **`nodejs.provider: mise`.** Node is owned by the mise module: declare `node` in
+  `modules.mise.tools`. The nodejs module then installs nothing. It asserts that mise provides
+  node, enforces `min_version`, keeps npm's global prefix at `~/.local`, and in verify checks that
+  a login shell resolves mise's node. The default provider stays `tarball`, which is unchanged.
+
 ### Changed
 
 - **zsh (zinit): interactive startup about 10× faster** (about 700 ms to about 70 ms measured on
@@ -79,6 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`render_template` passed the module directory as `--module`**, which expects the module name,
+  so `.Module` settings were always empty in templates rendered from install scripts. It now
+  passes `DOTFILES_MODULE_NAME`.
 - **`zsh -i -c exit` returned 1 when `~/.zshrc.local` was absent.** The last line of the rc file was
   `[[ -f ~/.zshrc.local ]] && source …`, so its false test became the shell's exit status for any
   `zsh -i -c` caller. It is now an `if` block.
