@@ -529,6 +529,11 @@ func TestValidateSymlinkTargets(t *testing.T) {
 			wantCount: 1,
 		},
 		{
+			name:      "herdr config.toml symlink flagged",
+			files:     []FileEntry{{Source: "config.toml", Dest: "~/.config/herdr/config.toml", Type: "symlink"}},
+			wantCount: 1,
+		},
+		{
 			name: "read-only reference files may be symlinked",
 			files: []FileEntry{
 				{Source: "aliases.zsh", Dest: "~/.config/zsh/aliases.zsh", Type: "symlink"},

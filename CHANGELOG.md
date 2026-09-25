@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`herdr` module** — installs the [Herdr](https://herdr.dev) terminal workspace manager for AI
+  coding agents (binary only: upstream SHA-256-verified installer into `~/.local/bin`, Homebrew on
+  macOS). Updates stay with `herdr update`; bring your own `config.toml` from a content overlay.
+  `~/.config/herdr/config.toml` joins the tool-writable destinations `dotfiles validate` refuses to
+  symlink, since herdr rewrites it at runtime.
 - **`skip_if_file` on module prompts** — a prompt is suppressed (its default used) when any listed
   path already exists (`~` and `~/.config` expanded; a dangling symlink counts). The `ssh` module
   uses it for the `ssh_key_type` prompt, which is pure noise on a host that already has a key —
