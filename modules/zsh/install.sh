@@ -135,3 +135,14 @@ else
     printf '\n%s\n' "${_zsh_autoexec_block}" >> "${_login_profile}"
     log_success "Added zsh auto-exec to ${_login_profile}"
 fi
+
+# User PATH for EVERY zsh, not just interactive ones. ~/.zshrc is only read by
+# interactive shells, so `ssh host cmd`, `zsh -c`, scripts and agent tool calls
+# previously missed ~/.local/bin (where sudo-free installs land). ~/.zshenv is
+# read by all zsh invocations, so the user bin dirs go there in a managed block;
+# any other content the user keeps in ~/.zshenv is left untouched. Keep this
+# block cheap: it runs for every zsh process.
+# shellcheck disable=SC2016  # literal $HOME/$path: expanded by zsh at startup, not here
+upsert_managed_block "${DOTFILES_HOME}/.zshenv" "path" \
+'typeset -U path
+path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'

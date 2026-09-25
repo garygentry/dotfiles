@@ -263,6 +263,52 @@ demote_symlink() {
     fi
 }
 
+# upsert_managed_block FILE NAME CONTENT
+#   Keep a dotfiles-owned block inside a file the user also owns (e.g. ~/.zshenv,
+#   ~/.profile), delimited by marker lines:
+#       # >>> dotfiles: NAME >>>
+#       CONTENT
+#       # <<< dotfiles: NAME <<<
+#   Replaces the block in place if present (so updates never duplicate it),
+#   appends it otherwise, and leaves every other line untouched. Creates FILE if
+#   missing; no-op when the block is already current. Respects dry-run. Writes
+#   through `cat >` so a symlinked FILE keeps its link and the target its mode.
+upsert_managed_block() {
+    local file="$1" name="$2" content="$3"
+    local begin="# >>> dotfiles: ${name} >>>" end="# <<< dotfiles: ${name} <<<"
+    local block
+    block="$(printf '%s\n%s\n%s' "$begin" "$content" "$end")"
+
+    if [[ -f "$file" ]] && [[ "$(awk -v b="$begin" -v e="$end" '
+            $0 == b { on = 1 } on { print } $0 == e { on = 0 }' "$file")" == "$block" ]]; then
+        log_info "Managed block '${name}' already current in ${file}"
+        return 0
+    fi
+
+    if is_dry_run; then
+        log_info "[dry-run] Would write managed block '${name}' to ${file}"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$file")"
+    local tmp
+    tmp="$(mktemp)"
+    if [[ -f "$file" ]] && grep -qxF -- "$begin" "$file"; then
+        # Replace the existing block. ENVIRON (not awk -v) avoids escape processing.
+        BLOCK="$block" awk -v b="$begin" -v e="$end" '
+            $0 == b { print ENVIRON["BLOCK"]; skip = 1; next }
+            skip && $0 == e { skip = 0; next }
+            !skip { print }' "$file" > "$tmp"
+    else
+        [[ -f "$file" ]] && cat "$file" > "$tmp"
+        [[ -s "$tmp" ]] && printf '\n' >> "$tmp"   # blank line before an appended block
+        printf '%s\n' "$block" >> "$tmp"
+    fi
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
+    log_success "Wrote managed block '${name}' to ${file}"
+}
+
 # link_file SOURCE DEST
 #   Create a symlink DEST -> SOURCE.  If DEST already exists and is the
 #   correct symlink, do nothing.  Otherwise back up the existing file first.

@@ -43,6 +43,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--no-content-update` (or `DOTFILES_CONTENT_UPDATE=0`). This mirrors the engine's own
   auto-update but stays `--ff-only`, never `reset --hard`, since the overlay can hold real
   authoring work.
+- **`upsert_managed_block` helper.** Keeps a dotfiles-owned block, delimited by
+  `# >>> dotfiles: NAME >>>` markers, inside a file the user also owns. It replaces the block in
+  place, never duplicates it, and leaves the rest of the file untouched.
+- **zsh: user PATH for non-interactive shells.** The `zsh` module writes a managed block to
+  `~/.zshenv` that puts `~/.local/bin`, `~/bin` and the dotfiles `bin` on PATH for **every** zsh.
+  Before this, only interactive shells (`~/.zshrc`) had them, so `ssh host cmd`, `zsh -c` and agent
+  tool shells missed sudo-free installs.
+- **zsh: startup-time check in `verify.sh`.** Reports the median of five `zsh -i -c exit` runs. It
+  fails only when `modules.zsh.startup_budget_ms` is set.
+
+### Changed
+
+- **zsh (zinit): interactive startup about 10× faster** (about 700 ms to about 70 ms measured on
+  Ubuntu 22.04).
+  - `compinit` uses a cached dump (`compinit -C`) under `$XDG_CACHE_HOME/zsh`, fully rebuilt when
+    older than 24 h. Previously the dump was audited and rewritten on every start, which was about
+    300 ms.
+  - zsh-autosuggestions and zsh-syntax-highlighting load in zinit turbo mode, just after the first
+    prompt.
+  - zsh-completions only extends `fpath` (`blockf`).
+- **zsh: syntax highlighting now loads last**, as upstream requires. The old template loaded it
+  first, with a comment saying it had to precede autosuggestions.
+- **zsh: fzf key bindings are wired in `~/.zshrc`** (`^T`, `^R`, `Alt-C`, `**` completion).
+  - Uses `fzf --zsh` on fzf 0.48 and later. On older builds it falls back to the scripts from the
+    same install as the binary.
+  - Skipped under `zsh -i -c`, where there is no line editor and fzf's scripts print errors.
+  - Before this, the `fzf` module installed with `--no-update-rc` and nothing loaded the bindings.
+- **zsh history:** 100k entries (was 10k), with `EXTENDED_HISTORY` timestamps and durations and
+  `HIST_EXPIRE_DUPS_FIRST`.
+- **zsh: `setopt CORRECT` removed.** "zsh: correct 'x' to 'y'?" prompts interrupted typing and
+  commands run by agents. zsh's own default is off.
 
 ### Fixed
 
