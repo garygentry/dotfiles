@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`zsh -i -c exit` returned 1 when `~/.zshrc.local` was absent.** The last line of the rc file was
+  `[[ -f ~/.zshrc.local ]] && source …`, so its false test became the shell's exit status for any
+  `zsh -i -c` caller. It is now an `if` block.
 - **`zsh` login auto-exec is now POSIX sh.** The block appended to `~/.profile` used bash-only
   `[[ ]]`/`&>`, which dash misparses (`&>/dev/null` → background job + always-true empty redirect),
   so every non-interactive `sh -l` (e.g. `/bin/sh -lc` detached commands from tools like herdr)

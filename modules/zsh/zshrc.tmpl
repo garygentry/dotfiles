@@ -226,5 +226,9 @@ if [[ -z "${ZSH_EXECUTION_STRING:-}" ]] && (( $+commands[fzf] )); then
     unset _fzf_zsh
 fi
 
-# Source local overrides (not managed by dotfiles)
-[[ -f "${HOME}/.zshrc.local" ]] && source "${HOME}/.zshrc.local"
+# Source local overrides (not managed by dotfiles). An if-block, not `[[ ]] &&`,
+# so a missing file doesn't leave $? = 1 as the rc's final status: `zsh -i -c exit`
+# (and any `zsh -i -c cmd` that inherits it) would otherwise report failure.
+if [[ -f "${HOME}/.zshrc.local" ]]; then
+    source "${HOME}/.zshrc.local"
+fi

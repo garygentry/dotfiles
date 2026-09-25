@@ -315,11 +315,12 @@ else
 fi
 # Interactive start is clean: no errors on stderr, and the completion dump is
 # cached under XDG_CACHE_HOME (not rebuilt into $HOME on every start).
-_zsh_err="$(zsh -i -c exit 2>&1 >/dev/null)"
-if [[ -z "$_zsh_err" ]]; then
-    pass "zsh -i starts with empty stderr"
+_zsh_rc=0
+_zsh_err="$(zsh -i -c exit 2>&1 >/dev/null)" || _zsh_rc=$?
+if [[ -z "$_zsh_err" && "$_zsh_rc" -eq 0 ]]; then
+    pass "zsh -i starts with empty stderr and exit 0"
 else
-    fail "zsh -i starts with empty stderr (got: ${_zsh_err})"
+    fail "zsh -i starts with empty stderr and exit 0 (rc=${_zsh_rc}, stderr: ${_zsh_err})"
 fi
 if ls "$HOME/.cache/zsh/zcompdump-"* >/dev/null 2>&1; then
     pass "completion dump cached under ~/.cache/zsh"
