@@ -77,38 +77,32 @@ _ensure_npm_prefix() {
 _ensure_npm_prefix
 
 # Provider (modules.nodejs.provider): "tarball" (default) = the sudo-free
-# nodejs.org install below; "mise" = Node is owned by the mise module (declare
-# e.g. `node: "22.19.0"` in modules.mise.tools). Under mise this module installs
-# nothing: it asserts that mise provides node and that it meets the floor. The
-# npm prefix above still applies, so `npm i -g` globals survive a Node switch
-# either way.
+# nodejs.org install below; "mise" = node is installed and owned by mise, at the
+# EXACT version in modules.nodejs.version (declared in conf.d/nodejs.toml via
+# mise_sync_tools; needs the mise module). Either way the npm prefix above
+# applies, so `npm i -g` globals survive a Node switch, and the floor is enforced.
 _provider="${DOTFILES_SETTING_PROVIDER:-tarball}"
 case "$_provider" in
     tarball) ;;
     mise)
-        _mise="$(command -v mise 2>/dev/null || true)"
-        [[ -z "$_mise" && -x "${_home}/.local/bin/mise" ]] && _mise="${_home}/.local/bin/mise"
-        if [[ -z "$_mise" ]]; then
-            log_error "Node.js: provider 'mise' needs the mise module (add 'mise' to your profile)"
+        _mver_want="${DOTFILES_SETTING_VERSION:-}"
+        _mver_want="${_mver_want#v}"
+        if [[ ! "$_mver_want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            log_error "Node.js: provider 'mise' needs an exact modules.nodejs.version (e.g. \"22.19.0\"), got '${_mver_want}'"
             exit 1
         fi
-        if is_dry_run; then
-            log_info "[dry-run] Would check that mise provides node${_min:+ (floor >=${_min})}"
-            exit 0
+        if [[ -n "$_min" ]] && ! _ver_ge "$_mver_want" "$_min"; then
+            log_error "Node.js: modules.nodejs.version ${_mver_want} is below the required floor ${_min}"
+            exit 1
         fi
+        mise_sync_tools "nodejs" "node@${_mver_want}"
+        is_dry_run && exit 0
         # Resolve from $HOME so a project mise.toml in the runner's cwd can't answer.
+        _mise="$(mise_bin)"
         _mnode="$( { cd "$_home" && "$_mise" which node; } 2>/dev/null )" || _mnode=""
-        if [[ -z "$_mnode" ]]; then
-            log_error "Node.js: provider 'mise' but mise provides no node; declare it in modules.mise.tools (e.g. node: \"22.19.0\")"
-            exit 1
-        fi
-        _mver="$(_node_ver_of "$_mnode")"
-        if [[ -z "$_mver" ]]; then
-            log_error "Node.js: mise's node does not run (${_mnode})"
-            exit 1
-        fi
-        if [[ -n "$_min" ]] && ! _ver_ge "$_mver" "$_min"; then
-            log_error "Node.js: mise provides node ${_mver}, below the required floor ${_min}; raise the node version in modules.mise.tools"
+        _mver="$([[ -n "$_mnode" ]] && _node_ver_of "$_mnode")" || _mver=""
+        if [[ "$_mver" != "$_mver_want" ]]; then
+            log_error "Node.js: mise resolves node '${_mver:-none}' (${_mnode:-not found}), expected ${_mver_want}; a ~/.config/mise/config.toml pin may be overriding it"
             exit 1
         fi
         log_success "Node.js v${_mver} provided by mise (${_mnode})${_min:+, floor >=${_min}}"

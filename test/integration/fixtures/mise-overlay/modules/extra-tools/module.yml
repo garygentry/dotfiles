@@ -1,0 +1,9 @@
+name: extra-tools
+description: "Fixture: a content-overlay module declaring its own mise tools"
+version: "1.0.0"
+priority: 60
+dependencies:
+  - mise
+os: []
+tags:
+  - test

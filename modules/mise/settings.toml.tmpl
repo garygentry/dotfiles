@@ -1,14 +1,9 @@
-# ~/.config/mise/conf.d/dotfiles.toml
-# Managed by dotfiles (mise module): rendered from modules.mise.tools / .settings and
-# re-rendered on every install, so edit your dotfiles config, not this file. Your own
-# global tools belong in ~/.config/mise/config.toml, which dotfiles never touches.
+# ~/.config/mise/conf.d/dotfiles-settings.toml
+# Managed by dotfiles (mise module): rendered from modules.mise.settings on every
+# install, so edit your dotfiles config, not this file. Tools are declared per module
+# in conf.d/<module>.toml; your own ~/.config/mise/config.toml is never touched.
 {{- /* Values are typed in YAML; branch on the Go type so TOML gets quoted strings,
        bare booleans/numbers and arrays of strings. */}}
-
-[tools]
-{{- range $name, $ver := .Module.tools }}
-{{ printf "%q" $name }} = {{ printf "%q" (printf "%v" $ver) }}
-{{- end }}
 
 [settings]
 {{- range $key, $val := .Module.settings }}

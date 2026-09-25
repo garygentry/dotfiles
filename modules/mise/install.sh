@@ -5,11 +5,13 @@
 # Generic by design: the engine ships NO tool list and NO versions. Everything
 # comes from modules.mise.* in config.yml (usually a content overlay):
 #   version                 mise release to install (e.g. "2026.9.14"); unset = latest (warned)
-#   tools                   map tool -> exact version, rendered to ~/.config/mise/conf.d/dotfiles.toml
-#   settings                map rendered to [settings] in the same file
+#   tools                   map tool -> exact version, declared in ~/.config/mise/conf.d/mise.toml
+#                           (any module can declare its own tools: see mise_sync_tools in lib/helpers.sh)
+#   settings                map rendered to ~/.config/mise/conf.d/dotfiles-settings.toml
 #   lockfile                optional mise.lock (relative to the content dir, else DOTFILES_DIR);
-#                           when set, the engine owns ~/.config/mise/mise.lock and installs --locked
-#   github_token_command    optional command printing a GitHub token, used for this run only
+#                           when set, the engine owns ~/.config/mise/mise.lock and every declared
+#                           tool installs --locked
+#   github_token_command    optional command printing a GitHub token, used for this module's install only
 #   activate                "false" = shims only in interactive zsh (no `mise activate`)
 #
 # One owner per binary: this module manages ~/.local/bin/mise only. A mise that
@@ -21,7 +23,6 @@ _home="${DOTFILES_HOME:-$HOME}"
 _bin="${_home}/.local/bin"
 _mise="${_bin}/mise"
 _cfg_dir="${DOTFILES_XDG_CONFIG_HOME:-${_home}/.config}/mise"
-_conf="${_cfg_dir}/conf.d/dotfiles.toml"
 _want="${DOTFILES_SETTING_VERSION:-}"
 _want="${_want#v}"
 
@@ -102,73 +103,51 @@ else
     log_success "mise $(_mise_ver_of "$_mise") installed to ${_mise}"
 fi
 
-# --- 2. Declared tools and settings --------------------------------------------
+# --- 2. Settings, lockfile, and the tools each module declares ----------------
+_state_dir="${DOTFILES_DIR:-${_home}/.dotfiles}/.state"
 if is_dry_run; then
-    log_info "[dry-run] Would render ${_conf} from modules.mise.tools/settings"
+    log_info "[dry-run] Would render ${_cfg_dir}/conf.d/dotfiles-settings.toml and sync declared tools"
 else
-    mkdir -p "$(dirname "$_conf")"
-    render_template "${DOTFILES_MODULE_DIR}/dotfiles.toml.tmpl" "$_conf"
-fi
+    mkdir -p "${_cfg_dir}/conf.d"
+    render_template "${DOTFILES_MODULE_DIR}/settings.toml.tmpl" "${_cfg_dir}/conf.d/dotfiles-settings.toml"
 
-# The declared tools, as tool@version args, read back from the rendered [tools]
-# table (this module renders every entry as "name" = "version").
-_tools=()
-if [[ -f "$_conf" ]]; then
-    while IFS= read -r _t; do
-        [[ -n "$_t" ]] && _tools+=("$_t")
-    done < <(awk '
-        /^\[/ { in_tools = ($0 == "[tools]"); next }
-        in_tools && /^"/ {
-            if (match($0, /^"[^"]+" = "[^"]*"$/)) {
-                split($0, kv, /" = "/)
-                name = substr(kv[1], 2); ver = kv[2]; sub(/"$/, "", ver)
-                print name "@" ver
-            }
-        }' "$_conf")
-fi
-
-# Optional lockfile: the engine owns ~/.config/mise/mise.lock when one is configured.
-_locked=()
-if [[ -n "${DOTFILES_SETTING_LOCKFILE:-}" ]]; then
-    _lock_src="$DOTFILES_SETTING_LOCKFILE"
-    if [[ "$_lock_src" != /* ]]; then
-        _lock_src="${DOTFILES_CONTENT_DIR:-${DOTFILES_DIR}}/${_lock_src}"
-    fi
-    if [[ ! -f "$_lock_src" ]]; then
-        log_error "mise: modules.mise.lockfile not found: ${_lock_src}"
-        exit 1
-    fi
-    if is_dry_run; then
-        log_info "[dry-run] Would install lockfile ${_lock_src} -> ${_cfg_dir}/mise.lock"
-    else
+    # Optional lockfile: the engine then owns ~/.config/mise/mise.lock, and every
+    # mise_sync_tools call installs --locked (the marker tells them so).
+    if [[ -n "${DOTFILES_SETTING_LOCKFILE:-}" ]]; then
+        _lock_src="$DOTFILES_SETTING_LOCKFILE"
+        [[ "$_lock_src" != /* ]] && _lock_src="${DOTFILES_CONTENT_DIR:-${DOTFILES_DIR}}/${_lock_src}"
+        if [[ ! -f "$_lock_src" ]]; then
+            log_error "mise: modules.mise.lockfile not found: ${_lock_src}"
+            exit 1
+        fi
         command cp -f "$_lock_src" "${_cfg_dir}/mise.lock"
+        : > "${_cfg_dir}/.dotfiles-locked"
+    else
+        rm -f "${_cfg_dir}/.dotfiles-locked"
     fi
-    _locked=(--locked)
+
+    # Fragments whose owning module is no longer installed (uninstalled or pruned)
+    # stop declaring their tools. Prune only undoes files the engine deployed, and
+    # these are written by scripts, so they are cleaned up here.
+    for _frag in "${_cfg_dir}"/conf.d/*.toml; do
+        [[ -f "$_frag" ]] || continue
+        _owner="$(sed -n '1s/^# Managed by dotfiles module \([^ .]*\)\..*/\1/p' "$_frag")"
+        [[ -n "$_owner" && "$_owner" != "mise" ]] || continue
+        if [[ ! -f "${_state_dir}/${_owner}.json" ]]; then
+            rm -f "$_frag"
+            log_info "mise: removed ${_frag##*/} (module ${_owner} is no longer installed)"
+        fi
+    done
 fi
 
-if [[ ${#_tools[@]} -eq 0 ]]; then
-    log_info "mise: no tools declared (modules.mise.tools); nothing to install"
-elif is_dry_run; then
-    log_info "[dry-run] Would run: mise install ${_locked[*]:-} ${_tools[*]}"
-else
-    # Token for this invocation only; never persisted.
-    _token=""
-    if [[ -n "${DOTFILES_SETTING_GITHUB_TOKEN_COMMAND:-}" ]]; then
-        _token="$(bash -c "$DOTFILES_SETTING_GITHUB_TOKEN_COMMAND" 2>/dev/null | head -1 || true)"
-        [[ -n "$_token" ]] || log_warn "mise: github_token_command produced no token; continuing anonymously"
-    fi
-    log_info "mise: installing ${#_tools[@]} declared tool(s)${_locked:+ (locked)}..."
-    # ${arr[@]+...}: an empty array is "unbound" under set -u in bash 3.2 (macOS).
-    # Scoped to the declared tools: a full `mise install --locked` would fail on a
-    # user's own global tools that are absent from the managed lockfile.
-    if ! MISE_GITHUB_TOKEN="${_token:-${MISE_GITHUB_TOKEN:-}}" MISE_YES=1 \
-            "$_mise" install ${_locked[@]+"${_locked[@]}"} "${_tools[@]}"; then
-        log_error "mise: tool install failed${_locked:+ (a --locked failure usually means the lockfile lacks an entry: re-run \`mise lock --global\`)}"
-        exit 1
-    fi
-    "$_mise" reshim
-    log_success "mise: ${#_tools[@]} tool(s) installed"
+# This module's own declared tools (modules.mise.tools). Other modules declare
+# theirs the same way, via mise_sync_tools in their own install.sh.
+_token=""
+if [[ -n "${DOTFILES_SETTING_GITHUB_TOKEN_COMMAND:-}" ]] && ! is_dry_run; then
+    _token="$(bash -c "$DOTFILES_SETTING_GITHUB_TOKEN_COMMAND" 2>/dev/null | head -1 || true)"
+    [[ -n "$_token" ]] || log_warn "mise: github_token_command produced no token; continuing anonymously"
 fi
+MISE_GITHUB_TOKEN="${_token:-${MISE_GITHUB_TOKEN:-}}" mise_sync_tools "mise"
 
 # --- 3. Shims on PATH for every shell ------------------------------------------
 # Shims resolve per invocation, so they work where rc-file activation never runs:

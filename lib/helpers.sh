@@ -336,6 +336,89 @@ upsert_managed_block() {
     log_success "Wrote managed block '${name}' to ${file}"
 }
 
+# ===========================================================================
+# mise (see modules/mise): any module can declare the CLI tools it needs
+# ===========================================================================
+
+# mise_bin
+#   Print the mise binary to use: the one on PATH, else ~/.local/bin/mise (where
+#   the mise module installs it, possibly not yet on this process's PATH).
+#   Prints nothing if mise isn't installed.
+mise_bin() {
+    local m
+    m="$(command -v mise 2>/dev/null || true)"
+    [[ -z "$m" && -x "${DOTFILES_HOME:-$HOME}/.local/bin/mise" ]] && m="${DOTFILES_HOME:-$HOME}/.local/bin/mise"
+    printf '%s' "$m"
+}
+
+# mise_sync_tools NAME [TOOL@VERSION ...]
+#   Declare tools in ~/.config/mise/conf.d/NAME.toml, owned by module NAME, and
+#   install exactly those. With no TOOL@VERSION args, reads the calling module's
+#   `tools` setting (DOTFILES_SETTING_TOOLS: one "tool=version" line per entry),
+#   so a module declares tools with just:  mise_sync_tools "$DOTFILES_MODULE_NAME"
+#   Versions must be exact (no "latest"). Installs with --locked when the mise
+#   module manages a lockfile (checksummed URLs, no GitHub API). The install is
+#   limited to these tools, so a user's own global tools can't break it. When the
+#   owning module is uninstalled or pruned, the mise module removes the fragment
+#   on its next run. Requires the mise module. Respects dry-run.
+mise_sync_tools() {
+    local name="$1"; shift
+    local cfg="${DOTFILES_XDG_CONFIG_HOME:-${DOTFILES_HOME:-$HOME}/.config}/mise"
+    local frag="${cfg}/conf.d/${name}.toml"
+    local -a specs=()
+    if [[ $# -gt 0 ]]; then
+        specs=("$@")
+    else
+        local k v
+        while IFS='=' read -r k v; do
+            [[ -n "$k" ]] && specs+=("${k}@${v}")
+        done <<< "${DOTFILES_SETTING_TOOLS:-}"
+    fi
+
+    local spec tool ver body=""
+    for spec in ${specs[@]+"${specs[@]}"}; do
+        tool="${spec%@*}"; ver="${spec##*@}"
+        if [[ "$spec" != *@* || -z "$tool" || -z "$ver" ]]; then
+            log_error "mise: '${spec}' must be tool@version (module ${name})"
+            return 1
+        fi
+        if [[ ! "$tool" =~ ^[A-Za-z0-9@/:._+-]+$ || ! "$ver" =~ ^[A-Za-z0-9._+-]+$ || "$ver" == latest ]]; then
+            log_error "mise: '${spec}' needs a plain tool name and an exact version (module ${name})"
+            return 1
+        fi
+        body+="\"${tool}\" = \"${ver}\""$'\n'
+    done
+
+    if is_dry_run; then
+        log_info "[dry-run] Would declare ${#specs[@]} mise tool(s) in ${frag} and install them"
+        return 0
+    fi
+    local m
+    m="$(mise_bin)"
+    if [[ -z "$m" ]]; then
+        log_error "mise: module ${name} declares tools but mise isn't installed (add the mise module)"
+        return 1
+    fi
+
+    mkdir -p "${cfg}/conf.d"
+    if [[ ${#specs[@]} -eq 0 ]]; then
+        rm -f "$frag"
+        log_info "mise: no tools declared by ${name}"
+        return 0
+    fi
+    printf '# Managed by dotfiles module %s. Do not edit: re-written on every install.\n[tools]\n%s' \
+        "$name" "$body" > "$frag"
+
+    local -a locked=()
+    [[ -f "${cfg}/.dotfiles-locked" ]] && locked=(--locked)
+    log_info "mise: installing ${#specs[@]} tool(s) for ${name}${locked[*]:+ (locked)}..."
+    if ! MISE_YES=1 "$m" install ${locked[@]+"${locked[@]}"} "${specs[@]}"; then
+        log_error "mise: install failed for ${name}${locked[*]:+ (with a managed lockfile, re-run \`mise lock --global\` after changing versions)}"
+        return 1
+    fi
+    "$m" reshim
+}
+
 # link_file SOURCE DEST
 #   Create a symlink DEST -> SOURCE.  If DEST already exists and is the
 #   correct symlink, do nothing.  Otherwise back up the existing file first.
