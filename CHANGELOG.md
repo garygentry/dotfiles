@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`zsh` login auto-exec is now POSIX sh.** The block appended to `~/.profile` used bash-only
+  `[[ ]]`/`&>`, which dash misparses (`&>/dev/null` → background job + always-true empty redirect),
+  so every non-interactive `sh -l` (e.g. `/bin/sh -lc` detached commands from tools like herdr)
+  exec'd `zsh -l` and silently dropped its command. Existing hosts' legacy block is migrated in place.
 - **`1password` no longer hard-fails on a no-sudo host.** The Ubuntu installer
   (`modules/1password/os/ubuntu.sh`) ran its apt-repo + package-install steps through `sudo_cmd`
   with no guard, so a host without usable sudo aborted the whole profile instead of degrading —
