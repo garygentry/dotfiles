@@ -4,7 +4,6 @@ set -euo pipefail
 
 _home="${DOTFILES_HOME:-$HOME}"
 _cfg_dir="${DOTFILES_XDG_CONFIG_HOME:-${_home}/.config}/mise"
-_conf="${_cfg_dir}/conf.d/dotfiles.toml"
 _want="${DOTFILES_SETTING_VERSION:-}"
 _want="${_want#v}"
 _errors=0
@@ -27,16 +26,17 @@ else
     log_success "mise ${_ver} (${_mise})"
 fi
 
-# Every declared tool is installed at exactly the declared version.
-if [[ -f "$_conf" ]]; then
-    _n=0
+# Every tool any module declared (conf.d/<module>.toml) is installed at exactly
+# the declared version.
+_n=0
+for _frag in "${_cfg_dir}"/conf.d/*.toml; do
+    [[ -f "$_frag" ]] || continue
+    sed -n '1p' "$_frag" | grep -q '^# Managed by dotfiles module ' || continue
     while IFS= read -r _t; do
         [[ -z "$_t" ]] && continue
         _n=$((_n + 1))
-        if "$_mise" where "$_t" >/dev/null 2>&1; then
-            :
-        else
-            log_error "declared tool not installed: ${_t} (run: mise install ${_t})"
+        if ! "$_mise" where "$_t" >/dev/null 2>&1; then
+            log_error "declared tool not installed: ${_t} (from ${_frag##*/}; run: mise install ${_t})"
             _errors=$((_errors + 1))
         fi
     done < <(awk '
@@ -44,9 +44,9 @@ if [[ -f "$_conf" ]]; then
         in_tools && /^"[^"]+" = "[^"]*"$/ {
             split($0, kv, /" = "/); name = substr(kv[1], 2); ver = kv[2]; sub(/"$/, "", ver)
             print name "@" ver
-        }' "$_conf")
-    [[ $_n -gt 0 ]] && log_success "${_n} declared tool(s) checked"
-fi
+        }' "$_frag")
+done
+[[ $_n -gt 0 ]] && log_success "${_n} declared tool(s) installed"
 
 # The managed lockfile matches its source.
 if [[ -n "${DOTFILES_SETTING_LOCKFILE:-}" ]]; then

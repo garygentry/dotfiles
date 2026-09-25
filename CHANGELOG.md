@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--no-content-update` (or `DOTFILES_CONTENT_UPDATE=0`). This mirrors the engine's own
   auto-update but stays `--ff-only`, never `reset --hard`, since the overlay can hold real
   authoring work.
+- **Module settings that are lists or maps now reach scripts in a usable form.** A list arrives as
+  one item per line and a map as sorted `key=value` lines. Before, they arrived as Go's
+  `map[a:b]` formatting, which no script could use.
 - **`upsert_managed_block` helper.** Keeps a dotfiles-owned block, delimited by
   `# >>> dotfiles: NAME >>>` markers, inside a file the user also owns. It replaces the block in
   place, collapses duplicate blocks to one, recognises CRLF files, and leaves the rest of the file
@@ -61,8 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The mise binary goes to `~/.local/bin/mise`, sudo-free, pinned with `modules.mise.version`,
     and SHA-256-verified against the release `SHASUMS256.txt`. mise's self-update isn't used. A
     mise installed some other way (Homebrew, a distro package) is used as-is, never replaced.
-  - `modules.mise.tools` (tool to exact version) and `modules.mise.settings` are rendered to
-    `~/.config/mise/conf.d/dotfiles.toml`. Your own `~/.config/mise/config.toml` is never touched.
+  - Tools are declared per module. `modules.mise.tools` (tool to exact version) is the mise
+    module's own list, and **any** module can declare tools the same way with a `tools:` setting
+    plus `mise_sync_tools "$DOTFILES_MODULE_NAME"` (new helper in `lib/helpers.sh`). A tool set
+    therefore follows whichever profile selects its module. Each module's list goes to
+    `~/.config/mise/conf.d/<module>.toml`, and the file is removed once that module is
+    uninstalled or pruned. `modules.mise.settings` goes to `conf.d/dotfiles-settings.toml`. Your own
+    `~/.config/mise/config.toml` is never touched.
   - Optional `modules.mise.lockfile`: when set, the engine owns `~/.config/mise/mise.lock` and runs
     `mise install --locked`, limited to the declared tools. Downloads then use checksummed URLs
     with no GitHub API calls, and a version bumped without re-locking fails loudly.
@@ -71,9 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `~/.bashrc`, so `ssh host cmd`, `bash -lc` and agent tool shells resolve the same tools as the
     prompt. Interactive zsh also runs `mise activate` (turn it off with `modules.mise.activate:
     false`).
-- **`nodejs.provider: mise`.** Node is owned by the mise module: declare `node` in
-  `modules.mise.tools`. The nodejs module then installs nothing. It asserts that mise provides
-  node, enforces `min_version`, keeps npm's global prefix at `~/.local`, and in verify checks that
+- **`nodejs.provider: mise`.** Node is installed and owned by mise, at the exact
+  `modules.nodejs.version`, which the nodejs module declares through `mise_sync_tools`. It enforces
+  `min_version`, keeps npm's global prefix at `~/.local`, and in verify checks that
   a login shell resolves mise's node. The default provider stays `tarball`, which is unchanged.
 
 ### Changed
