@@ -1,0 +1,17 @@
+# Content-overlay fixture for the mise integration test: an exact-pinned mise, three
+# declared tools (a CLI binary, a musl binary, and a runtime) and a lockfile made with
+#   mise lock --global --platform linux-x64,linux-arm64,macos-arm64
+# so the install runs --locked with no GitHub API calls. nodejs uses the mise provider.
+modules:
+  mise:
+    version: "2026.9.14"
+    lockfile: mise.lock
+    tools:
+      fzf: "0.65.2"
+      ripgrep: "14.1.1"
+      node: "22.19.0"
+    settings:
+      minimum_release_age: "7d"
+  nodejs:
+    provider: mise
+    min_version: "22.19.0"
