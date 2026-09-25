@@ -294,6 +294,39 @@ fi
 assert_dir_exists "zinit directory exists" "$HOME/.local/share/zinit/zinit.git"
 assert_symlink "~/.config/zsh/aliases.zsh is symlink" "$HOME/.config/zsh/aliases.zsh"
 assert_symlink "~/.config/zsh/functions.zsh is symlink" "$HOME/.config/zsh/functions.zsh"
+# ~/.zshenv carries the managed user-PATH block, so NON-interactive zsh (ssh host
+# cmd, zsh -c, agent tool shells) also sees ~/.local/bin.
+assert_file_exists "~/.zshenv exists" "$HOME/.zshenv"
+if grep -qxF "# >>> dotfiles: path >>>" "$HOME/.zshenv" 2>/dev/null; then
+    pass "~/.zshenv has the managed PATH block"
+else
+    fail "~/.zshenv has the managed PATH block"
+fi
+if [[ "$(zsh -c 'print -r -- $path[1]' 2>/dev/null)" == "$HOME/.local/bin" ]]; then
+    pass "non-interactive zsh puts ~/.local/bin first on PATH"
+else
+    fail "non-interactive zsh puts ~/.local/bin first on PATH"
+fi
+# Re-running the zsh install must not duplicate the block (idempotent upsert).
+if [[ "$(grep -cxF "# >>> dotfiles: path >>>" "$HOME/.zshenv")" == "1" ]]; then
+    pass "~/.zshenv PATH block appears exactly once"
+else
+    fail "~/.zshenv PATH block appears exactly once"
+fi
+# Interactive start is clean: no errors on stderr, and the completion dump is
+# cached under XDG_CACHE_HOME (not rebuilt into $HOME on every start).
+_zsh_rc=0
+_zsh_err="$(zsh -i -c exit 2>&1 >/dev/null)" || _zsh_rc=$?
+if [[ -z "$_zsh_err" && "$_zsh_rc" -eq 0 ]]; then
+    pass "zsh -i starts with empty stderr and exit 0"
+else
+    fail "zsh -i starts with empty stderr and exit 0 (rc=${_zsh_rc}, stderr: ${_zsh_err})"
+fi
+if ls "$HOME/.cache/zsh/zcompdump-"* >/dev/null 2>&1; then
+    pass "completion dump cached under ~/.cache/zsh"
+else
+    fail "completion dump cached under ~/.cache/zsh"
+fi
 
 # --- Test 8: Neovim module verification ---
 echo ""
