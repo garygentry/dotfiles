@@ -64,6 +64,9 @@ zinit light zsh-users/zsh-completions
 # rewrite) costs ~300ms per shell; with -C it trusts the dump and costs a few ms.
 # The dump is rebuilt when missing or older than 24h, so newly installed
 # completions appear within a day (or at once: rm "$_zcompdump"; exec zsh).
+# A full compinit only rewrites the dump when the completion set changed, so the
+# dump is touched after it: otherwise, once 24h old, every shell would stay on
+# the slow path.
 # One dump per zsh version: dumps are not portable across versions.
 autoload -Uz compinit
 zmodload -F zsh/stat b:zstat
@@ -76,6 +79,7 @@ if (( EPOCHSECONDS - _zcompdump_mtime < 86400 )); then
     compinit -C -d "$_zcompdump"
 else
     compinit -d "$_zcompdump"
+    command touch -- "$_zcompdump"  # restart the 24h window (runs at most once a day)
 fi
 unset _zcompdump_mtime
 zinit cdreplay -q
@@ -202,10 +206,11 @@ fi
 # shipped by the SAME install as the binary on PATH. Scripts from a different
 # fzf version pass flags the binary doesn't know and break the widgets. Minimized
 # Ubuntu images drop /usr/share/doc, so an old apt fzf there gets no bindings;
-# install a current fzf instead. Skipped for `zsh -i -c cmd` (as agent tools and
-# scripts run; zsh sets ZSH_EXECUTION_STRING only then): no line editor is used,
-# and fzf's option restore errors there ("can't change option: zle").
-if [[ -z "${ZSH_EXECUTION_STRING:-}" ]] && (( $+commands[fzf] )); then
+# install a current fzf instead. Skipped unless a line editor will be used: not
+# for `zsh -i -c cmd` (as agent tools and scripts run; zsh sets ZSH_EXECUTION_STRING
+# only then) and not without a terminal on stdin. fzf's option restore errors in
+# both ("can't change option: zle").
+if [[ -z "${ZSH_EXECUTION_STRING:-}" && -t 0 ]] && (( $+commands[fzf] )); then
     if _fzf_zsh="$(fzf --zsh 2>/dev/null)"; then
         eval "$_fzf_zsh"
     else

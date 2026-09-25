@@ -45,20 +45,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   authoring work.
 - **`upsert_managed_block` helper.** Keeps a dotfiles-owned block, delimited by
   `# >>> dotfiles: NAME >>>` markers, inside a file the user also owns. It replaces the block in
-  place, never duplicates it, and leaves the rest of the file untouched.
+  place, collapses duplicate blocks to one, recognises CRLF files, and leaves the rest of the file
+  untouched. If the markers don't pair up, it refuses (returns 1) rather than risk deleting user
+  lines.
 - **zsh: user PATH for non-interactive shells.** The `zsh` module writes a managed block to
   `~/.zshenv` that puts `~/.local/bin`, `~/bin` and the dotfiles `bin` on PATH for **every** zsh.
   Before this, only interactive shells (`~/.zshrc`) had them, so `ssh host cmd`, `zsh -c` and agent
   tool shells missed sudo-free installs.
-- **zsh: startup-time check in `verify.sh`.** Reports the median of five `zsh -i -c exit` runs. It
-  fails only when `modules.zsh.startup_budget_ms` is set.
+- **zsh: startup-time check in `verify.sh`.** Reports the median of five interactive starts (`zsh -i </dev/null`). It fails only when
+  `modules.zsh.startup_budget_ms` is set, and a non-numeric budget is warned about and ignored.
 
 ### Changed
 
 - **zsh (zinit): interactive startup about 10× faster** (about 700 ms to about 70 ms measured on
   Ubuntu 22.04).
-  - `compinit` uses a cached dump (`compinit -C`) under `$XDG_CACHE_HOME/zsh`, fully rebuilt when
-    older than 24 h. Previously the dump was audited and rewritten on every start, which was about
+  - `compinit` uses a cached dump (`compinit -C`) under `$XDG_CACHE_HOME/zsh`, re-checked in full at most
+    once a day (then the 24 h window restarts). Previously the dump was audited and rewritten on every start, which was about
     300 ms.
   - zsh-autosuggestions and zsh-syntax-highlighting load in zinit turbo mode, just after the first
     prompt.
