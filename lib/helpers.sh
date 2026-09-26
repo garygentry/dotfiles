@@ -379,9 +379,11 @@ mise_sync_tools() {
     if [[ $# -gt 0 ]]; then
         specs=("$@")
     else
-        local k v
-        while IFS='=' read -r k v; do
-            [[ -n "$k" ]] && specs+=("${k}@${v}")
+        # One "tool=version" line per entry. Split at the LAST "=": versions never
+        # contain one, but tool options can (github:owner/repo[matching=musl]).
+        local line
+        while IFS= read -r line; do
+            [[ "$line" == *=* ]] && specs+=("${line%=*}@${line##*=}")
         done <<< "${DOTFILES_SETTING_TOOLS:-}"
     fi
 

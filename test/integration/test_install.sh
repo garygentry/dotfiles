@@ -444,7 +444,7 @@ if [[ "$(zsh -c 'print -r -- $path[1]' 2>/dev/null)" == "$_shims" ]]; then
 else
     fail "non-interactive zsh puts the mise shims first"
 fi
-for _t in "node:v22.19.0" "fzf:0.65.2" "rg:ripgrep 14.1.1"; do
+for _t in "node:v22.19.0" "fzf:0.65.2" "rg:ripgrep 14.1.1" "atuin:atuin 18.22.0"; do
     _bin="${_t%%:*}"; _want="${_t#*:}"
     if zsh -c "$_bin --version" 2>/dev/null | head -1 | grep -qF "$_want"; then
         pass "zsh -c resolves $_bin ($_want)"
