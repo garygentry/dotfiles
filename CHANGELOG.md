@@ -91,6 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     up yourself is left alone.
   - With a lockfile, a declared tool that has no entry for the current platform (for example, eza
     has no macOS build) is skipped with a warning instead of failing the whole set.
+  - Tool names may carry mise backend options, for example `"github:atuinsh/atuin[matching=musl]"`
+    to pick a release's musl build. The lockfile lookup ignores the options.
   - Tool versions must be exact and **quoted** in YAML: an unquoted `1.10` is a float and arrives
     as `1.1`. Settings that are YAML maps render as TOML inline tables, and a null setting is
     omitted.

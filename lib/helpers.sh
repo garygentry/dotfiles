@@ -392,7 +392,9 @@ mise_sync_tools() {
             log_error "mise: '${spec}' must be tool@version (module ${name})"
             return 1
         fi
-        if [[ ! "$tool" =~ ^[A-Za-z0-9@/:._+-]+$ || ! "$ver" =~ ^[A-Za-z0-9._+-]+$ || "$ver" == latest ]]; then
+        # Tool names may carry mise backend options in brackets, e.g.
+        # github:atuinsh/atuin[matching=musl] (pick the musl build of a release).
+        if [[ ! "$tool" =~ ^[A-Za-z0-9@/:._+-]+(\[[A-Za-z0-9_=,./:+-]+\])?$ || ! "$ver" =~ ^[A-Za-z0-9._+-]+$ || "$ver" == latest ]]; then
             log_error "mise: '${spec}' needs a plain tool name and an exact version (module ${name})"
             return 1
         fi
@@ -430,10 +432,12 @@ mise_sync_tools() {
         case "$(uname -s)" in Linux) os=linux ;; Darwin) os=macos ;; *) os="" ;; esac
         case "$(uname -m)" in x86_64|amd64) arch=x64 ;; arm64|aarch64) arch=arm64 ;; *) arch="" ;; esac
         plat="${os}-${arch}"
+        local lockkey
         for spec in "${specs[@]}"; do
             tool="${spec%@*}"
-            if grep -qF "[tools.\"${tool}\".\"platforms.${plat}\"]" "${cfg}/mise.lock" \
-                || grep -qF "[tools.${tool}.\"platforms.${plat}\"]" "${cfg}/mise.lock"; then
+            lockkey="${tool%%\[*}"    # the lockfile keys a tool without its [options]
+            if grep -qF "[tools.\"${lockkey}\".\"platforms.${plat}\"]" "${cfg}/mise.lock" \
+                || grep -qF "[tools.${lockkey}.\"platforms.${plat}\"]" "${cfg}/mise.lock"; then
                 keep+=("$spec")
                 kept_body+="\"${tool}\" = \"${spec##*@}\""$'\n'
             else
