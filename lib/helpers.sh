@@ -277,9 +277,12 @@ demote_symlink() {
 #   up (a begin without its end, or the reverse), the file is left untouched and
 #   this returns 1: replacing from an unterminated begin would delete user lines.
 #   Respects dry-run. Writes through `cat >` so a symlinked FILE keeps its link
-#   and the target its mode.
+#   and the target its mode. Optional 4th argument "top" puts a NEW block at the
+#   top of the file instead of the bottom (for files like ~/.bashrc, whose distro
+#   default returns early for non-interactive shells); an existing block stays
+#   where it is.
 upsert_managed_block() {
-    local file="$1" name="$2" content="$3"
+    local file="$1" name="$2" content="$3" position="${4:-bottom}"
     local begin="# >>> dotfiles: ${name} >>>" end="# <<< dotfiles: ${name} <<<"
     local block
     block="$(printf '%s\n%s\n%s' "$begin" "$content" "$end")"
@@ -325,6 +328,12 @@ upsert_managed_block() {
             line == b { if (!done) { print ENVIRON["BLOCK"]; done = 1 } skip = 1; next }
             skip && line == e { skip = 0; next }
             !skip { print }' "$file" > "$tmp"
+    elif [[ "$position" == "top" ]]; then
+        printf '%s\n' "$block" > "$tmp"
+        if [[ -s "$file" ]]; then
+            printf '\n' >> "$tmp"
+            cat "$file" >> "$tmp"
+        fi
     else
         [[ -f "$file" ]] && cat "$file" > "$tmp"
         # Separate from existing content; also terminates a last line lacking "\n".
@@ -356,7 +365,8 @@ mise_bin() {
 #   install exactly those. With no TOOL@VERSION args, reads the calling module's
 #   `tools` setting (DOTFILES_SETTING_TOOLS: one "tool=version" line per entry),
 #   so a module declares tools with just:  mise_sync_tools "$DOTFILES_MODULE_NAME"
-#   Versions must be exact (no "latest"). Installs with --locked when the mise
+#   Versions must be exact (no "latest") and should be QUOTED in YAML: an unquoted
+#   1.10 is a float and arrives as 1.1. Installs with --locked when the mise
 #   module manages a lockfile (checksummed URLs, no GitHub API). The install is
 #   limited to these tools, so a user's own global tools can't break it. When the
 #   owning module is uninstalled or pruned, the mise module removes the fragment
@@ -393,6 +403,15 @@ mise_sync_tools() {
         log_info "[dry-run] Would declare ${#specs[@]} mise tool(s) in ${frag} and install them"
         return 0
     fi
+    # Nothing declared: drop the fragment, so the module stops owning any tool.
+    # Needs no mise (e.g. nodejs switching back from provider mise to tarball).
+    if [[ ${#specs[@]} -eq 0 ]]; then
+        if [[ -f "$frag" ]]; then
+            rm -f "$frag"
+            log_info "mise: ${name} no longer declares tools (removed ${frag##*/})"
+        fi
+        return 0
+    fi
     local m
     m="$(mise_bin)"
     if [[ -z "$m" ]]; then
@@ -400,17 +419,38 @@ mise_sync_tools() {
         return 1
     fi
 
-    mkdir -p "${cfg}/conf.d"
-    if [[ ${#specs[@]} -eq 0 ]]; then
-        rm -f "$frag"
-        log_info "mise: no tools declared by ${name}"
-        return 0
+    # With a managed lockfile, a tool it has no entry for on THIS platform can't
+    # install --locked (e.g. eza publishes no macOS build). Skip it with a warning
+    # instead of failing the whole set.
+    local -a locked=()
+    if [[ -f "${cfg}/.dotfiles-locked" && -f "${cfg}/mise.lock" ]]; then
+        locked=(--locked)
+        local plat os arch kept_body=""
+        local -a keep=()
+        case "$(uname -s)" in Linux) os=linux ;; Darwin) os=macos ;; *) os="" ;; esac
+        case "$(uname -m)" in x86_64|amd64) arch=x64 ;; arm64|aarch64) arch=arm64 ;; *) arch="" ;; esac
+        plat="${os}-${arch}"
+        for spec in "${specs[@]}"; do
+            tool="${spec%@*}"
+            if grep -qF "[tools.\"${tool}\".\"platforms.${plat}\"]" "${cfg}/mise.lock" \
+                || grep -qF "[tools.${tool}.\"platforms.${plat}\"]" "${cfg}/mise.lock"; then
+                keep+=("$spec")
+                kept_body+="\"${tool}\" = \"${spec##*@}\""$'\n'
+            else
+                log_warn "mise: ${spec} has no lockfile entry for ${plat}; skipping it on this host"
+            fi
+        done
+        specs=(${keep[@]+"${keep[@]}"})
+        body="$kept_body"
     fi
+
+    mkdir -p "${cfg}/conf.d"
     printf '# Managed by dotfiles module %s. Do not edit: re-written on every install.\n[tools]\n%s' \
         "$name" "$body" > "$frag"
-
-    local -a locked=()
-    [[ -f "${cfg}/.dotfiles-locked" ]] && locked=(--locked)
+    if [[ ${#specs[@]} -eq 0 ]]; then
+        log_info "mise: nothing to install for ${name} on this platform"
+        return 0
+    fi
     log_info "mise: installing ${#specs[@]} tool(s) for ${name}${locked[*]:+ (locked)}..."
     if ! MISE_YES=1 "$m" install ${locked[@]+"${locked[@]}"} "${specs[@]}"; then
         log_error "mise: install failed for ${name}${locked[*]:+ (with a managed lockfile, re-run \`mise lock --global\` after changing versions)}"

@@ -83,7 +83,11 @@ _ensure_npm_prefix
 # applies, so `npm i -g` globals survive a Node switch, and the floor is enforced.
 _provider="${DOTFILES_SETTING_PROVIDER:-tarball}"
 case "$_provider" in
-    tarball) ;;
+    tarball)
+        # Switching back from provider mise: stop declaring node in mise, or mise's
+        # shims would keep owning node alongside this install (two owners).
+        mise_sync_tools "nodejs"
+        ;;
     mise)
         _mver_want="${DOTFILES_SETTING_VERSION:-}"
         _mver_want="${_mver_want#v}"

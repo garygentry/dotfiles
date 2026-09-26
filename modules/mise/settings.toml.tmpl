@@ -8,5 +8,7 @@
 [settings]
 {{- range $key, $val := .Module.settings }}
 {{- $t := printf "%T" $val }}
-{{ $key }} = {{ if eq $t "string" }}{{ printf "%q" $val }}{{ else if eq $t "[]interface {}" }}[{{ range $i, $e := $val }}{{ if $i }}, {{ end }}{{ printf "%q" (printf "%v" $e) }}{{ end }}]{{ else }}{{ $val }}{{ end }}
+{{- if ne $t "<nil>" }}{{/* a YAML null means "unset": omit the key */}}
+{{ $key }} = {{ if eq $t "string" }}{{ printf "%q" $val }}{{ else if eq $t "[]interface {}" }}[{{ range $i, $e := $val }}{{ if $i }}, {{ end }}{{ printf "%q" (printf "%v" $e) }}{{ end }}]{{ else if eq $t "map[string]interface {}" }}{ {{- $first := true }}{{ range $k2, $v2 := $val }}{{ $t2 := printf "%T" $v2 }}{{ if not $first }},{{ end }}{{ $first = false }} {{ $k2 }} = {{ if eq $t2 "string" }}{{ printf "%q" $v2 }}{{ else if or (eq $t2 "bool") (eq $t2 "int") (eq $t2 "float64") }}{{ $v2 }}{{ else }}{{ printf "%q" (printf "%v" $v2) }}{{ end }}{{ end }} }{{ else }}{{ $val }}{{ end }}
+{{- end }}
 {{- end }}

@@ -148,7 +148,13 @@ upsert_managed_block "${DOTFILES_HOME}/.zshenv" "path" \
 # runs a cached one, so the global one only costs time and writes ~/.zcompdump.
 skip_global_compinit=1
 typeset -U path
-path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'
+path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)
+# mise shims first (they win over stale copies in ~/.local/bin), but ONLY when the
+# dotfiles mise module is installed: its marker file, not a shims dir that a mise
+# the user set up themselves might also have. Independent of block order.
+if [[ -e "$HOME/.config/mise/.dotfiles-managed" ]]; then
+    path=("${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims" $path)
+fi'
 
 # macOS: /etc/zprofile (path_helper) runs AFTER ~/.zshenv in login shells and moves
 # the system dirs first, so a non-interactive login shell (`zsh -lc`, used by some
@@ -158,5 +164,11 @@ if is_macos; then
     # shellcheck disable=SC2016  # literal $HOME/$path: expanded by zsh at startup
     upsert_managed_block "${DOTFILES_HOME}/.zprofile" "path" \
 'typeset -U path
-path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'
+path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)
+# mise shims first (they win over stale copies in ~/.local/bin), but ONLY when the
+# dotfiles mise module is installed: its marker file, not a shims dir that a mise
+# the user set up themselves might also have. Independent of block order.
+if [[ -e "$HOME/.config/mise/.dotfiles-managed" ]]; then
+    path=("${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims" $path)
+fi'
 fi

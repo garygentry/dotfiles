@@ -480,6 +480,26 @@ if [[ ! -f "$HOME/.config/mise/conf.d/extra-tools.toml" && -f "$HOME/.config/mis
 else
     fail "fragment of an uninstalled module is removed; others kept"
 fi
+# Switching nodejs back to the tarball provider (here via the host config layer)
+# must stop mise declaring node, so node never has two owners.
+MISE_HOSTCFG="$(mktemp)"
+printf 'modules:\n  nodejs:\n    provider: tarball\n' > "$MISE_HOSTCFG"
+env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN DOTFILES_CONTENT_DIR="$MISE_FIXTURE" \
+    ./bin/dotfiles install --unattended --force --host-config "$MISE_HOSTCFG" nodejs >/dev/null 2>&1 || true
+if [[ ! -f "$HOME/.config/mise/conf.d/nodejs.toml" ]]; then
+    pass "provider mise -> tarball removes the nodejs mise fragment"
+else
+    fail "provider mise -> tarball removes the nodejs mise fragment"
+fi
+rm -f "$MISE_HOSTCFG"
+# The mise block sits at the TOP of ~/.bashrc (distro .bashrc returns early for
+# non-interactive shells), and the marker gating zsh's mise handling is deployed.
+if [[ "$(head -1 "$HOME/.bashrc")" == "# >>> dotfiles: mise >>>" ]]; then
+    pass "~/.bashrc mise block is at the top"
+else
+    fail "~/.bashrc mise block is at the top"
+fi
+assert_file_exists "mise marker deployed" "$HOME/.config/mise/.dotfiles-managed"
 
 # ==============================================================================
 echo ""

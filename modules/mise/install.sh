@@ -166,18 +166,23 @@ _zshenv="${_home}/.zshenv"
 upsert_managed_block "$_zshenv" "mise" "typeset -U path
 path=(\"${_shims}\" \$path)${_activate_line}"
 
-if is_macos; then
-    _login_profile="${_home}/.bash_profile"
-else
-    _login_profile="${_home}/.profile"
-fi
-# POSIX sh: ~/.profile is also read by dash for `sh -l`.
-upsert_managed_block "$_login_profile" "mise" "case \":\$PATH:\" in
+# Login shells. ~/.profile always: `sh -l` (dash, or bash in POSIX mode) and bash
+# with no ~/.bash_profile read it. bash login shells read the FIRST of
+# ~/.bash_profile, ~/.bash_login, ~/.profile, so if one of the first two exists it
+# gets the block too. We never create ~/.bash_profile: that would hide ~/.profile.
+# POSIX sh syntax throughout (dash reads ~/.profile).
+_posix_shims="case \":\$PATH:\" in
     *\":${_shims}:\"*) ;;
     *) PATH=\"${_shims}:\$PATH\"; export PATH ;;
 esac"
-# Interactive non-login bash (e.g. most Linux terminal emulators) reads only ~/.bashrc.
-upsert_managed_block "${_home}/.bashrc" "mise" "case \":\$PATH:\" in
-    *\":${_shims}:\"*) ;;
-    *) PATH=\"${_shims}:\$PATH\"; export PATH ;;
-esac"
+upsert_managed_block "${_home}/.profile" "mise" "$_posix_shims"
+for _bp in "${_home}/.bash_profile" "${_home}/.bash_login"; do
+    if [[ -f "$_bp" ]]; then
+        upsert_managed_block "$_bp" "mise" "$_posix_shims"
+        break
+    fi
+done
+# Non-login bash (terminal emulators, and `ssh host cmd` with bash) reads ~/.bashrc.
+# At the TOP: Debian/Ubuntu/Arch skeleton .bashrc files return early for
+# non-interactive shells, and a block after that return would never run.
+upsert_managed_block "${_home}/.bashrc" "mise" "$_posix_shims" top

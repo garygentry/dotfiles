@@ -80,11 +80,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `mise install --locked`, limited to the declared tools. Downloads then use checksummed URLs
     with no GitHub API calls, and a version bumped without re-locking fails loudly.
   - Optional `modules.mise.github_token_command` provides a token for the install step only.
-  - Shims go on PATH for every shell through managed blocks in `~/.zshenv`, the login profile and
-    `~/.bashrc`, so `ssh host cmd`, `bash -lc` and agent tool shells resolve the same tools as the
-    prompt. Interactive zsh also runs `mise activate` (turn it off with `modules.mise.activate:
-    false`).
-- **`nodejs.provider: mise`.** Node is installed and owned by mise, at the exact
+  - Shims go on PATH for every shell through managed blocks in `~/.zshenv`, `~/.profile` (and
+    `~/.bash_profile` or `~/.bash_login` when one exists; `~/.bash_profile` is never created,
+    because that would hide `~/.profile`) and the **top** of `~/.bashrc` (distro `.bashrc` files
+    return early for non-interactive shells). So `ssh host cmd`, `bash -lc` and agent tool shells
+    resolve the same tools as the prompt. Interactive zsh also runs `mise activate` (turn it off
+    with `modules.mise.activate: false`).
+  - The zsh module puts the shims first and activates mise **only** when the mise module is
+    installed. It checks a marker file the module deploys (and uninstall removes). A mise you set
+    up yourself is left alone.
+  - With a lockfile, a declared tool that has no entry for the current platform (for example, eza
+    has no macOS build) is skipped with a warning instead of failing the whole set.
+  - Tool versions must be exact and **quoted** in YAML: an unquoted `1.10` is a float and arrives
+    as `1.1`. Settings that are YAML maps render as TOML inline tables, and a null setting is
+    omitted.
+- **`nodejs.provider: mise`.** (Switching back to `tarball` stops declaring node in mise, so there
+  are never two owners.) Node is installed and owned by mise, at the exact
   `modules.nodejs.version`, which the nodejs module declares through `mise_sync_tools`. It enforces
   `min_version`, keeps npm's global prefix at `~/.local`, and in verify checks that
   a login shell resolves mise's node. The default provider stays `tarball`, which is unchanged.

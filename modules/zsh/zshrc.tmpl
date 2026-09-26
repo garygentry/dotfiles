@@ -180,11 +180,13 @@ path=(
 # paths, per-directory [env] and hooks. It is skipped for `zsh -i -c cmd` (shims
 # already resolve correctly there, and it costs time per invocation) and when the
 # mise module sets DOTFILES_MISE_ACTIVATE=0 (modules.mise.activate: false).
-_mise_shims="${XDG_DATA_HOME:-${HOME}/.local/share}/mise/shims"
-[[ -d "$_mise_shims" ]] && path=("$_mise_shims" $path)
-unset _mise_shims
-if (( $+commands[mise] )) && [[ -z "${ZSH_EXECUTION_STRING:-}" && "${DOTFILES_MISE_ACTIVATE:-1}" != 0 ]]; then
-    eval "$(mise activate zsh)"
+# Only when the dotfiles mise module is installed (its marker file): a mise the user
+# set up themselves is left entirely to them.
+if [[ -e "${HOME}/.config/mise/.dotfiles-managed" ]]; then
+    path=("${XDG_DATA_HOME:-${HOME}/.local/share}/mise/shims" $path)
+    if (( $+commands[mise] )) && [[ -z "${ZSH_EXECUTION_STRING:-}" && "${DOTFILES_MISE_ACTIVATE:-1}" != 0 ]]; then
+        eval "$(mise activate zsh)"
+    fi
 fi
 
 # =============================================================================
