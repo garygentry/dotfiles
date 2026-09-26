@@ -144,5 +144,19 @@ fi
 # block cheap: it runs for every zsh process.
 # shellcheck disable=SC2016  # literal $HOME/$path: expanded by zsh at startup, not here
 upsert_managed_block "${DOTFILES_HOME}/.zshenv" "path" \
+'# Debian/Ubuntu /etc/zsh/zshrc runs its own full compinit unless this is set; ~/.zshrc
+# runs a cached one, so the global one only costs time and writes ~/.zcompdump.
+skip_global_compinit=1
+typeset -U path
+path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'
+
+# macOS: /etc/zprofile (path_helper) runs AFTER ~/.zshenv in login shells and moves
+# the system dirs first, so a non-interactive login shell (`zsh -lc`, used by some
+# IDEs and agents) would find /usr/bin tools before ~/.local/bin. ~/.zprofile runs
+# after /etc/zprofile, so the same block there restores the precedence.
+if is_macos; then
+    # shellcheck disable=SC2016  # literal $HOME/$path: expanded by zsh at startup
+    upsert_managed_block "${DOTFILES_HOME}/.zprofile" "path" \
 'typeset -U path
 path=("$HOME/.local/bin" "$HOME/bin" "${DOTFILES_DIR:-$HOME/.dotfiles}/bin" $path)'
+fi

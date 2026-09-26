@@ -49,11 +49,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untouched. If the markers don't pair up, it refuses (returns 1) rather than risk deleting user
   lines.
 - **zsh: user PATH for non-interactive shells.** The `zsh` module writes a managed block to
-  `~/.zshenv` that puts `~/.local/bin`, `~/bin` and the dotfiles `bin` on PATH for **every** zsh.
+  `~/.zshenv` that puts `~/.local/bin`, `~/bin` and the dotfiles `bin` on PATH for **every** zsh. It also sets
+  `skip_global_compinit=1`, so the full global `compinit` in Debian/Ubuntu's `/etc/zsh/zshrc` no
+  longer runs on every start. On macOS the same PATH block also goes in `~/.zprofile`, because
+  `/etc/zprofile` (path_helper) reorders PATH for login shells after `.zshenv` has run.
   Before this, only interactive shells (`~/.zshrc`) had them, so `ssh host cmd`, `zsh -c` and agent
   tool shells missed sudo-free installs.
-- **zsh: startup-time check in `verify.sh`.** Reports the median of five interactive starts (`zsh -i </dev/null`). It fails only when
-  `modules.zsh.startup_budget_ms` is set, and a non-numeric budget is warned about and ignored.
+- **zsh: startup-time check in `verify.sh`.** Reports the median of three interactive starts (`zsh -i </dev/null`). Exceeding
+  `modules.zsh.startup_budget_ms` is a warning, not a failure: verify also decides whether a module
+  is skipped, and a failure there would reinstall zsh on every run. A non-numeric budget is warned
+  about and ignored.
 
 ### Changed
 
@@ -72,8 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     same install as the binary.
   - Skipped under `zsh -i -c`, where there is no line editor and fzf's scripts print errors.
   - Before this, the `fzf` module installed with `--no-update-rc` and nothing loaded the bindings.
-- **zsh history:** 100k entries (was 10k), with `EXTENDED_HISTORY` timestamps and durations and
-  `HIST_EXPIRE_DUPS_FIRST`.
+- **zsh history:** 100k entries (was 10k), with `EXTENDED_HISTORY` timestamps and durations.
 - **zsh: `setopt CORRECT` removed.** "zsh: correct 'x' to 'y'?" prompts interrupted typing and
   commands run by agents. zsh's own default is off.
 

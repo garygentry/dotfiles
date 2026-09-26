@@ -307,7 +307,7 @@ if [[ "$(zsh -c 'print -r -- $path[1]' 2>/dev/null)" == "$HOME/.local/bin" ]]; t
 else
     fail "non-interactive zsh puts ~/.local/bin first on PATH"
 fi
-# Re-running the zsh install must not duplicate the block (idempotent upsert).
+# Exactly one block after the first install (the forced re-run below checks idempotency).
 if [[ "$(grep -cxF "# >>> dotfiles: path >>>" "$HOME/.zshenv")" == "1" ]]; then
     pass "~/.zshenv PATH block appears exactly once"
 else
@@ -383,6 +383,26 @@ if [ "$REPO_MANIFEST_BEFORE" = "$REPO_MANIFEST_RERUN" ]; then
     pass "re-install still left the repo modules/ tree unchanged"
 else
     fail "re-install modified the repo modules/ tree"
+fi
+
+# Idempotent upsert: FORCE the zsh module to run again (a plain re-install skips
+# up-to-date modules, so its install.sh would never re-run) and the managed
+# ~/.zshenv block must still appear exactly once.
+"$DOTFILES_BIN" install --unattended --force zsh >/dev/null 2>&1 || true
+if [[ "$(grep -cxF "# >>> dotfiles: path >>>" "$HOME/.zshenv")" == "1" ]]; then
+    pass "forced zsh re-install keeps exactly one ~/.zshenv PATH block"
+else
+    fail "forced zsh re-install keeps exactly one ~/.zshenv PATH block"
+fi
+if grep -qxF "skip_global_compinit=1" "$HOME/.zshenv"; then
+    pass "~/.zshenv skips the distro global compinit"
+else
+    fail "~/.zshenv skips the distro global compinit"
+fi
+if [[ ! -e "$HOME/.zcompdump" ]]; then
+    pass "no ~/.zcompdump written in \$HOME (dump lives under ~/.cache/zsh)"
+else
+    fail "no ~/.zcompdump written in \$HOME (dump lives under ~/.cache/zsh)"
 fi
 
 # ==============================================================================
