@@ -399,6 +399,10 @@ if grep -qxF "skip_global_compinit=1" "$HOME/.zshenv"; then
 else
     fail "~/.zshenv skips the distro global compinit"
 fi
+# Shells that ran before the block existed may have left one; start clean, then
+# a new interactive shell must not recreate it (distro global compinit skipped).
+rm -f "$HOME/.zcompdump"
+zsh -i -c exit >/dev/null 2>&1 || true
 if [[ ! -e "$HOME/.zcompdump" ]]; then
     pass "no ~/.zcompdump written in \$HOME (dump lives under ~/.cache/zsh)"
 else
