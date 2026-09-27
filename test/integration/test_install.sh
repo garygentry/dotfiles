@@ -433,7 +433,8 @@ if grep -qxF 'trusted_config_paths = ["~/workspace"]' "$HOME/.config/mise/conf.d
 else
     fail "list-valued mise setting rendered as a TOML array"
 fi
-if cmp -s "$MISE_FIXTURE/mise.lock" "$HOME/.config/mise/mise.lock"; then
+if [[ -f "$HOME/.config/mise/mise.lock" ]] &&
+    [[ "$(cksum <"$MISE_FIXTURE/mise.lock")" == "$(cksum <"$HOME/.config/mise/mise.lock")" ]]; then
     pass "managed mise.lock installed from the overlay"
 else
     fail "managed mise.lock installed from the overlay"

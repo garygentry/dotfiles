@@ -52,7 +52,9 @@ done
 if [[ -n "${DOTFILES_SETTING_LOCKFILE:-}" ]]; then
     _lock_src="$DOTFILES_SETTING_LOCKFILE"
     [[ "$_lock_src" != /* ]] && _lock_src="${DOTFILES_CONTENT_DIR:-${DOTFILES_DIR}}/${_lock_src}"
-    if cmp -s "$_lock_src" "${_cfg_dir}/mise.lock"; then
+    # cksum, not cmp: cmp is diffutils, absent on minimal hosts (Arch base).
+    if [[ -f "$_lock_src" && -f "${_cfg_dir}/mise.lock" ]] &&
+        [[ "$(cksum <"$_lock_src")" == "$(cksum <"${_cfg_dir}/mise.lock")" ]]; then
         log_success "mise.lock matches ${_lock_src}"
     else
         log_error "${_cfg_dir}/mise.lock differs from ${_lock_src} (re-run the install, or re-lock)"
