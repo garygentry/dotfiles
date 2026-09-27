@@ -171,8 +171,12 @@ path=(\"${_shims}\" \$path)${_activate_line}"
 # ~/.bash_profile, ~/.bash_login, ~/.profile, so if one of the first two exists it
 # gets the block too. We never create ~/.bash_profile: that would hide ~/.profile.
 # POSIX sh syntax throughout (dash reads ~/.profile).
-_posix_shims="case \":\$PATH:\" in
-    *\":${_shims}:\"*) ;;
+# "Already FIRST", not "already present": the stock Ubuntu ~/.profile sources
+# ~/.bashrc (whose block adds the shims) and THEN prepends ~/.local/bin, so a
+# presence check left stale ~/.local/bin copies (tarball node, old starship)
+# winning in every login shell. A later duplicate entry is harmless.
+_posix_shims="case \"\$PATH\" in
+    \"${_shims}\"|\"${_shims}\":*) ;;
     *) PATH=\"${_shims}:\$PATH\"; export PATH ;;
 esac"
 upsert_managed_block "${_home}/.profile" "mise" "$_posix_shims"
