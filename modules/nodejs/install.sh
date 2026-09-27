@@ -57,9 +57,11 @@ _ensure_npm_prefix() {
         # rewrite, not accept. (Reading the value to COMPARE is safe; we never re-emit
         # it — the rewrite below drops+appends rather than sed-substituting the path,
         # so a HOME with sed metacharacters can't break or inject the write.)
+        # `|| true`: an .npmrc with no prefix line (e.g. only an auth token) makes
+        # grep exit 1, which under pipefail + errexit would abort the module.
         local cur
         cur="$(grep -E '^[[:space:]]*prefix[[:space:]]*=' "$npmrc" | tail -1 \
-               | sed -E 's/^[[:space:]]*prefix[[:space:]]*=[[:space:]]*//; s/[[:space:]]*$//')"
+               | sed -E 's/^[[:space:]]*prefix[[:space:]]*=[[:space:]]*//; s/[[:space:]]*$//' || true)"
         [[ "$cur" == "$want" ]] && return 0
     fi
     local tmp; tmp="$(mktemp)"
