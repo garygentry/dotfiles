@@ -1,0 +1,14 @@
+# ~/.config/mise/conf.d/dotfiles-settings.toml
+# Managed by dotfiles (mise module): rendered from modules.mise.settings on every
+# install, so edit your dotfiles config, not this file. Tools are declared per module
+# in conf.d/<module>.toml; your own ~/.config/mise/config.toml is never touched.
+{{- /* Values are typed in YAML; branch on the Go type so TOML gets quoted strings,
+       bare booleans/numbers and arrays of strings. */}}
+
+[settings]
+{{- range $key, $val := .Module.settings }}
+{{- $t := printf "%T" $val }}
+{{- if ne $t "<nil>" }}{{/* a YAML null means "unset": omit the key */}}
+{{ $key }} = {{ if eq $t "string" }}{{ printf "%q" $val }}{{ else if eq $t "[]interface {}" }}[{{ range $i, $e := $val }}{{ if $i }}, {{ end }}{{ printf "%q" (printf "%v" $e) }}{{ end }}]{{ else if eq $t "map[string]interface {}" }}{ {{- $first := true }}{{ range $k2, $v2 := $val }}{{ $t2 := printf "%T" $v2 }}{{ if not $first }},{{ end }}{{ $first = false }} {{ $k2 }} = {{ if eq $t2 "string" }}{{ printf "%q" $v2 }}{{ else if or (eq $t2 "bool") (eq $t2 "int") (eq $t2 "float64") }}{{ $v2 }}{{ else }}{{ printf "%q" (printf "%v" $v2) }}{{ end }}{{ end }} }{{ else }}{{ $val }}{{ end }}
+{{- end }}
+{{- end }}

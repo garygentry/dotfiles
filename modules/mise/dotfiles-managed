@@ -1,0 +1,4 @@
+# Deployed by the dotfiles mise module (and removed with it). Its presence tells the
+# zsh module's ~/.zshenv / ~/.zshrc blocks that mise is dotfiles-managed on this host,
+# so they put the mise shims first and run `mise activate`. A mise you installed
+# yourself is left alone by those blocks.
