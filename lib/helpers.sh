@@ -263,6 +263,79 @@ demote_symlink() {
     fi
 }
 
+# upsert_managed_block FILE NAME CONTENT
+#   Keep a dotfiles-owned block inside a file the user also owns (e.g. ~/.zshenv,
+#   ~/.profile), delimited by marker lines:
+#       # >>> dotfiles: NAME >>>
+#       CONTENT
+#       # <<< dotfiles: NAME <<<
+#   Replaces the block in place if present, appends it otherwise, and leaves every
+#   other line untouched. Creates FILE if missing; no-op when exactly one block
+#   exists and is already current. Duplicate blocks collapse to one (at the first
+#   block's position). Markers are matched ignoring a trailing CR, so a CRLF file
+#   is recognised rather than gaining a second block. If the markers don't pair
+#   up (a begin without its end, or the reverse), the file is left untouched and
+#   this returns 1: replacing from an unterminated begin would delete user lines.
+#   Respects dry-run. Writes through `cat >` so a symlinked FILE keeps its link
+#   and the target its mode.
+upsert_managed_block() {
+    local file="$1" name="$2" content="$3"
+    local begin="# >>> dotfiles: ${name} >>>" end="# <<< dotfiles: ${name} <<<"
+    local block
+    block="$(printf '%s\n%s\n%s' "$begin" "$content" "$end")"
+
+    local state="absent"
+    if [[ -f "$file" ]]; then
+        # absent | current (one block, identical) | stale | unpaired
+        state="$(BLOCK="$block" awk -v b="$begin" -v e="$end" '
+            { line = $0; sub(/\r$/, "", line) }
+            line == b { if (open) bad = 1; open = 1; n++; cur = line; next }
+            line == e { if (!open) bad = 1; open = 0; if (n == 1) first = cur "\n" line; next }
+            open { cur = cur "\n" line }
+            END {
+                if (bad || open) print "unpaired"
+                else if (n == 0) print "absent"
+                else if (n == 1 && first == ENVIRON["BLOCK"]) print "current"
+                else print "stale"
+            }' "$file")"
+    fi
+
+    case "$state" in
+        current)
+            log_info "Managed block '${name}' already current in ${file}"
+            return 0 ;;
+        unpaired)
+            log_error "Managed block '${name}' in ${file} has unpaired markers ('${begin}' / '${end}'); fix the file by hand, then re-run"
+            return 1 ;;
+    esac
+
+    if is_dry_run; then
+        log_info "[dry-run] Would write managed block '${name}' to ${file}"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$file")"
+    local tmp
+    tmp="$(mktemp)"
+    if [[ "$state" == "stale" ]]; then
+        # Print the new block at the first begin marker, drop every old block.
+        # ENVIRON (not awk -v) avoids escape processing of the block text.
+        BLOCK="$block" awk -v b="$begin" -v e="$end" '
+            { line = $0; sub(/\r$/, "", line) }
+            line == b { if (!done) { print ENVIRON["BLOCK"]; done = 1 } skip = 1; next }
+            skip && line == e { skip = 0; next }
+            !skip { print }' "$file" > "$tmp"
+    else
+        [[ -f "$file" ]] && cat "$file" > "$tmp"
+        # Separate from existing content; also terminates a last line lacking "\n".
+        [[ -s "$tmp" ]] && printf '\n' >> "$tmp"
+        printf '%s\n' "$block" >> "$tmp"
+    fi
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
+    log_success "Wrote managed block '${name}' to ${file}"
+}
+
 # link_file SOURCE DEST
 #   Create a symlink DEST -> SOURCE.  If DEST already exists and is the
 #   correct symlink, do nothing.  Otherwise back up the existing file first.
