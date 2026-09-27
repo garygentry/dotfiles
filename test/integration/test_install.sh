@@ -461,6 +461,16 @@ if [[ "$(sh -lc 'command -v node' 2>/dev/null)" == "$_shims/node" ]]; then
 else
     fail "login sh (sh -lc) resolves node through the shims"
 fi
+# A stale ~/.local/bin copy (e.g. the old tarball node) must not win in a login
+# bash, even though the stock ~/.profile prepends ~/.local/bin after sourcing
+# ~/.bashrc.
+printf '#!/bin/sh\necho stale\n' >"$HOME/.local/bin/node" && chmod +x "$HOME/.local/bin/node"
+if [[ "$(bash -lc 'command -v node' 2>/dev/null)" == "$_shims/node" ]]; then
+    pass "login bash: mise shims beat a stale ~/.local/bin/node"
+else
+    fail "login bash: mise shims beat a stale ~/.local/bin/node (got $(bash -lc 'command -v node' 2>/dev/null))"
+fi
+rm -f "$HOME/.local/bin/node"
 if [[ "$(zsh -c 'npm config get prefix' 2>/dev/null)" == "$HOME/.local" ]]; then
     pass "npm global prefix stays ~/.local under the mise provider"
 else
