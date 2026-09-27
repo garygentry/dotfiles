@@ -415,6 +415,9 @@ fi
 echo ""
 echo "--- Test: mise module + nodejs provider=mise (fixture overlay) ---"
 MISE_FIXTURE="${DOTFILES_DIR}/test/integration/fixtures/mise-overlay"
+# An existing ~/.npmrc with no prefix line (only a registry setting) must not
+# abort the nodejs module; the prefix is appended and the other line kept.
+printf '//registry.example.invalid/:always-auth=true\n' >"$HOME/.npmrc"
 MISE_OUT="$(env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN DOTFILES_CONTENT_DIR="$MISE_FIXTURE" \
     ./bin/dotfiles install --unattended mise nodejs extra-tools 2>&1)" || true
 assert_output_contains "mise + nodejs + overlay tool module install succeeded" "0 failed" "$MISE_OUT"
@@ -462,6 +465,11 @@ if [[ "$(zsh -c 'npm config get prefix' 2>/dev/null)" == "$HOME/.local" ]]; then
     pass "npm global prefix stays ~/.local under the mise provider"
 else
     fail "npm global prefix stays ~/.local under the mise provider"
+fi
+if grep -qxF '//registry.example.invalid/:always-auth=true' "$HOME/.npmrc"; then
+    pass "prefix-less ~/.npmrc: existing settings preserved"
+else
+    fail "prefix-less ~/.npmrc: existing settings preserved"
 fi
 MISE_OUT2="$(env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN DOTFILES_CONTENT_DIR="$MISE_FIXTURE" \
     ./bin/dotfiles install --unattended mise nodejs extra-tools 2>&1)" || true
