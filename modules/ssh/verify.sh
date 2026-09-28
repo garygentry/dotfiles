@@ -53,8 +53,11 @@ if [[ "$_ssh_key_source" == "generate" || "$_ssh_key_source" == "1password" ]]; 
         _ssh_errors=$((_ssh_errors + 1))
     fi
 
-    # The GitHub IdentityFile referenced in config must exist.
-    if [[ -f "${_ssh_dir}/config" ]]; then
+    # The GitHub IdentityFile referenced in config must exist — unless the host
+    # declares no GitHub ssh at all (modules.ssh.github_host: false).
+    if [[ "${DOTFILES_SETTING_GITHUB_HOST:-true}" == "false" ]]; then
+        log_info "github_host=false: no GitHub ssh configured (git uses https); skipping IdentityFile check"
+    elif [[ -f "${_ssh_dir}/config" ]]; then
         _ssh_github_identity="$(awk '
             /^[[:space:]]*Host[[:space:]]+github\.com[[:space:]]*$/ { found=1; next }
             found && /^[[:space:]]*Host[[:space:]]/ { found=0 }
