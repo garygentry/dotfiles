@@ -179,7 +179,15 @@ fi
 # Resolve the GitHub IdentityFile (managed-key modes only). In agent mode the
 # template omits IdentityFile/IdentitiesOnly so the agent's keys are offered.
 # ---------------------------------------------------------------------------
-if [[ "$_ssh_key_source" != "agent" ]]; then
+# modules.ssh.github_host (DOTFILES_SETTING_GITHUB_HOST, default true): false
+# omits the `Host github.com` block entirely — for a fleet whose git reaches
+# GitHub over https (credential helper) and never over ssh. It also skips the
+# key resolution below and the GitHub IdentityFile check in verify.sh.
+_ssh_github_host="${DOTFILES_SETTING_GITHUB_HOST:-true}"
+[[ "$_ssh_github_host" == "false" ]] || _ssh_github_host="true"
+export DOTFILES_SSH_GITHUB_HOST="$_ssh_github_host"
+
+if [[ "$_ssh_github_host" == "true" ]] && [[ "$_ssh_key_source" != "agent" ]]; then
     _ssh_github_key="~/.ssh/id_${_ssh_key_type}"
     _ssh_existing_github_key=""
 

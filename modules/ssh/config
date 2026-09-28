@@ -29,6 +29,7 @@ Host *
     # Security settings
     HashKnownHosts yes
     VisualHostKey no
+{{- if ne (index .Env "DOTFILES_SSH_GITHUB_HOST") "false" }}
 
 # GitHub
 Host github.com
@@ -40,4 +41,5 @@ Host github.com
 {{- else }}
     IdentityFile {{ or (index .Env "DOTFILES_SSH_GITHUB_KEY") "~/.ssh/id_ed25519" }}
     IdentitiesOnly yes
+{{- end }}
 {{- end }}
