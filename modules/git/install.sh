@@ -6,6 +6,13 @@ _git_user_name="${DOTFILES_USER_NAME:-}"
 _git_user_email="${DOTFILES_USER_EMAIL:-}"
 _git_ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
 _git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_${_git_ssh_key_type}"
+# modules.git.signing_key (DOTFILES_SETTING_SIGNING_KEY): the PRIVATE key path to sign
+# commits with (its .pub becomes user.signingkey). Default: the host's SSH identity key above.
+# Set it to keep signing on a dedicated key rather than an identity key that is also used to
+# log in to other machines. A leading ~ means $DOTFILES_HOME.
+if [[ -n "${DOTFILES_SETTING_SIGNING_KEY:-}" ]]; then
+    _git_ssh_key_file="${DOTFILES_SETTING_SIGNING_KEY/#\~/$DOTFILES_HOME}"
+fi
 
 # init.defaultBranch is configurable via config.yml -> modules.git.default_branch,
 # exposed as DOTFILES_SETTING_DEFAULT_BRANCH. Defaults to 'main' so unset config
