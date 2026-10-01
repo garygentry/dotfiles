@@ -534,6 +534,11 @@ func TestValidateSymlinkTargets(t *testing.T) {
 			wantCount: 1,
 		},
 		{
+			name:      "yazi package.toml symlink flagged",
+			files:     []FileEntry{{Source: "package.toml", Dest: "~/.config/yazi/package.toml", Type: "symlink"}},
+			wantCount: 1,
+		},
+		{
 			name: "read-only reference files may be symlinked",
 			files: []FileEntry{
 				{Source: "aliases.zsh", Dest: "~/.config/zsh/aliases.zsh", Type: "symlink"},

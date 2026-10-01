@@ -1,0 +1,19 @@
+name: yazi
+description: "yazi terminal file manager (yazi + ya), sudo-free: mise-declared or the upstream release binary"
+version: "1.0.0"
+priority: 35
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - cli
+  - tui
+notes:
+  - "Optional modules.yazi.tools: a map of tool to EXACT, QUOTED version (e.g. yazi: \"26.9.1\", plus preview helpers such as glow or 7zip). When set, the module declares those tools in ~/.config/mise/conf.d/yazi.toml and installs them through mise (needs the mise module)."
+  - "Without tools: Homebrew on macOS when present, else the upstream musl release zip into ~/.local/share/yazi with yazi and ya linked from ~/.local/bin. Checksum-verified against the release asset digest when the GitHub API answers; otherwise installs unverified with a warning. Pin with DOTFILES_YAZI_VERSION (default: latest). Only installs when the binary is missing."
+  - "Ships no config. Deploy ~/.config/yazi/{yazi,keymap,theme}.toml from a content overlay. ~/.config/yazi/package.toml must be a copy: `ya pkg` rewrites it."
+  - "Previews use external tools when present (file, fd, rg, fzf, jq, 7zip, chafa >= 1.16 for block-character images); none are installed by this module."
