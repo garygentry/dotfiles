@@ -7,8 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`lazygit` module is sudo-free** (v2.0.0). It no longer runs `pkg_install` (apt has no lazygit
+  on Ubuntu 22.04) or `sudo install` into `/usr/local/bin`. With `modules.lazygit.tools` set it
+  installs through mise; otherwise Homebrew on macOS, else the release tarball into `~/.local/share/lazygit` (linked from `~/.local/bin`),
+  verified against the release's `checksums.txt` (fail closed; tag via the `/releases/latest` redirect, no
+  GitHub API). Pin with `DOTFILES_LAZYGIT_VERSION`. An existing lazygit anywhere on `PATH` is kept.
+- **`download_file` fails on a failed transfer.** A curl/wget error now returns 1. Callers that
+  run it under `if !` (errexit off) used to fall through to "Downloaded" on a 404 when no checksum
+  was given.
+
 ### Added
 
+- **`yazi` module** — installs the [yazi](https://github.com/sxyazi/yazi) terminal file manager
+  (`yazi` + `ya`) **sudo-free**. With `modules.yazi.tools` set (exact, quoted versions; preview
+  helpers such as `glow` or `7zip` may ride along) it declares them through mise in
+  `conf.d/yazi.toml`; otherwise Homebrew on macOS, else the static musl release zip into
+  `~/.local/share/yazi`, verified against the release asset's sha256 digest (best-effort GitHub API
+  call, `GITHUB_TOKEN` used when set; no digest = fail unless `DOTFILES_ALLOW_UNVERIFIED=1`; tag
+  resolved via the `/releases/latest` redirect). Pin with `DOTFILES_YAZI_VERSION`. When mise has
+  no build for the platform, the tools mode falls back to the release/brew path. Ships
+  no config; `~/.config/yazi/package.toml` joins the tool-writable destinations `dotfiles validate`
+  refuses to symlink, since `ya pkg` rewrites it.
 - **`herdr` module** — installs the [Herdr](https://herdr.dev) terminal workspace manager for AI
   coding agents (binary only: upstream SHA-256-verified installer into `~/.local/bin`, Homebrew on
   macOS). Updates stay with `herdr update`; bring your own `config.toml` from a content overlay.

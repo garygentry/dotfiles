@@ -244,6 +244,7 @@ var writableSymlinkDests = map[string]bool{
 	".config/starship.toml":       true,
 	".config/fish/fish_variables": true,
 	".config/herdr/config.toml":   true,
+	".config/yazi/package.toml":   true,
 }
 
 // normalizeDest reduces a files[].dest to a $HOME-relative slash path so it can

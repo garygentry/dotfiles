@@ -599,10 +599,12 @@ download_file() {
     mkdir -p "$(dirname "$dest")"
 
     log_info "Downloading: $url"
+    # Check the transfer explicitly: callers often run this under `if !`, where
+    # errexit is off, so a failed curl would otherwise fall through to success.
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" -o "$dest"
+        curl -fsSL "$url" -o "$dest" || { log_error "Download failed: $url"; rm -f "$dest"; return 1; }
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$dest" "$url"
+        wget -qO "$dest" "$url" || { log_error "Download failed: $url"; rm -f "$dest"; return 1; }
     else
         log_error "No download tool found (tried curl, wget)"
         return 1

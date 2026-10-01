@@ -1,0 +1,19 @@
+name: yazi
+description: "yazi terminal file manager (yazi + ya), sudo-free: mise-declared or the upstream release binary"
+version: "1.0.0"
+priority: 50            # after mise (45) in the same dependency level: with modules.yazi.tools set, its lockfile must be in place first
+dependencies: []
+os:
+  - macos
+  - ubuntu
+  - arch
+requires:
+  - curl
+tags:
+  - cli
+  - tui
+notes:
+  - "Optional modules.yazi.tools: a map of tool to EXACT, QUOTED version that must include yazi itself (e.g. yazi: \"26.9.1\" or \"github:sxyazi/yazi[matching=musl]\": \"26.9.1\"), plus any preview helpers such as glow or 7zip. When set, the module declares those tools in ~/.config/mise/conf.d/yazi.toml, installs them through mise (needs the mise module) and removes its own release install. When mise has no build for this platform (a lockfile without one), it falls back to the no-tools path below."
+  - "Without tools: Homebrew on macOS when present, else the upstream musl release zip into ~/.local/share/yazi with yazi and ya linked from ~/.local/bin, verified against the release asset's sha256 digest from the GitHub API (GITHUB_TOKEN used when set). No digest = fail, unless DOTFILES_ALLOW_UNVERIFIED=1. Installs when no runnable yazi + ya is found; DOTFILES_YAZI_VERSION (default: latest) also reinstalls this module's own copy at a different version."
+  - "Ships no config. Deploy ~/.config/yazi/{yazi,keymap,theme}.toml from a content overlay. ~/.config/yazi/package.toml must be a copy: `ya pkg` rewrites it."
+  - "Previews use external tools when present (file, fd, rg, fzf, jq, 7zip, chafa >= 1.16 for block-character images); none are installed by this module."
