@@ -9,6 +9,6 @@ tags:
   - git
   - tui
 notes:
-  - "Optional modules.lazygit.tools: a map of tool to EXACT, QUOTED version (e.g. lazygit: \"0.65.1\"). When set, the module declares it in ~/.config/mise/conf.d/lazygit.toml and installs it through mise (needs the mise module)."
-  - "Without tools: Homebrew on macOS when present, else the upstream release tarball into ~/.local/bin, verified against the release's checksums.txt. Pin with DOTFILES_LAZYGIT_VERSION (default: latest). Only installs when the binary is missing. No sudo, no system package."
+  - "Optional modules.lazygit.tools: a map of tool to EXACT, QUOTED version (e.g. lazygit: \"0.65.1\"). When set, the module declares it in ~/.config/mise/conf.d/lazygit.toml, installs it through mise (needs the mise module) and removes its own release install. When mise has no build for this platform (a lockfile without one), it falls back to the no-tools path below."
+  - "Without tools: Homebrew on macOS when present, else the upstream release tarball into ~/.local/share/lazygit, linked from ~/.local/bin, verified against the release's checksums.txt (no checksum = fail, unless DOTFILES_ALLOW_UNVERIFIED=1). Installs when no runnable lazygit is found; DOTFILES_LAZYGIT_VERSION (default: latest) also reinstalls this module's own copy at a different version. No sudo, no system package."
   - "Ships no config. Deploy ~/.config/lazygit/config.yml from a content overlay."
