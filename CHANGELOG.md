@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`lazygit` module is sudo-free** (v2.0.0). It no longer runs `pkg_install` (apt has no lazygit
   on Ubuntu 22.04) or `sudo install` into `/usr/local/bin`. With `modules.lazygit.tools` set it
-  installs through mise; otherwise Homebrew on macOS, else the release tarball into `~/.local/bin`,
-  verified against the release's `checksums.txt` (tag via the `/releases/latest` redirect, no
+  installs through mise; otherwise Homebrew on macOS, else the release tarball into `~/.local/share/lazygit` (linked from `~/.local/bin`),
+  verified against the release's `checksums.txt` (fail closed; tag via the `/releases/latest` redirect, no
   GitHub API). Pin with `DOTFILES_LAZYGIT_VERSION`. An existing lazygit anywhere on `PATH` is kept.
 - **`download_file` fails on a failed transfer.** A curl/wget error now returns 1. Callers that
   run it under `if !` (errexit off) used to fall through to "Downloaded" on a 404 when no checksum
