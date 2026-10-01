@@ -1,7 +1,7 @@
 name: yazi
 description: "yazi terminal file manager (yazi + ya), sudo-free: mise-declared or the upstream release binary"
 version: "1.0.0"
-priority: 35
+priority: 50            # after mise (45) in the same dependency level: with modules.yazi.tools set, its lockfile must be in place first
 dependencies: []
 os:
   - macos
