@@ -146,6 +146,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A deployed symlink that no longer points at its source is relinked.** A module whose checksums
+  all match used to be skipped outright, so its per-file "symlink points to wrong location" repair
+  never ran. Install from a temporary worktree, delete the worktree, and every later run from the
+  real checkout left the links dangling (e.g. `~/.config/zsh/aliases.zsh`). The runner now re-runs
+  such a module so they are relinked. The `zsh` verify reports a dangling `aliases.zsh` /
+  `functions.zsh` as an error rather than "symlinked".
 - **`render_template` passed the module directory as `--module`**, which expects the module name,
   so `.Module` settings were always empty in templates rendered from install scripts. It now
   passes `DOTFILES_MODULE_NAME`.

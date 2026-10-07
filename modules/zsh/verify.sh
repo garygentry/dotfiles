@@ -45,8 +45,11 @@ fi
 
 # Check aliases file is linked
 _zsh_aliases="${DOTFILES_HOME}/.config/zsh/aliases.zsh"
-if [[ -L "$_zsh_aliases" ]]; then
+if [[ -L "$_zsh_aliases" && -e "$_zsh_aliases" ]]; then
     log_success "aliases.zsh is symlinked"
+elif [[ -L "$_zsh_aliases" ]]; then
+    log_warn "aliases.zsh is a dangling symlink: $_zsh_aliases -> $(readlink "$_zsh_aliases")"
+    _zsh_errors=$((_zsh_errors + 1))
 elif [[ -f "$_zsh_aliases" ]]; then
     log_info "aliases.zsh exists but is not a symlink"
 else
@@ -56,8 +59,11 @@ fi
 
 # Check functions file is linked
 _zsh_functions="${DOTFILES_HOME}/.config/zsh/functions.zsh"
-if [[ -L "$_zsh_functions" ]]; then
+if [[ -L "$_zsh_functions" && -e "$_zsh_functions" ]]; then
     log_success "functions.zsh is symlinked"
+elif [[ -L "$_zsh_functions" ]]; then
+    log_warn "functions.zsh is a dangling symlink: $_zsh_functions -> $(readlink "$_zsh_functions")"
+    _zsh_errors=$((_zsh_errors + 1))
 elif [[ -f "$_zsh_functions" ]]; then
     log_info "functions.zsh exists but is not a symlink"
 else
