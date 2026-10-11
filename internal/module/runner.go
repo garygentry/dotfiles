@@ -219,8 +219,40 @@ func shouldRunModule(mod *Module, existingState *state.ModuleState, cfg *RunConf
 		return ExecutionUpdateModule, "module version changed"
 	}
 
+	// A deployed symlink that no longer points at its source (e.g. the checkout
+	// it was linked from was removed) = re-run so deployFiles relinks it. The
+	// checksums above hash content, not location, so they can't see this.
+	if dest := staleSymlinkDest(mod, cfg); dest != "" {
+		return ExecutionUpdateModule, "symlink points to wrong location: " + dest
+	}
+
 	// Everything matches = skip
 	return ExecutionSkip, "already installed and up-to-date"
+}
+
+// staleSymlinkDest returns the first symlink-type destination of mod that is a
+// symlink but not to its source in mod.Dir — including a dangling one — or ""
+// if there is none. A destination that is missing or no longer a symlink is
+// not reported: that is either a fresh-install concern or the user's choice.
+func staleSymlinkDest(mod *Module, cfg *RunConfig) string {
+	for _, f := range mod.Files {
+		if f.Type != "symlink" {
+			continue
+		}
+		dest := expandPaths(f.Dest, cfg.SysInfo.HomeDir, cfg.SysInfo.XDGConfigHome)
+		target, err := os.Readlink(dest)
+		if err != nil {
+			continue
+		}
+		expected, err := filepath.Abs(filepath.Join(mod.Dir, f.Source))
+		if err != nil {
+			continue
+		}
+		if target != expected {
+			return dest
+		}
+	}
+	return ""
 }
 
 // runModule orchestrates the full lifecycle for a single module: prompts,

@@ -1203,6 +1203,63 @@ func TestRunNotesEmptyOnSkip(t *testing.T) {
 	}
 }
 
+// TestShouldRunModuleStaleSymlink covers a module whose checksums all match but
+// whose deployed symlink points elsewhere — e.g. it was last installed from a
+// since-deleted worktree. It must re-run so the link is repaired.
+func TestShouldRunModuleStaleSymlink(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	modDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(modDir, "aliases.zsh"), []byte("alias l='ls -lah'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "other"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(cfg.SysInfo.HomeDir, ".config", "zsh", "aliases.zsh")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mod := &Module{
+		Name:    "stale-link-mod",
+		Version: "1.0.0",
+		Dir:     modDir,
+		Files:   []FileEntry{{Source: "aliases.zsh", Dest: "~/.config/zsh/aliases.zsh", Type: "symlink"}},
+	}
+	checksum, _ := ComputeModuleChecksum(mod, ModuleChecksumExtras(cfg.SysInfo.DotfilesDir)...)
+	st := &state.ModuleState{
+		Name:       mod.Name,
+		Version:    mod.Version,
+		Status:     "installed",
+		Checksum:   checksum,
+		ConfigHash: ComputeConfigHash(mod, cfg.Config),
+	}
+
+	tests := []struct {
+		name     string
+		target   string // "" = leave dest absent
+		wantSkip bool
+	}{
+		{"correct link", filepath.Join(modDir, "aliases.zsh"), true},
+		{"dangling link into removed checkout", filepath.Join(t.TempDir(), "gone", "aliases.zsh"), false},
+		{"link to another existing file", filepath.Join(modDir, "other"), false},
+		{"dest absent", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_ = os.Remove(dest)
+			if tt.target != "" {
+				if err := os.Symlink(tt.target, dest); err != nil {
+					t.Fatal(err)
+				}
+			}
+			decision, reason := shouldRunModule(mod, st, cfg)
+			if (decision == ExecutionSkip) != tt.wantSkip {
+				t.Errorf("decision = %v (%s), wantSkip %v", decision, reason, tt.wantSkip)
+			}
+		})
+	}
+}
+
 // contains checks if a string contains a substring.
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
