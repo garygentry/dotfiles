@@ -202,7 +202,7 @@ func (m *mockUI) Success(msg string)                { m.messages = append(m.mess
 func (m *mockUI) Debug(msg string)                  { m.messages = append(m.messages, "DEBUG: "+msg) }
 func (m *mockUI) PromptInput(msg, def string) (string, error) { return def, nil }
 func (m *mockUI) PromptConfirm(msg string, def bool) (bool, error) { return def, nil }
-func (m *mockUI) PromptChoice(msg string, opts []string) (string, error) {
+func (m *mockUI) PromptChoice(msg string, opts []string, def string) (string, error) {
 	if len(opts) > 0 {
 		return opts[0], nil
 	}

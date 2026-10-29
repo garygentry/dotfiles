@@ -29,7 +29,9 @@ var validateCmd = &cobra.Command{
 	Use:   "validate [modules...]",
 	Short: "Validate module YAML schemas",
 	Long: `Validate checks every module's module.yml for schema errors such as
-invalid field values, missing required fields, and broken references.
+invalid field values, missing required fields, and broken references, and
+checks each prompt answer pinned in config (modules.<module>.<prompt_key>)
+against the prompt: a choice must be one of its options.
 
 Without arguments all modules are validated. Specific modules can be named.
 
@@ -41,10 +43,19 @@ Exit code is 0 when all modules pass, 1 when any module fails.`,
 		}
 
 		// Content dir (if any) contributes overlay modules to validate; a failed
-		// config load falls back to the engine-only root.
+		// config load falls back to the engine-only root. Module config is composed
+		// as install composes it (config.yml chain, profile layers, host layer) so
+		// prompt answers pinned in config are checked against each prompt.
 		var contentDir string
+		var moduleConfig map[string]map[string]any
 		if cfg, cerr := config.Load(sys.DotfilesDir); cerr == nil {
 			contentDir = cfg.ContentDir
+			_, layers, _ := config.LoadProfileResolved(sys.DotfilesDir, cfg.ContentDir, cfg.Profile)
+			host, herr := config.LoadHostConfig(os.Getenv("DOTFILES_HOST_CONFIG"))
+			if herr != nil {
+				return fmt.Errorf("host config: %w", herr)
+			}
+			moduleConfig = config.ComposeModules(cfg.Modules, layers, host)
 		}
 
 		roots := module.ModuleRoots(sys.DotfilesDir, contentDir)
@@ -80,6 +91,7 @@ Exit code is 0 when all modules pass, 1 when any module fails.`,
 			errs := module.Validate(m)
 			errs = append(errs, module.ValidateFiles(m)...)
 			errs = append(errs, module.ValidateSymlinkTargets(m)...)
+			errs = append(errs, module.ValidatePromptConfig(m, moduleConfig[m.Name])...)
 			if se := strictErrs[m.Name]; se != "" {
 				errs = append(errs, "unknown YAML key: "+se)
 			}

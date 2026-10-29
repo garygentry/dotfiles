@@ -44,7 +44,10 @@ A content directory is laid out just like the engine:
 - **`config.yml`** is **deep-merged** over the engine's: scalars override when
   set, and module settings merge per key, so you can change one
   `modules.<name>.<key>` without redefining the whole module. Only include the
-  keys you want to change.
+  keys you want to change. A key named after one of the module's prompts
+  (`modules.zsh.zsh_framework: zinit`) **pins that prompt's answer**: it is never
+  asked, so an overlay that pins every prompt gives a prompt-free install
+  ([how answers resolve](creating-modules.md#how-an-answer-is-resolved)).
 - **`profiles/*.yml`** resolve **content-first**: a bare profile name (`profile:
   mine`, or `--profile mine`) is looked up in your content `profiles/` before the
   engine's. A content profile with the same name as a built-in (e.g.

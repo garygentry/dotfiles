@@ -210,6 +210,31 @@ prompts:
 
 Answers are available as environment variables in scripts: `$DOTFILES_PROMPT_KEY_NAME` (uppercase).
 
+#### How an answer is resolved
+
+The engine only asks what nothing has answered yet. For each prompt it uses the first of:
+
+1. **Config.** `modules.<module>.<prompt_key>`, from `config.yml`, the content overlay,
+   profile `config:` layers, or the host config layer (highest layer wins, the same merge as
+   settings). A pinned answer is never asked, not even under `--interactive`.
+2. **A saved answer.** Every answer a user actually gives is saved per machine in
+   `~/.dotfiles/.state/answers/answers.json` (engine-owned; don't hand-edit it). Defaults are
+   never saved, so a later change to `default:` still reaches machines that never chose.
+3. **Ask.** Only on an interactive run, and only when `depends_on`, `skip_if_file` and
+   `show_when` let the prompt be shown.
+4. **The `default:`.** Used when nobody can be asked (`--unattended`, or stdin is not a
+   terminal).
+
+So a fresh interactive install asks once, and later runs, scheduled or by hand, reuse those
+answers. `dotfiles install --interactive` re-asks (offering the current answer), and
+`dotfiles install --dry-run` lists every answer with its source.
+
+A pinned value must be a valid answer: a `choice` must be one of its `options`, and a
+`confirm` must be true/false (or yes/no). Anything else is a hard error before anything
+installs, and `dotfiles validate` reports it. Pick prompt keys that won't clash with a
+setting of the same name: a key pinned in config is both the prompt's answer and a
+`DOTFILES_SETTING_*` variable.
+
 ## Writing Scripts
 
 ### install.sh

@@ -36,7 +36,7 @@ func (t *testUI) PromptInput(_ string, defaultVal string) (string, error) {
 func (t *testUI) PromptConfirm(_ string, defaultVal bool) (bool, error) {
 	return defaultVal, nil
 }
-func (t *testUI) PromptChoice(_ string, options []string) (string, error) {
+func (t *testUI) PromptChoice(_ string, options []string, _ string) (string, error) {
 	if len(options) > 0 {
 		return options[0], nil
 	}
@@ -1274,7 +1274,7 @@ type sequentialUI struct {
 	promptsCalled []string
 }
 
-func (s *sequentialUI) PromptChoice(msg string, _ []string) (string, error) {
+func (s *sequentialUI) PromptChoice(msg string, _ []string, _ string) (string, error) {
 	s.promptsCalled = append(s.promptsCalled, msg)
 	if s.choiceIdx < len(s.choiceAnswers) {
 		answer := s.choiceAnswers[s.choiceIdx]
