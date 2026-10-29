@@ -88,23 +88,44 @@ fi
 # WARNING, never a verify failure: the runner also runs verify.sh to decide whether
 # an installed module can be skipped, and a failure there triggers a reinstall,
 # which can't fix startup time. So a slow shell would reinstall zsh on every run.
+#
+# The probe must not see a controlling terminal: an interactive zsh opens /dev/tty
+# for its line editor even when stdin is /dev/null, and waits there for input. On
+# a hand install that looked like a hang until the user pressed Ctrl-D once per
+# run, and on the runner's silent pre-skip verify (30s limit) it got the module
+# killed and reinstalled. setsid detaches it. Where there is no setsid (macOS),
+# fall back to `zsh -i -c exit`: it under-measures slightly, but never reads the
+# tty. The whole probe is also capped (timeout, when available) well inside that
+# 30s, so a slow warm-up (cloning plugins) can't fail verify either.
 _zsh_budget="${DOTFILES_SETTING_STARTUP_BUDGET_MS:-}"
 if [[ -n "$_zsh_budget" && ! "$_zsh_budget" =~ ^[0-9]+$ ]]; then
     log_warn "modules.zsh.startup_budget_ms must be a whole number of milliseconds (got '${_zsh_budget}'); ignoring it"
     _zsh_budget=""
 fi
 if command -v zsh &>/dev/null && [[ -f "${DOTFILES_HOME}/.zshrc" ]] && ! is_dry_run; then
-    _zsh_median="$(HOME="${DOTFILES_HOME}" zsh -f -c '
+    if command -v setsid &>/dev/null; then
+        _zsh_probe=(setsid -w zsh -i)
+    else
+        _zsh_probe=(zsh -i -c exit)
+    fi
+    _zsh_timeout=()
+    if command -v timeout &>/dev/null; then
+        _zsh_timeout=(timeout 20)
+    elif command -v gtimeout &>/dev/null; then
+        _zsh_timeout=(gtimeout 20)
+    fi
+    # shellcheck disable=SC2016  # the single-quoted body is zsh code, expanded by zsh
+    _zsh_median="$(HOME="${DOTFILES_HOME}" ${_zsh_timeout[@]+"${_zsh_timeout[@]}"} zsh -f -c '
         zmodload zsh/datetime
-        zsh -i </dev/null >/dev/null 2>&1
+        "$@" </dev/null >/dev/null 2>&1
         local -a t; local i s
         for i in 1 2 3; do
             s=$EPOCHREALTIME
-            zsh -i </dev/null >/dev/null 2>&1
+            "$@" </dev/null >/dev/null 2>&1
             t+=( $(( (EPOCHREALTIME - s) * 1000 )) )
         done
         t=( ${(on)t} )
-        printf "%.0f" "${t[2]}"' 2>/dev/null || true)"
+        printf "%.0f" "${t[2]}"' zsh-probe "${_zsh_probe[@]}" </dev/null 2>/dev/null || true)"
     if [[ -n "$_zsh_median" ]]; then
         if [[ -n "$_zsh_budget" ]] && (( _zsh_median > _zsh_budget )); then
             log_warn "Zsh interactive startup ${_zsh_median}ms exceeds budget ${_zsh_budget}ms (profile: zmodload zsh/zprof at the top of ~/.zshrc, zprof at the end)"
