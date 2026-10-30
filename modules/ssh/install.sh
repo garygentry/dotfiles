@@ -126,7 +126,7 @@ case "$_ssh_key_source" in
             log_info "Retrieving SSH key from 1Password (${_ssh_key_item}/${_ssh_key_type})..."
             _ssh_op_key="$(get_secret "${_ssh_key_item}/${_ssh_key_type}" 2>/dev/null || true)"
             if [[ -z "$_ssh_op_key" ]]; then
-                log_error "key_source=1password but no key found at ${_ssh_key_item}/${_ssh_key_type}"
+                log_error "key_source=1password but no key found at ${_ssh_key_item}/${_ssh_key_type} (is 1Password signed in? eval \"\$(op signin)\", then re-run)"
                 exit 1
             fi
             if is_dry_run; then

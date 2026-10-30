@@ -316,7 +316,9 @@ correct override as `override` and a brand-new module as `custom`.
 
 ### 1Password Not Authenticated
 
-**Problem:** `not authenticated with 1Password` error.
+**Problem:** a module that reads a secret fails with `secrets provider "1Password" is not signed
+in`. `dotfiles install` never asks you to sign in; it only notes up front that 1Password isn't
+signed in, so sign in before a run that needs a secret (e.g. `modules.ssh.key_source: 1password`).
 
 **Solutions:**
 

@@ -476,10 +476,11 @@ echo "Dotfiles installed successfully"
 
 ### Skipping Secrets
 
-In unattended mode, secrets authentication is automatically skipped:
+`dotfiles install` never asks to sign in to the secrets provider, attended or not. Without a
+session, only a module that actually reads a secret fails (with a sign-in hint):
 
 ```bash
-# Secrets authentication is skipped automatically
+# No sign-in prompt; modules that read no secret are unaffected
 dotfiles install --unattended
 ```
 
