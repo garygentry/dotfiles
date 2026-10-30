@@ -23,6 +23,7 @@ var (
 	skipFailed         bool
 	updateOnly         bool
 	promptDependencies bool
+	interactive        bool
 	profile            string
 	hostConfig         string
 	metricsTextfile    string
@@ -83,6 +84,16 @@ resolution, module execution, and summary output.`,
 		}
 		metricsDir = sys.DotfilesDir // for the pin_sha git read at emit time
 		u.Success(fmt.Sprintf("System: %s/%s (pkg: %s)", sys.OS, sys.Arch, sys.PkgMgr))
+
+		// --interactive re-asks prompts, so it needs someone to ask.
+		if interactive && unattended {
+			u.Error("--interactive and --unattended cannot be used together")
+			return fmt.Errorf("--interactive and --unattended cannot be used together")
+		}
+		if interactive && !sys.IsInteractive {
+			u.Error("--interactive needs an interactive terminal (stdin is not one)")
+			return fmt.Errorf("--interactive needs an interactive terminal")
+		}
 
 		// Auto-enable unattended mode when stdin is not interactive (e.g. curl | bash).
 		if !sys.IsInteractive && !unattended {
@@ -293,6 +304,28 @@ resolution, module execution, and summary output.`,
 
 		u.PrintExecutionPlan(plan.Modules, plan.Skipped)
 
+		// Prompt answers (issue #55): config pins are checked before anything runs —
+		// a pin that is not a valid answer is a hard error, never silently ignored.
+		// Saved answers are loaded from the state dir; a malformed answers file is a
+		// hard error too, since ignoring it would swap the user's choices for defaults.
+		var pinErrs []string
+		for _, m := range plan.Modules {
+			pinErrs = append(pinErrs, module.ValidatePromptConfig(m, cfg.Modules[m.Name])...)
+		}
+		if len(pinErrs) > 0 {
+			for _, e := range pinErrs {
+				u.Error(e)
+			}
+			return fmt.Errorf("%d invalid prompt answer(s) in config", len(pinErrs))
+		}
+		stateDir := filepath.Join(sys.DotfilesDir, ".state")
+		answers, err := state.LoadAnswers(stateDir)
+		if err != nil {
+			u.Error(fmt.Sprintf("Saved prompt answers could not be loaded: %v", err))
+			u.Info(fmt.Sprintf("Fix or remove %s (prompts are then asked again).", state.AnswersPath(stateDir)))
+			return err
+		}
+
 		// Prune reconcile (ADR 0028 §D6): only in a full PROFILE reconcile. Gates:
 		// no module args (else plan.Modules is a subset), not --update-only, and a
 		// profile actually in effect (never prune against the "all modules"
@@ -363,18 +396,11 @@ resolution, module execution, and summary output.`,
 			}
 		}
 
-		if dryRun {
-			u.Info("Dry-run mode: no changes will be made")
-			return nil
-		}
-
-		// Phase 4: Module execution.
 		runCfg := &module.RunConfig{
 			SysInfo:            sys,
 			Config:             cfg,
 			UI:                 u,
 			Secrets:            provider,
-			State:              state.NewStore(filepath.Join(sys.DotfilesDir, ".state")),
 			DryRun:             dryRun,
 			Unattended:         unattended,
 			FailFast:           failFast,
@@ -384,7 +410,18 @@ resolution, module execution, and summary output.`,
 			UpdateOnly:         updateOnly,
 			ExplicitModules:    plan.ExplicitlyRequested,
 			PromptDependencies: promptDependencies,
+			Interactive:        interactive,
+			Answers:            answers,
 		}
+
+		if dryRun {
+			printPromptAnswers(u, runCfg, plan.Modules)
+			u.Info("Dry-run mode: no changes will be made")
+			return nil
+		}
+
+		// Phase 4: Module execution.
+		runCfg.State = state.NewStore(stateDir)
 
 		results := module.Run(runCfg, plan)
 
@@ -490,6 +527,7 @@ func init() {
 	installCmd.Flags().BoolVar(&force, "force", false, "Force reinstall all modules even if up-to-date")
 	installCmd.Flags().BoolVar(&skipFailed, "skip-failed", false, "Skip modules that failed previously")
 	installCmd.Flags().BoolVar(&updateOnly, "update-only", false, "Only update existing modules, don't install new ones")
+	installCmd.Flags().BoolVar(&interactive, "interactive", false, "Re-ask prompts that already have a saved answer (current answer offered as the default) and save the new answers; config-pinned answers are never asked")
 	installCmd.Flags().BoolVar(&promptDependencies, "prompt-dependencies", false, "Show prompts for auto-included dependency modules (default: use defaults)")
 	installCmd.Flags().StringVar(&profile, "profile", "", "Use a specific profile: a name from profiles/ (e.g. minimal, developer) or a path to a profile file")
 	installCmd.Flags().BoolVar(&allowPrune, "allow-prune", false, "Opt this host into prune: remove installed modules absent from the profile, and record the opt-in so future reconciles prune automatically (ADR 0028 §D6)")
@@ -498,4 +536,32 @@ func init() {
 	installCmd.Flags().StringVar(&hostConfig, "host-config", os.Getenv("DOTFILES_HOST_CONFIG"), "Path to the host-owned config layer (settings this host overrides/adds, applied last); the estate sets /etc/gnet/local-config.yml (ADR 0028 §D10)")
 	installCmd.Flags().StringVar(&metricsTextfile, "metrics-textfile", os.Getenv("DOTFILES_METRICS_TEXTFILE"), "Path to write reconcile metrics as a node_exporter textfile (empty = off); the estate sets /var/lib/node_exporter/textfile/gnet_reconcile.prom (ADR 0028 §D13)")
 	rootCmd.AddCommand(installCmd)
+}
+
+// printPromptAnswers shows, for install --dry-run, each prompt's answer and
+// where it comes from: config, saved, default, or "ask" (a real run would ask,
+// offering the value shown).
+func printPromptAnswers(u *ui.UI, runCfg *module.RunConfig, mods []*module.Module) {
+	var lines []string
+	for _, m := range mods {
+		resolved, err := module.PreviewPromptAnswers(runCfg, m)
+		if err != nil {
+			lines = append(lines, fmt.Sprintf("  %s: %v", m.Name, err))
+			continue
+		}
+		for _, r := range resolved {
+			value := r.Value
+			if value == "" {
+				value = `""`
+			}
+			lines = append(lines, fmt.Sprintf("  %s.%s = %s (%s)", m.Name, r.Key, value, r.Source))
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+	u.Info("Prompt answers (source: config, saved, default; ask = would ask, offering this value):")
+	for _, l := range lines {
+		u.Info(l)
+	}
 }

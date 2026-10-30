@@ -42,7 +42,10 @@ dotfiles install [modules...] [flags]
 ```
 --profile string      Use a specific profile: a name from profiles/ (e.g. minimal,
                       developer) or a path to a profile file
---unattended         Run without prompts, use default answers
+--unattended         Run without prompts: config, saved or default answers
+--interactive        Re-ask prompts that have a saved answer (current answer offered),
+                     including for up-to-date modules; a changed answer re-runs the module.
+                     Config-pinned answers are never asked
 --fail-fast          Stop on first module failure (default: continue)
 -v, --verbose        Stream all script output in real-time (disables compact mode)
 --dry-run            Preview changes without applying them
@@ -72,6 +75,12 @@ dotfiles install --dry-run
 
 # Automated installation (no prompts)
 dotfiles install --unattended
+
+# Review and change earlier prompt answers
+dotfiles install --interactive zsh
+
+# See each prompt's answer and where it comes from (config/saved/default/ask)
+dotfiles install --dry-run
 
 # Verbose output for debugging
 dotfiles install -v
@@ -706,7 +715,9 @@ dotfiles install --unattended
 ```
 
 This:
-- Uses default answers for all prompts
+- Never asks: each prompt takes its config-pinned answer, else the answer saved from an
+  earlier interactive run, else the module default
+  ([how answers resolve](creating-modules.md#how-an-answer-is-resolved))
 - Skips interactive confirmations
 - Suitable for automation
 

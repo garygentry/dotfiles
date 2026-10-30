@@ -144,7 +144,7 @@ dotfiles install --prompt-dependencies
 dotfiles status
 ```
 
-> **🎯 Smart Prompts:** When installing modules, you'll only be prompted for configuration options for modules you explicitly selected. Auto-included dependencies use sensible defaults. Use `--prompt-dependencies` to configure dependencies interactively.
+> **🎯 Smart Prompts:** You're only asked what nothing has answered yet. An answer pinned in config (`modules.<module>.<prompt_key>`) is never asked; an answer you give is saved and reused on later runs, including unattended ones; and only modules you explicitly selected prompt (auto-included dependencies use defaults unless you pass `--prompt-dependencies`). `dotfiles install --interactive` reviews saved answers, and `--dry-run` shows where each answer comes from. [How answers resolve →](docs/creating-modules.md#how-an-answer-is-resolved)
 
 > **💡 Tip:** The system is fully idempotent - run `dotfiles install` as many times as you want! Only modules and files that actually changed will be updated. [Learn more →](docs/idempotence.md)
 

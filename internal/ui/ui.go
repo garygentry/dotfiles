@@ -352,24 +352,43 @@ func (u *UI) PromptConfirm(msg string, defaultVal bool) (bool, error) {
 }
 
 // PromptChoice presents a numbered list of options and asks the user to pick
-// one. Returns the selected option string.
-func (u *UI) PromptChoice(msg string, options []string) (string, error) {
+// one. Returns the selected option string. When defaultVal is one of the
+// options it is marked, and pressing enter picks it.
+func (u *UI) PromptChoice(msg string, options []string, defaultVal string) (string, error) {
 	if len(options) == 0 {
 		return "", fmt.Errorf("no options provided")
+	}
+	defaultIdx := -1
+	for i, opt := range options {
+		if opt == defaultVal {
+			defaultIdx = i
+		}
+	}
+	pickHint := fmt.Sprintf("1-%d", len(options))
+	if defaultIdx >= 0 {
+		pickHint = fmt.Sprintf("1-%d, enter = %d", len(options), defaultIdx+1)
 	}
 
 	if u.IsTTY {
 		fmt.Fprintf(u.writer, "%s%s %s%s\n", colorBlue, iconInfo, msg, colorReset)
 		for i, opt := range options {
-			fmt.Fprintf(u.writer, "  %s%d)%s %s\n", colorMauve, i+1, colorReset, opt)
+			mark := ""
+			if i == defaultIdx {
+				mark = " (default)"
+			}
+			fmt.Fprintf(u.writer, "  %s%d)%s %s%s\n", colorMauve, i+1, colorReset, opt, mark)
 		}
-		fmt.Fprintf(u.writer, "%s%s Choice [1-%d]:%s ", colorBlue, iconInfo, len(options), colorReset)
+		fmt.Fprintf(u.writer, "%s%s Choice [%s]:%s ", colorBlue, iconInfo, pickHint, colorReset)
 	} else {
 		fmt.Fprintf(u.writer, "[CHOICE] %s\n", msg)
 		for i, opt := range options {
-			fmt.Fprintf(u.writer, "  %d) %s\n", i+1, opt)
+			mark := ""
+			if i == defaultIdx {
+				mark = " (default)"
+			}
+			fmt.Fprintf(u.writer, "  %d) %s%s\n", i+1, opt, mark)
 		}
-		fmt.Fprintf(u.writer, "[CHOICE] Pick [1-%d]: ", len(options))
+		fmt.Fprintf(u.writer, "[CHOICE] Pick [%s]: ", pickHint)
 	}
 
 	inputFile, closeFn := openInputTTY()
@@ -383,6 +402,9 @@ func (u *UI) PromptChoice(msg string, options []string) (string, error) {
 	}
 
 	input = strings.TrimSpace(input)
+	if input == "" && defaultIdx >= 0 {
+		return options[defaultIdx], nil
+	}
 	var choice int
 	if _, err := fmt.Sscanf(input, "%d", &choice); err != nil {
 		return "", fmt.Errorf("invalid choice: %q", input)

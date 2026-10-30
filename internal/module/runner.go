@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,7 +59,7 @@ type RunnerUI interface {
 
 	PromptInput(msg string, defaultVal string) (string, error)
 	PromptConfirm(msg string, defaultVal bool) (bool, error)
-	PromptChoice(msg string, options []string) (string, error)
+	PromptChoice(msg string, options []string, defaultVal string) (string, error)
 
 	StartSpinner(msg string) any
 	StopSpinnerSuccess(s any, msg string)
@@ -92,6 +93,8 @@ type RunConfig struct {
 	UpdateOnly         bool            // Only update existing modules, don't install new
 	ExplicitModules    map[string]bool // Tracks which modules were explicitly selected (not auto-included)
 	PromptDependencies bool            // Force prompts for auto-included dependencies
+	Interactive        bool            // --interactive: re-ask prompts that have a saved answer
+	Answers            *state.Answers  // saved interactive prompt answers (nil = none, nothing saved)
 }
 
 // ExecutionDecision represents the runner's decision about whether to execute a module.
@@ -269,6 +272,22 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	existingState, _ := cfg.State.Get(mod.Name)
 	decision, reason := shouldRunModule(mod, existingState, cfg)
 
+	// --interactive reviews an up-to-date module's answers too: ask now, before
+	// the skip decision, and run the module if any answer changed.
+	var promptAnswers map[string]string
+	if decision == ExecutionSkip && cfg.Interactive && !cfg.Unattended && len(mod.Prompts) > 0 {
+		before, qErr := quietPromptAnswers(cfg, mod)
+		answers, err := handlePrompts(cfg, mod)
+		if err != nil {
+			cfg.UI.Error(fmt.Sprintf("Failed %s: %v", mod.Name, err))
+			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+		}
+		promptAnswers = answers
+		if qErr != nil || !maps.Equal(before, answers) {
+			decision, reason = ExecutionUpdateConfig, "prompt answers changed"
+		}
+	}
+
 	if decision == ExecutionSkip {
 		// Run verify.sh silently to confirm module is actually functional before skipping.
 		// Catches cases where the binary was removed after a previous successful install.
@@ -284,11 +303,18 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 			vCtx, vCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			cmd := exec.CommandContext(vCtx, "bash", "-c", wrapper.String())
 			cmd.Env = os.Environ()
-			// Use each prompt's default answer (as an unattended install would)
-			// rather than nil, so a verify.sh that reads DOTFILES_PROMPT_* sees the
-			// same values it would at install time instead of empty strings — which
-			// could make it fail spuriously and force a needless full reinstall.
-			envVars := buildEnvVars(cfg, mod, defaultPromptAnswers(mod))
+			// Use the answers a run would use without asking (config, saved,
+			// default) rather than nil, so a verify.sh that reads DOTFILES_PROMPT_*
+			// sees the values it would at install time instead of empty strings —
+			// which could make it fail spuriously and force a needless reinstall.
+			answers := promptAnswers
+			if answers == nil {
+				var qErr error
+				if answers, qErr = quietPromptAnswers(cfg, mod); qErr != nil {
+					answers = defaultPromptAnswers(mod)
+				}
+			}
+			envVars := buildEnvVars(cfg, mod, answers)
 			for k, v := range envVars {
 				cmd.Env = append(cmd.Env, k+"="+v)
 			}
@@ -338,12 +364,15 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		modState.ConfigHash = existingState.ConfigHash
 	}
 
-	// Step 1: Handle prompts.
-	promptAnswers, err := handlePrompts(cfg, mod)
-	if err != nil {
-		cfg.UI.Error(fmt.Sprintf("Failed %s: %v", mod.Name, err))
-		recordState(cfg, mod, "failed", err)
-		return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+	// Step 1: Handle prompts (unless --interactive already asked them above).
+	if promptAnswers == nil {
+		answers, err := handlePrompts(cfg, mod)
+		if err != nil {
+			cfg.UI.Error(fmt.Sprintf("Failed %s: %v", mod.Name, err))
+			recordState(cfg, mod, "failed", err)
+			return RunResult{Module: mod, Error: err, Duration: time.Since(start)}
+		}
+		promptAnswers = answers
 	}
 
 	// Step 1.5: Handle legacy path cleanup.
@@ -467,85 +496,52 @@ func shouldShowPrompt(p Prompt, cfg *RunConfig, mod *Module, isExplicit bool) bo
 	}
 }
 
-// handlePrompts processes module prompts. In unattended mode, defaults are
-// used. For auto-included dependencies (not explicitly selected), defaults are
-// also used unless --prompt-dependencies is set. Otherwise the UI is used to
-// prompt the user interactively. Returns a map of prompt key -> answer value.
+// handlePrompts resolves module prompts (see resolvePrompts: config, saved
+// answer, ask, default), asking through the UI where needed. Answers actually
+// asked are saved to cfg.Answers, so a later run, interactive or not, reuses
+// them instead of asking again or falling back to the default. Returns a map of
+// prompt key -> answer value.
 func handlePrompts(cfg *RunConfig, mod *Module) (map[string]string, error) {
-	answers := make(map[string]string, len(mod.Prompts))
-
-	// Check if this module was explicitly selected
-	isExplicit := cfg.ExplicitModules != nil && cfg.ExplicitModules[mod.Name]
-
-	for _, p := range mod.Prompts {
-		// Always use defaults in unattended mode
-		if cfg.Unattended {
-			answers[p.Key] = p.Default
-			continue
-		}
-
-		// Skip prompts whose dependency condition is not met; use empty string
-		// so the template can fall back to its own default (via the `default`
-		// function). Only prompts collected earlier in the same loop can be
-		// referenced, so prompt order in module.yml matters.
-		if p.DependsOn != nil {
-			if answers[p.DependsOn.Key] != p.DependsOn.Value {
-				answers[p.Key] = ""
-				continue
-			}
-		}
-
-		// Skip prompts made moot because a listed file already exists (e.g. an
-		// existing SSH key makes the key-type prompt noise — install.sh reuses
-		// the key regardless of the answer). Use the default so downstream
-		// templates and scripts behave exactly as in unattended mode.
-		if promptSkippedByFile(p, cfg.SysInfo) {
-			answers[p.Key] = p.Default
-			if cfg.Verbose {
-				cfg.UI.Debug(fmt.Sprintf("Skipping prompt %s.%s: a skip_if_file path already exists", mod.Name, p.Key))
-			}
-			continue
-		}
-
-		// Check if we should show this prompt interactively
-		if !shouldShowPrompt(p, cfg, mod, isExplicit) {
-			answers[p.Key] = p.Default
-			// Log for transparency when using defaults for auto-included modules
-			if !isExplicit && cfg.Verbose {
-				cfg.UI.Debug(fmt.Sprintf("Using default for %s.%s: %s (auto-included dependency)", mod.Name, p.Key, p.Default))
-			}
-			continue
-		}
-
-		// Show interactive prompt
-		var answer string
-		var err error
-
-		switch p.Type {
-		case "confirm":
-			defaultBool := strings.EqualFold(p.Default, "true") || strings.EqualFold(p.Default, "yes") || strings.EqualFold(p.Default, "y")
-			var confirmed bool
-			confirmed, err = cfg.UI.PromptConfirm(p.Message, defaultBool)
-			if err == nil {
-				if confirmed {
-					answer = "true"
-				} else {
-					answer = "false"
-				}
-			}
-		case "choice":
-			answer, err = cfg.UI.PromptChoice(p.Message, p.Options)
-		default: // "input" or any other type
-			answer, err = cfg.UI.PromptInput(p.Message, p.Default)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("prompt %q: %w", p.Key, err)
-		}
-		answers[p.Key] = answer
+	resolved, err := resolvePrompts(cfg, mod, func(p Prompt, def string) (string, error) {
+		return askPrompt(cfg, p, def)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return answers, nil
+	asked := false
+	for _, r := range resolved {
+		if r.Source == AnswerFromAsked && cfg.Answers != nil {
+			cfg.Answers.Set(mod.Name, r.Key, r.Value)
+			asked = true
+		}
+	}
+	if asked && !cfg.DryRun {
+		if err := cfg.Answers.Save(); err != nil {
+			cfg.UI.Warn(fmt.Sprintf("Could not save prompt answers to %s: %v (they apply to this run only)", cfg.Answers.Path(), err))
+		}
+	}
+	return answerValues(resolved), nil
+}
+
+// askPrompt asks one prompt through the UI, offering def as the default.
+func askPrompt(cfg *RunConfig, p Prompt, def string) (string, error) {
+	switch p.Type {
+	case "confirm":
+		defaultBool := strings.EqualFold(def, "true") || strings.EqualFold(def, "yes") || strings.EqualFold(def, "y")
+		confirmed, err := cfg.UI.PromptConfirm(p.Message, defaultBool)
+		if err != nil {
+			return "", err
+		}
+		if confirmed {
+			return "true", nil
+		}
+		return "false", nil
+	case "choice":
+		return cfg.UI.PromptChoice(p.Message, p.Options, def)
+	default: // "input" or any other type
+		return cfg.UI.PromptInput(p.Message, def)
+	}
 }
 
 // handleLegacyPaths processes legacy_paths entries, backing up, warning, or
@@ -1701,7 +1697,7 @@ func handleInstallFailure(cfg *RunConfig, modState *state.ModuleState, mod *Modu
 	cfg.UI.Info("  [U]ndo - Rollback changes and clean up")
 
 	// Prompt for action
-	choice, promptErr := cfg.UI.PromptChoice("What would you like to do?", []string{"skip", "undo"})
+	choice, promptErr := cfg.UI.PromptChoice("What would you like to do?", []string{"skip", "undo"}, "")
 	if promptErr != nil {
 		cfg.UI.Warn("Failed to read input, skipping rollback")
 		return RunResult{Module: mod, Error: installErr, Duration: time.Since(start)}

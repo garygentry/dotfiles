@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Prompt answers resolve from config, then saved answers, then asking, then the default**
+  (#55). `modules.<module>.<prompt_key>` in any config layer pins a prompt's answer (it's never asked
+  and is exported as `DOTFILES_PROMPT_<KEY>`). An answer given interactively is saved per machine in
+  `~/.dotfiles/.state/answers/answers.json` and reused by later runs, so an unattended reconcile no
+  longer reverts an interactive choice to the default. `install --interactive` re-asks with the
+  current answer offered (a changed answer re-runs an up-to-date module). `install --dry-run` lists
+  each answer and its source. An invalid pinned value (a choice outside the prompt's options) is a
+  hard error before install, and `dotfiles validate` reports it. A choice prompt now takes enter for
+  its default.
+
+### Fixed
+
+- **zsh: the startup-timing probe no longer hangs a hand install** (#56). It runs with no
+  controlling terminal, capped at 20s, so the silent pre-skip verify can't time out and reinstall zsh.
+
 ### Changed
 
 - **`lazygit` module is sudo-free** (v2.0.0). It no longer runs `pkg_install` (apt has no lazygit
