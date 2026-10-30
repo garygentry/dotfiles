@@ -175,32 +175,19 @@ resolution, module execution, and summary output.`,
 		}
 		cfg.Modules = config.ComposeModules(cfg.Modules, profileConfigLayers, hostModules)
 
-		// Phase 2: Secrets authentication.
+		// Phase 2: Secrets. Never asked up front: most runs read no secret at all
+		// (a profile may configure a provider that only one module setting uses), and
+		// where the provider's session can't persist (e.g. op under WSL) the question
+		// came back on every interactive run. A module that does read a secret
+		// without a session fails with a sign-in hint from `dotfiles get-secret`.
 		provider := secrets.NewProvider(cfg.Secrets.Provider, cfg.Secrets.Account)
 		if cfg.Secrets.Provider != "" && !provider.Available() {
 			u.Warn(fmt.Sprintf("Secrets provider %q is configured but not available (is the CLI installed?), continuing without secrets", cfg.Secrets.Provider))
 		} else if provider.Available() && !dryRun {
 			if provider.IsAuthenticated() {
 				u.Success(fmt.Sprintf("Authenticated with %s", provider.Name()))
-			} else if unattended {
-				u.Info("Skipping secrets authentication (unattended mode)")
 			} else {
-				setupNow, promptErr := u.PromptConfirm(
-					fmt.Sprintf("%s is not authenticated. Set up now?", provider.Name()),
-					false,
-				)
-				if promptErr != nil {
-					u.Warn("Could not read input, continuing without secrets")
-				} else if setupNow {
-					if err := provider.Authenticate(); err != nil {
-						u.Warn(fmt.Sprintf("Authentication failed: %v (continuing without secrets)", err))
-					} else {
-						u.Success(fmt.Sprintf("Authenticated with %s", provider.Name()))
-					}
-				} else {
-					u.Info("Skipping secrets. Modules that use secrets will fall back to defaults.")
-					u.Info("Run 'dotfiles install' later to set up 1Password.")
-				}
+				u.Info(fmt.Sprintf("%s is not signed in; a module that reads a secret will fail (sign in first if one needs to)", provider.Name()))
 			}
 		}
 

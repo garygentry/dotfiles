@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **No up-front 1Password sign-in question.** An interactive `dotfiles install` asked
+  "1Password is not authenticated. Set up now?" whenever `op` had no session, even when the run
+  read no secret, and every time under WSL, where the session can't persist. It no longer asks:
+  it notes the provider isn't signed in, and only a module that reads a secret fails, with a
+  sign-in hint (`dotfiles get-secret`, ssh `key_source: 1password`).
 - **zsh: the startup-timing probe no longer hangs a hand install** (#56). It runs with no
   controlling terminal, capped at 20s, so the silent pre-skip verify can't time out and reinstall zsh.
 
