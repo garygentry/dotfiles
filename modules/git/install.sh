@@ -19,6 +19,12 @@ fi
 # behaves exactly as before.
 _git_default_branch="${DOTFILES_SETTING_DEFAULT_BRANCH:-main}"
 
+# modules.git.credential_helper (DOTFILES_SETTING_CREDENTIAL_HELPER): the value for
+# the global credential.helper, e.g. "cache --timeout=900" or "osxkeychain". Unset
+# leaves the host's helper alone: one set on every install could be shadowed but
+# never removed, which got in the way of hosts that wire their own.
+_git_credential_helper="${DOTFILES_SETTING_CREDENTIAL_HELPER:-}"
+
 # Opinionated behaviors are opt-in so the generic engine imposes nothing. Enable
 # from your content overlay: modules.git.sign_commits / modules.git.commit_template.
 _git_sign_commits="${DOTFILES_SETTING_SIGN_COMMITS:-false}"
@@ -45,6 +51,17 @@ if [[ -n "$_git_user_email" ]]; then
     fi
 else
     log_info "Skipping git user.email (not configured in config.yml)"
+fi
+
+if [[ -n "$_git_credential_helper" ]]; then
+    if is_dry_run; then
+        log_info "[dry-run] Would set git credential.helper to '${_git_credential_helper}'"
+    else
+        git config --global --replace-all credential.helper "$_git_credential_helper"
+        log_success "Set git credential.helper to '${_git_credential_helper}'"
+    fi
+else
+    log_info "Leaving git credential.helper as it is (modules.git.credential_helper not set)"
 fi
 
 # Configure SSH signing

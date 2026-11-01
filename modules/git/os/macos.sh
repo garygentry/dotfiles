@@ -8,11 +8,3 @@ if ! command -v git &>/dev/null; then
 else
     log_info "Git is already installed on macOS"
 fi
-
-# Configure macOS-specific credential helper
-if is_dry_run; then
-    log_info "[dry-run] Would configure macOS git credential helper"
-else
-    git config --global credential.helper osxkeychain
-    log_info "Configured macOS credential helper (osxkeychain)"
-fi
