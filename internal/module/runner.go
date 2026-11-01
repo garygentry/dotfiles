@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -968,10 +969,41 @@ func runScript(cfg *RunConfig, mod *Module, scriptPath string, envVars map[strin
 		return fmt.Errorf("script %s failed: %w", scriptName, cmdErr)
 	}
 
-	// Success - show compact summary
+	// Success - show compact summary, plus the lines a script means to be seen
+	// even when its output is hidden: decisions and warnings.
 	cfg.UI.StopSpinnerSuccess(spinner, fmt.Sprintf("Executed %s", scriptName))
+	for _, n := range scriptNotes(capturedOutput) {
+		if n.warn {
+			cfg.UI.Warn("  " + n.text)
+		} else {
+			cfg.UI.Info("  → " + n.text)
+		}
+	}
 
 	return nil
+}
+
+// scriptNote is a line of buffered script output that is shown on success.
+type scriptNote struct {
+	text string
+	warn bool
+}
+
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// scriptNotes picks out of a script's output the lines written by log_decision
+// ("→ ...") and log_warn ("⚠ ..."), in order, with colour codes removed.
+func scriptNotes(output string) []scriptNote {
+	var notes []scriptNote
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(ansiEscape.ReplaceAllString(line, ""))
+		if text, ok := strings.CutPrefix(line, "→ "); ok {
+			notes = append(notes, scriptNote{text: text})
+		} else if text, ok := strings.CutPrefix(line, "⚠ "); ok {
+			notes = append(notes, scriptNote{text: text, warn: true})
+		}
+	}
+	return notes
 }
 
 // streamOutput reads from a reader line by line and sends to a channel.

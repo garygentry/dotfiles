@@ -79,19 +79,19 @@ if [[ "$_ssh_key_source" == "auto" ]]; then
     _ssh_agent_keys="$(ssh-add -l 2>/dev/null)" || _ssh_agent_rc=$?
     _ssh_prev_mode="$(_ssh_previous_mode)"
     if [[ $_ssh_agent_rc -eq 0 ]]; then
-        log_info "key_source=auto -> agent: ssh-add -l found $(printf '%s\n' "$_ssh_agent_keys" | grep -c .) key(s)"
+        log_decision "key_source=auto -> agent: ssh-add -l found $(printf '%s\n' "$_ssh_agent_keys" | grep -c .) key(s)"
         _ssh_key_source="agent"
     elif [[ "$_ssh_prev_mode" == "agent" ]]; then
         log_warn "key_source=auto: no SSH agent key now (ssh-add -l exit ${_ssh_agent_rc}), but this host used agent mode last run -> keeping agent mode; NOT generating a local key"
         log_warn "  Check SSH_AUTH_SOCK in this shell and re-run, or pin modules.ssh.key_source to agent or generate"
         _ssh_key_source="agent"
     else
-        log_info "key_source=auto -> generate: no SSH agent key (ssh-add -l exit ${_ssh_agent_rc})${_ssh_prev_mode:+, previous mode ${_ssh_prev_mode}}; an existing key is reused"
+        log_decision "key_source=auto -> generate: no SSH agent key (ssh-add -l exit ${_ssh_agent_rc})${_ssh_prev_mode:+, previous mode ${_ssh_prev_mode}}; an existing key is reused"
         _ssh_key_source="generate"
         _ssh_auto_generate=true
     fi
 fi
-log_info "SSH key source: ${_ssh_key_source}"
+[[ "${DOTFILES_SETTING_KEY_SOURCE:-generate}" == "auto" ]] || log_decision "SSH key source: ${_ssh_key_source}"
 
 # 'none' — hands off: do not touch keys or config.
 if [[ "$_ssh_key_source" == "none" ]]; then

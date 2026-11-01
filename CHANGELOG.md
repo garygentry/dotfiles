@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Module decisions and warnings show on a successful run** (#59). A module's output is hidden
+  unless it fails (or `--verbose`), so runtime choices such as the ssh module's resolved
+  `key_source` left no trace in the install output. A new helper, `log_decision MSG`, prints a line
+  the runner always shows under the module's result (`→ MSG`). `log_warn` lines are now shown too,
+  instead of being dropped when the script succeeds. The ssh module reports its key source and the
+  zsh module its framework.
 - **Prompt answers resolve from config, then saved answers, then asking, then the default**
   (#55). `modules.<module>.<prompt_key>` in any config layer pins a prompt's answer (it's never asked
   and is exported as `DOTFILES_PROMPT_<KEY>`). An answer given interactively is saved per machine in

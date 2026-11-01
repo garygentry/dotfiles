@@ -47,6 +47,13 @@ log_error() {
     printf '%s %s\n' "$(_color '0;31' '✗')" "$*" >&2
 }
 
+# log_decision MSG - a runtime choice worth keeping (cyan arrow), e.g. which
+#   mode a module resolved to and why. The runner prints these lines under the
+#   module's result even when it hides the rest of the script's output.
+log_decision() {
+    printf '%s %s\n' "$(_color '0;36' '→')" "$*"
+}
+
 # log_success MSG - success (green tick)
 log_success() {
     printf '%s %s\n' "$(_color '0;32' '✓')" "$*"
