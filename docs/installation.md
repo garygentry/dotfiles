@@ -115,6 +115,20 @@ To install a specific profile during bootstrap:
 curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- --profile minimal
 ```
 
+### Preview First
+
+`--dry-run` changes nothing, including the bootstrap's own prep. Each step says what it
+would do: install git or Go, clone or reset the engine checkout (discarding local
+changes), clone or fast-forward the content overlay, append to `~/.zshenv`. When the
+engine checkout is already at the requested ref with no local changes, the engine is
+built into a temp directory and `dotfiles install --dry-run` previews the install. If not,
+the bootstrap lists the prep the preview needs and stops. Run it once without
+`--dry-run`, then preview.
+
+```bash
+curl -sfL https://raw.githubusercontent.com/garygentry/dotfiles/main/bootstrap.sh | bash -s -- --dry-run
+```
+
 ### Content Overlay
 
 The engine is generic; your personal identity, secrets choice, and any custom
