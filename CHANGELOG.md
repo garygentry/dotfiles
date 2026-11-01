@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Post-install notes show once per machine.** `dotfiles install` printed every module's notes
+  as ⚠ warnings each time the module ran, so a run that re-ran many modules (a shared helper
+  change re-runs all of them) ended in pages of warnings. Notes now show as info on a module's
+  first install on a machine and when their text changes (a hash is kept in the module's state).
+  Other runs print one line naming the modules with notes, and the new `dotfiles notes [module]...`
+  prints them. State written before this change counts as having seen the notes.
 - **Module decisions and warnings show on a successful run** (#59). A module's output is hidden
   unless it fails (or `--verbose`), so runtime choices such as the ssh module's resolved
   `key_source` left no trace in the install output. A new helper, `log_decision MSG`, prints a line

@@ -22,6 +22,7 @@ type ModuleState struct {
 	ConfigHash    string      `json:"config_hash,omitempty"` // Hash of user config for this module
 	FileStates    []FileState `json:"file_states,omitempty"` // Per-file deployment tracking
 	Operations    []Operation `json:"operations,omitempty"`  // rollback metadata
+	NotesHash     string      `json:"notes_hash,omitempty"`  // hash of the module notes last shown on this machine
 }
 
 // FileState tracks the deployment state of an individual file.
