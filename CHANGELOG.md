@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Prune no longer deletes a file it doesn't own** (#60). Pruning a module replayed its recorded
+  deploys and removed each path, even one a module still in the profile now deploys (a stale
+  `neovim` record removed the `init.lua` that `nvim-config` had just deployed), a symlink re-pointed
+  elsewhere, or a file edited since it was deployed. Prune now keeps those paths and says why. It
+  also says plainly that software a module's install script installed stays on the machine; only
+  deployed files and state are removed.
 - **No module picker when a profile is named.** `dotfiles install --profile <name>` (or with
   `DOTFILES_PROFILE`) showed the "Select modules to install" grid even though the profile already
   said what to install, so a content overlay's `install.sh` stopped for a keypress on every
