@@ -20,6 +20,11 @@ prompts:
     # An existing key wins over the requested type (install.sh detects and
     # reuses it), so the prompt is pure noise on a host that already has one.
     # Keep this list in sync with install.sh's key detection (ed25519/rsa/ecdsa).
+    # The type only matters for a key this module makes or fetches; an agent
+    # supplies its own keys, and none leaves ~/.ssh alone.
+    skip_if_setting:
+      key: key_source
+      values: [agent, none]
     skip_if_file:
       - ~/.ssh/id_ed25519
       - ~/.ssh/id_rsa

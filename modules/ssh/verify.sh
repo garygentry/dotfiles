@@ -17,6 +17,13 @@ _ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
 _ssh_key_file="${_ssh_dir}/id_${_ssh_key_type}"
 _ssh_errors=0
 
+# auto resolves at install time; verify what it resolved to, as recorded in the
+# managed block ("# key_source: <mode>"). Without a record only the config is checked.
+if [[ "$_ssh_key_source" == "auto" ]] && [[ -f "${_ssh_dir}/config" ]]; then
+    _ssh_recorded="$(awk '{ sub(/\r$/, "") } /^# key_source: / { print $3; exit }' "${_ssh_dir}/config")"
+    _ssh_key_source="${_ssh_recorded:-auto}"
+fi
+
 if [[ "$_ssh_key_source" == "none" ]]; then
     log_success "SSH key_source=none: nothing to verify"
     exit 0

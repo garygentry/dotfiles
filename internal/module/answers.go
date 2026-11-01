@@ -33,8 +33,8 @@ type askFunc func(p Prompt, def string) (string, error)
 //     (config.yml, profiles, host). Config always wins and is never asked.
 //  2. a saved answer from an earlier interactive run on this machine (skipped
 //     under --interactive, which re-asks with the saved value as the default).
-//  3. asking, only when the run is interactive and depends_on, skip_if_file and
-//     show_when let the prompt be shown.
+//  3. asking, only when the run is interactive and depends_on, skip_if_file,
+//     skip_if_setting and show_when let the prompt be shown.
 //  4. the module's default.
 //
 // With ask == nil nothing is asked: a prompt that would be asked resolves to the
@@ -98,6 +98,14 @@ func resolvePrompts(cfg *RunConfig, mod *Module, ask askFunc) ([]ResolvedAnswer,
 			fallback()
 			if cfg.Verbose {
 				cfg.UI.Debug(fmt.Sprintf("Skipping prompt %s.%s: a skip_if_file path already exists", mod.Name, p.Key))
+			}
+			continue
+		}
+
+		if promptSkippedBySetting(p, settings) {
+			fallback()
+			if cfg.Verbose {
+				cfg.UI.Debug(fmt.Sprintf("Skipping prompt %s.%s: modules.%s.%s is %v", mod.Name, p.Key, mod.Name, p.SkipIfSetting.Key, settings[p.SkipIfSetting.Key]))
 			}
 			continue
 		}
@@ -211,4 +219,24 @@ func ValidatePromptConfig(mod *Module, settings map[string]any) []string {
 		}
 	}
 	return errs
+}
+
+// promptSkippedBySetting reports whether the module setting named by the
+// prompt's skip_if_setting holds one of the listed values. An unset setting
+// never matches.
+func promptSkippedBySetting(p Prompt, settings map[string]any) bool {
+	if p.SkipIfSetting == nil {
+		return false
+	}
+	raw, ok := settings[p.SkipIfSetting.Key]
+	if !ok || raw == nil {
+		return false
+	}
+	v := fmt.Sprint(raw)
+	for _, want := range p.SkipIfSetting.Values {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }
