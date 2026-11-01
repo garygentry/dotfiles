@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`bootstrap.sh --dry-run` is dry** (#58). It used to pass `--dry-run` only to the final
+  `dotfiles install`. Its own prep still ran: reinstalling Go, resetting and cleaning the engine
+  checkout, pulling the overlay, writing `~/.zshenv`, and rebuilding `bin/dotfiles`. Each step now
+  says what it would do and changes nothing (the engine ref is resolved with `git ls-remote`, not
+  fetched). The install preview runs from a temp build when the checkout is already at the ref and
+  clean. Otherwise the bootstrap lists the prep it would need and exits 0.
 - **ssh `key_source: auto` no longer mints a key when the agent is briefly unreachable** (#57).
   `auto` picked generate mode whenever `ssh-add -l` failed at that moment, so one run from a shell
   without `SSH_AUTH_SOCK` created a passphrase-less `~/.ssh/id_ed25519` on a host whose keys live in

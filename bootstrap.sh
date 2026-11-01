@@ -60,6 +60,13 @@ CONTENT_ACQUIRED=0
 # Arguments forwarded to `dotfiles install` (everything not consumed above).
 INSTALL_ARGS=()
 
+# --dry-run (forwarded to `dotfiles install` as well) makes every prep step
+# report what it would do and change nothing. The install preview then runs from
+# a throwaway build, or not at all when a prep step it depends on was skipped:
+# PREVIEW_BLOCKED collects why, one reason per line.
+DRY_RUN=0
+PREVIEW_BLOCKED=""
+
 # ---------------------------------------------------------------------------
 # Color helpers (disabled when not connected to a terminal)
 # ---------------------------------------------------------------------------
@@ -74,6 +81,8 @@ info()  { printf "${BLUE}${BOLD}[info]${RESET}  %s\n" "$*"; }
 ok()    { printf "${GREEN}${BOLD}[ok]${RESET}    %s\n" "$*"; }
 warn()  { printf "${YELLOW}${BOLD}[warn]${RESET}  %s\n" "$*" >&2; }
 fatal() { printf "${RED}${BOLD}[error]${RESET} %s\n" "$*" >&2; exit 1; }
+would() { printf "${YELLOW}${BOLD}[dry-run]${RESET} would %s\n" "$*"; }
+block_preview() { PREVIEW_BLOCKED="${PREVIEW_BLOCKED}  - $*"$'\n'; }
 
 # ---------------------------------------------------------------------------
 # OS / architecture detection
@@ -133,6 +142,11 @@ ensure_git() {
         ok "git is already installed ($(git --version))"
         return
     fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        would "install git"
+        block_preview "git is not installed"
+        return
+    fi
     info "Installing git..."
     case "$OS" in
         darwin) xcode-select --install 2>/dev/null || true ;;
@@ -150,6 +164,12 @@ ensure_git() {
 ensure_go() {
     if command -v go &>/dev/null; then
         ok "go is already installed ($(go version))"
+        return
+    fi
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        would "download Go ${GO_VERSION} for ${GO_OS}/${ARCH} into /usr/local/go (with root) or ~/.local/go, replacing what is there"
+        block_preview "Go is not installed, so the engine can't be built"
         return
     fi
 
@@ -191,6 +211,10 @@ ensure_go() {
 # Clone or update the dotfiles repository
 # ---------------------------------------------------------------------------
 ensure_repo() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        preview_repo
+        return
+    fi
     # Fresh host: clone the default branch, then converge to the requested ref
     # exactly like an existing checkout does (below). We deliberately do NOT
     # `git clone --branch "$DOTFILES_REF"`: --branch rejects a raw commit SHA, so
@@ -261,10 +285,62 @@ update_repo() {
     ok "Dotfiles repo at ref '${ref}' (${head_sha}: ${head_subject})"
 }
 
+# preview_repo — ensure_repo under --dry-run: say how the engine checkout would
+# change, touching nothing (ls-remote, not fetch, so not even .git is written).
+preview_repo() {
+    if ! command -v git >/dev/null 2>&1; then
+        would "clone ${DOTFILES_REPO} to ${DOTFILES_DIR} at ref ${DOTFILES_REF}"
+        return
+    fi
+    if [ ! -d "${DOTFILES_DIR}/.git" ]; then
+        would "clone ${DOTFILES_REPO} to ${DOTFILES_DIR} and check out ref ${DOTFILES_REF}"
+        block_preview "the engine is not checked out at ${DOTFILES_DIR}"
+        return
+    fi
+
+    local ref="$DOTFILES_REF" want head
+    case "$ref" in
+        [0-9a-f]*) if [ "${#ref}" -eq 40 ] && [ -z "${ref//[0-9a-f]/}" ]; then want="$ref"; fi ;;
+    esac
+    if [ -z "${want:-}" ]; then
+        # A peeled annotated tag (ref^{}) names the commit; it sorts after the tag.
+        want="$(git -C "$DOTFILES_DIR" ls-remote origin "$ref" "${ref}^{}" 2>/dev/null \
+                | awk '{ sha = $1 } END { print sha }')"
+    fi
+    head="$(git -C "$DOTFILES_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+
+    if [ -z "$want" ]; then
+        would "fetch ref '${ref}' into ${DOTFILES_DIR}, but origin does not list it (a real run fails here)"
+        block_preview "ref '${ref}' could not be resolved on origin"
+        return
+    fi
+    if [ "$head" != "$want" ]; then
+        would "reset ${DOTFILES_DIR} from ${head:0:7} to ref '${ref}' (${want:0:7})"
+        block_preview "the engine checkout is not at ref '${ref}' yet"
+    fi
+    if ! git -C "$DOTFILES_DIR" diff --quiet HEAD 2>/dev/null; then
+        would "save local changes in ${DOTFILES_DIR} to .backups/ and discard them"
+        block_preview "${DOTFILES_DIR} has local changes a real run discards"
+    fi
+    local untracked
+    untracked="$(git -C "$DOTFILES_DIR" clean -nd -e '.backups' -e '.state' 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "$untracked" -gt 0 ]; then
+        would "delete ${untracked} untracked path(s) in ${DOTFILES_DIR} (git clean -nd lists them)"
+        block_preview "${DOTFILES_DIR} has untracked files a real run deletes"
+    fi
+    if [ "$head" = "$want" ]; then
+        ok "Dotfiles repo already at ref '${ref}' (${head:0:7})"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Build and execute the dotfiles binary
 # ---------------------------------------------------------------------------
 build_and_run() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        preview_install "$@"
+        return
+    fi
     info "Building dotfiles binary..."
     cd "$DOTFILES_DIR"
     go build -o bin/dotfiles .
@@ -281,6 +357,33 @@ build_and_run() {
     else
         exec ./bin/dotfiles install "$@"
     fi
+}
+
+# preview_install — build_and_run under --dry-run. The binary goes to a temp dir
+# (bin/dotfiles is left alone) and runs `install --dry-run` against the checkout.
+# When prep was skipped that the preview depends on, say so and stop instead of
+# previewing something a real run wouldn't install.
+preview_install() {
+    if [ -n "$PREVIEW_BLOCKED" ]; then
+        printf '\n'
+        warn "No install preview: it needs prep that --dry-run skipped:"
+        printf '%s' "$PREVIEW_BLOCKED" >&2
+        info "Nothing was changed. Run without --dry-run to do the prep, then --dry-run previews the install."
+        exit 0
+    fi
+    local tmp rc=0
+    tmp="$(mktemp -d)"
+    info "Building dotfiles binary into ${tmp} (dry run: ${DOTFILES_DIR}/bin is left alone)..."
+    (cd "$DOTFILES_DIR" && go build -o "${tmp}/dotfiles" .) || { rm -rf "$tmp"; fatal "build failed"; }
+    info "Running: dotfiles install $*"
+    export DOTFILES_DIR
+    if (exec < /dev/tty) 2>/dev/null; then
+        (cd "$DOTFILES_DIR" && "${tmp}/dotfiles" install "$@" < /dev/tty) || rc=$?
+    else
+        (cd "$DOTFILES_DIR" && "${tmp}/dotfiles" install "$@") || rc=$?
+    fi
+    rm -rf "$tmp"
+    exit "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -319,7 +422,10 @@ parse_args() {
             --content-auth-cmd=*) CONTENT_AUTH_CMD="${1#*=}";  shift ;;
             --no-persist-content-dir) PERSIST_CONTENT_DIR=0;   shift ;;
             --no-content-update)      CONTENT_UPDATE=0;        shift ;;
-            --)                   shift; INSTALL_ARGS+=("$@"); break ;;
+            --)                   shift
+                                  for a in "$@"; do case "$a" in --dry-run|--dry-run=true) DRY_RUN=1 ;; esac; done
+                                  INSTALL_ARGS+=("$@"); break ;;
+            --dry-run|--dry-run=true) DRY_RUN=1; INSTALL_ARGS+=("$1"); shift ;;
             *)                    INSTALL_ARGS+=("$1");        shift ;;
         esac
     done
@@ -332,6 +438,10 @@ parse_args() {
 # ---------------------------------------------------------------------------
 run_content_auth() {
     [ -n "$CONTENT_AUTH_CMD" ] || return 0
+    if [ "$DRY_RUN" -eq 1 ]; then
+        would "run the content auth hook: ${CONTENT_AUTH_CMD}"
+        return 0
+    fi
     info "Running content auth hook before fetch..."
     bash -c "$CONTENT_AUTH_CMD" || fatal "content auth hook failed: ${CONTENT_AUTH_CMD}"
     ok "Content auth hook complete"
@@ -365,7 +475,15 @@ acquire_content() {
         local dest
         dest="$(expand_tilde "$CONTENT_DIR_DEST")"
         run_content_auth
-        if [ -d "${dest}/.git" ]; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            if [ -d "${dest}/.git" ]; then
+                would "fetch ${dest} and ${CONTENT_REF:+check out ${CONTENT_REF}, then }fast-forward it; previewing it as it is now"
+            else
+                would "clone ${CONTENT_REPO} to ${dest}${CONTENT_REF:+ at ${CONTENT_REF}}"
+                block_preview "the content repo is not cloned at ${dest}"
+                return
+            fi
+        elif [ -d "${dest}/.git" ]; then
             info "Content repo already present at ${dest}, updating..."
             git -C "$dest" fetch --all --prune || warn "content fetch failed; using existing checkout"
             if [ -n "$CONTENT_REF" ]; then
@@ -410,6 +528,10 @@ refresh_overlay() {
     [ "$CONTENT_UPDATE" -eq 1 ] || return 0
     [ -d "${dir}/.git" ] || return 0
     git -C "$dir" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || return 0
+    if [ "$DRY_RUN" -eq 1 ]; then
+        would "fast-forward the content overlay at ${dir}; previewing it as it is now"
+        return 0
+    fi
 
     info "Refreshing content overlay at ${dir} (ff-only)..."
     if git -C "$dir" fetch --quiet --all --prune 2>/dev/null; then
@@ -441,6 +563,10 @@ persist_content_dir() {
     local target="${HOME}/.zshenv"
     if [ -f "$target" ] && grep -qF 'DOTFILES_CONTENT_DIR=' "$target"; then
         info "${target} already sets DOTFILES_CONTENT_DIR; leaving it unchanged."
+        return
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        would "append that export line to ${target}"
         return
     fi
     if printf '\n# Added by dotfiles bootstrap\n%s\n' "$line" >> "$target"; then
