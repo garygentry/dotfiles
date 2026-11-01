@@ -103,7 +103,10 @@ modules, since that one is a default rather than a request.
 
 **Interactive Module Selection (TTY mode):**
 
-When no modules are specified, you'll see a compact grid-based selector:
+When no modules are specified and no profile is named explicitly, you'll see a
+compact grid-based selector, pre-selected from the `config.yml` profile. Naming
+modules, or a profile through `--profile` or `DOTFILES_PROFILE`, already says what
+to install, so the selector is skipped:
 
 ```
 ┌─ Select modules to install ──────────────────────────────────┐

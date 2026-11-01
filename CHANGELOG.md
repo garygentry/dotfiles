@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **No module picker when a profile is named.** `dotfiles install --profile <name>` (or with
+  `DOTFILES_PROFILE`) showed the "Select modules to install" grid even though the profile already
+  said what to install, so a content overlay's `install.sh` stopped for a keypress on every
+  interactive run. The picker now appears only for a bare `dotfiles install`.
 - **No up-front 1Password sign-in question.** An interactive `dotfiles install` asked
   "1Password is not authenticated. Set up now?" whenever `op` had no session, even when the run
   read no secret, and every time under WSL, where the session can't persist. It no longer asks:

@@ -48,6 +48,10 @@ When you run this command, you'll see a **grid-based module selector** where you
 - See a live preview of the currently highlighted module
 - Press **Enter** to start installation
 
+The selector appears only for a bare `dotfiles install`. With `--profile <name>`
+(or `DOTFILES_PROFILE`) the profile is the selection and installation starts
+straight away.
+
 During installation, a **progress bar** shows:
 - How many modules have been installed (e.g., "3/10 60%")
 - Current module being installed
