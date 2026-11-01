@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/garygentry/dotfiles/internal/module"
 	"github.com/garygentry/dotfiles/internal/state"
 	"github.com/garygentry/dotfiles/internal/ui"
 )
@@ -175,5 +176,89 @@ func TestRemoveModuleForPrunePreservesStateOnRollbackError(t *testing.T) {
 	}
 	if got, _ := store.Get("stuck"); got == nil {
 		t.Fatal("state must be PRESERVED on rollback error (no orphaning)")
+	}
+}
+
+// Prune must remove only what the pruned module still owns (#60): the issue's
+// case is a stale neovim record whose init.lua nvim-config now deploys.
+func TestRemoveModuleForPruneKeepsPathsNoLongerItsOwn(t *testing.T) {
+	dir := t.TempDir()
+	store := state.NewStore(filepath.Join(dir, ".state"))
+	u := ui.New(false)
+	dryRun = false
+
+	write := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	hash := func(p string) string {
+		h, err := module.ComputeFileHash(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+
+	shared := write("init.lua", "nvim-config's")
+	edited := write("edited.conf", "as deployed")
+	editedHash := hash(edited)
+	write("edited.conf", "edited by hand")
+	unchanged := write("unchanged.conf", "as deployed")
+	src := write("src.conf", "source")
+	other := write("other.conf", "other source")
+	goodLink := filepath.Join(dir, "good.link")
+	movedLink := filepath.Join(dir, "moved.link")
+	replacedLink := filepath.Join(dir, "replaced.link")
+	for _, l := range []struct{ path, target string }{{goodLink, src}, {movedLink, other}} {
+		if err := os.Symlink(l.target, l.path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("replaced.link", "a real file now")
+
+	owner := &state.ModuleState{Name: "nvim-config", Status: "installed"}
+	owner.RecordOperation(state.Operation{Type: "file_deploy", Action: "created", Path: shared})
+	ms := &state.ModuleState{Name: "neovim", Status: "installed", FileStates: []state.FileState{
+		{Dest: edited, DeployedHash: editedHash},
+		{Dest: unchanged, DeployedHash: hash(unchanged)},
+	}}
+	ms.RecordOperation(state.Operation{Type: "file_deploy", Action: "created", Path: shared})
+	ms.RecordOperation(state.Operation{Type: "file_deploy", Action: "created", Path: edited})
+	ms.RecordOperation(state.Operation{Type: "file_deploy", Action: "created", Path: unchanged})
+	for _, l := range []string{goodLink, movedLink, replacedLink} {
+		ms.RecordOperation(state.Operation{Type: "file_deploy", Action: "symlinked", Path: l,
+			Metadata: map[string]string{"source": src}})
+	}
+	ms.RecordOperation(state.Operation{Type: "script_run", Action: "executed", Path: "install.sh"})
+	for _, s := range []*state.ModuleState{owner, ms} {
+		if err := store.Set(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if errs := removeModuleForPrune(u, store, ms); len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	for _, p := range []string{shared, edited, movedLink, replacedLink} {
+		if _, err := os.Lstat(p); err != nil {
+			t.Errorf("%s must be kept: %v", filepath.Base(p), err)
+		}
+	}
+	for _, p := range []string{unchanged, goodLink} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("%s must be removed, lstat err: %v", filepath.Base(p), err)
+		}
+	}
+	if got, _ := store.Get("neovim"); got != nil {
+		t.Error("state should be removed")
+	}
+	if !leftInstalled(ms) {
+		t.Error("leftInstalled: a module that ran install.sh leaves software behind")
+	}
+	if leftInstalled(owner) {
+		t.Error("leftInstalled: a files-only module leaves nothing behind")
 	}
 }

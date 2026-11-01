@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/garygentry/dotfiles/internal/config"
+	"github.com/garygentry/dotfiles/internal/module"
 	"github.com/garygentry/dotfiles/internal/state"
 	"gopkg.in/yaml.v3"
 )
@@ -117,4 +118,80 @@ func recordPruneOptIn(dotfilesDir string) error {
 		return err
 	}
 	return os.WriteFile(p, []byte("opted-in\n"), 0o644)
+}
+
+// pathOwners maps every path an installed module other than `except` deploys
+// to that module's name, from its file states and recorded file_deploy ops.
+// Prune runs after the reconcile's installs, so a path a pruned module once
+// deployed may now belong to a module that is still in the profile.
+func pathOwners(store *state.Store, except string) (map[string]string, error) {
+	all, err := store.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	owners := make(map[string]string)
+	for _, ms := range all {
+		if ms.Name == except || ms.Status != "installed" {
+			continue
+		}
+		for _, fs := range ms.FileStates {
+			owners[filepath.Clean(fs.Dest)] = ms.Name
+		}
+		for _, op := range ms.Operations {
+			if op.Type == "file_deploy" {
+				owners[filepath.Clean(op.Path)] = ms.Name
+			}
+		}
+	}
+	return owners, nil
+}
+
+// pruneKeepReason reports why prune must leave a file_deploy op's path in
+// place, or "" when the path is still what ms deployed and rolling it back is
+// safe: another installed module now deploys it, the symlink no longer points
+// at the recorded source, or the file's content differs from what was deployed.
+func pruneKeepReason(op state.Operation, ms *state.ModuleState, owners map[string]string) string {
+	path := filepath.Clean(op.Path)
+	if owner, ok := owners[path]; ok {
+		return "now deployed by " + owner
+	}
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return "" // absent: rollback already treats that as removed
+	}
+	if op.Action == "symlinked" {
+		if fi.Mode()&os.ModeSymlink == 0 {
+			return "no longer a symlink"
+		}
+		if src := op.Metadata["source"]; src != "" {
+			if target, err := os.Readlink(path); err != nil || filepath.Clean(target) != filepath.Clean(src) {
+				return "symlink points elsewhere"
+			}
+		}
+		return ""
+	}
+	var deployed string
+	for _, fs := range ms.FileStates {
+		if filepath.Clean(fs.Dest) == path {
+			deployed = fs.DeployedHash
+		}
+	}
+	if deployed == "" || !fi.Mode().IsRegular() {
+		return ""
+	}
+	if current, err := module.ComputeFileHash(path); err != nil || current != deployed {
+		return "changed since it was deployed"
+	}
+	return ""
+}
+
+// leftInstalled reports whether ms ran an install script or installed a
+// package. Prune can't undo either, so their software stays on the machine.
+func leftInstalled(ms *state.ModuleState) bool {
+	for _, op := range ms.Operations {
+		if op.Type == "script_run" || op.Type == "package_install" {
+			return true
+		}
+	}
+	return false
 }

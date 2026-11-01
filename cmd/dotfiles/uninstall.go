@@ -145,15 +145,29 @@ func uninstallModule(u *ui.UI, store *state.Store, moduleName string) error {
 // not prompt per module the way `uninstall` does. It reuses the same
 // rollbackOperation machinery, so — like uninstall — it only ever undoes
 // engine-recorded operations (created files/dirs restored/removed; packages and
-// scripts are left, per rollbackOperation). Returns any operation errors; the
-// caller keeps pruning the remaining modules. A no-op under global dryRun.
+// scripts are left, per rollbackOperation). Unlike uninstall it leaves a
+// deployed path alone when pruneKeepReason says it is no longer ms's to remove.
+// Returns any operation errors; the caller keeps pruning the remaining modules.
+// A no-op under global dryRun.
 func removeModuleForPrune(u *ui.UI, store *state.Store, ms *state.ModuleState) []string {
 	if dryRun {
 		return nil
 	}
+	owners, err := pathOwners(store, ms.Name)
+	if err != nil {
+		// Without knowing who else deploys what, removing anything is a guess.
+		return []string{fmt.Sprintf("reading module state: %v", err)}
+	}
 	var errs []string
 	for i := len(ms.Operations) - 1; i >= 0; i-- {
-		if err := rollbackOperation(u, ms.Operations[i]); err != nil {
+		op := ms.Operations[i]
+		if op.Type == "file_deploy" {
+			if reason := pruneKeepReason(op, ms, owners); reason != "" {
+				u.Info(fmt.Sprintf("  %s: kept %s (%s)", ms.Name, op.Path, reason))
+				continue
+			}
+		}
+		if err := rollbackOperation(u, op); err != nil {
 			errs = append(errs, fmt.Sprintf("operation %d: %v", i, err))
 			u.Warn(fmt.Sprintf("  %s: operation %d failed: %v", ms.Name, i, err))
 		}

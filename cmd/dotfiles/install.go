@@ -375,6 +375,7 @@ resolution, module execution, and summary output.`,
 					list := strings.Join(pruneCandidates, ", ")
 					if pruneOptedIn {
 						u.Warn(fmt.Sprintf("Prune: %d module(s) not in the profile will be removed: %s", len(pruneCandidates), list))
+						u.Info("Prune removes the files they deployed and their state; software their install scripts installed stays")
 					} else {
 						u.Warn(fmt.Sprintf("Drift: %d installed module(s) not in the profile: %s", len(pruneCandidates), list))
 						u.Info("Not removed — this host has not opted into prune. Pass --allow-prune to remove them")
@@ -489,6 +490,9 @@ resolution, module execution, and summary output.`,
 						} else {
 							pruned++
 							u.Success(fmt.Sprintf("Pruned %s", name))
+							if leftInstalled(ms) {
+								u.Info(fmt.Sprintf("  %s: software its install script installed is still on this machine; remove it by hand if unwanted", name))
+							}
 						}
 					}
 					if pruned > 0 {
