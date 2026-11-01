@@ -3,6 +3,7 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1733,5 +1734,40 @@ func TestSettingToStr_NonScalars(t *testing.T) {
 				t.Errorf("settingToStr(%v) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// A successful script's output stays hidden, except the lines it means to be
+// seen: log_decision and log_warn (#59). Colour codes are stripped.
+func TestRunScriptSurfacesDecisionsAndWarnings(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	ui := &testUI{}
+	cfg.UI = ui
+	libDir := filepath.Join(cfg.SysInfo.DotfilesDir, "lib")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	helpers, err := os.ReadFile(filepath.Join("..", "..", "lib", "helpers.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(libDir, "helpers.sh"), helpers, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(t.TempDir(), "install.sh")
+	body := "log_info 'chatter'\nlog_decision 'mode: agent'\nlog_success 'done'\nlog_warn 'no agent key now'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	env := map[string]string{"DOTFILES_INTERACTIVE": "true"}
+	if err := runScript(cfg, &Module{Name: "m"}, script, env); err != nil {
+		t.Fatalf("runScript: %v", err)
+	}
+	if want := []string{"  → mode: agent"}; !slices.Equal(ui.infos, want) {
+		t.Errorf("infos = %q, want %q", ui.infos, want)
+	}
+	if want := []string{"  no agent key now"}; !slices.Equal(ui.warns, want) {
+		t.Errorf("warns = %q, want %q", ui.warns, want)
 	}
 }

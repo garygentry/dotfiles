@@ -348,7 +348,12 @@ log_info "Informational message"
 log_warn "Warning message"
 log_error "Error message"
 log_success "Success message"
+log_decision "key source: agent (ssh-add -l found 2 keys)"
 ```
+
+A successful script's output is hidden unless you pass `--verbose`. Two kinds of line are
+always shown under the module's result: `log_decision` lines, for a runtime choice someone
+may later need to know (which mode was chosen and why), and `log_warn` lines.
 
 ### OS Detection
 

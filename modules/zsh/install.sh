@@ -2,6 +2,7 @@
 # zsh/install.sh - Install and configure Zsh with Zinit or Oh My Zsh
 
 _zsh_framework="${DOTFILES_PROMPT_ZSH_FRAMEWORK:-zinit}"
+log_decision "zsh framework: ${_zsh_framework}"
 
 # Install zsh if not already present (OS-specific scripts handle this too)
 if ! command -v zsh &>/dev/null; then
