@@ -204,8 +204,9 @@ resolution, module execution, and summary output.`,
 			return nil
 		}
 
-		// Interactive module selection when no CLI args provided.
-		if len(args) == 0 && !unattended {
+		// Interactive module selection, only when nothing chose the modules.
+		pickModules := showModulePicker(len(args) > 0, explicitProfile, unattended)
+		if pickModules {
 			options := make([]module.MultiSelectOption, 0, len(allModules))
 			for _, m := range allModules {
 				if !m.SupportsOS(sys.OS) {
@@ -246,7 +247,7 @@ resolution, module execution, and summary output.`,
 		}
 
 		// Show auto-included dependencies if the user made an interactive selection.
-		if len(args) == 0 && !unattended && len(requested) > 0 {
+		if pickModules && len(requested) > 0 {
 			requestedSet := make(map[string]bool, len(requested))
 			for _, name := range requested {
 				requestedSet[name] = true
@@ -551,4 +552,12 @@ func printPromptAnswers(u *ui.UI, runCfg *module.RunConfig, mods []*module.Modul
 	for _, l := range lines {
 		u.Info(l)
 	}
+}
+
+// showModulePicker reports whether install asks which modules to install. Module
+// args or an explicit profile (--profile, DOTFILES_PROFILE) already answer that,
+// so asking again only invites a host to drift from its declared profile; the
+// picker is for a bare `dotfiles install`, pre-selected from config.yml's profile.
+func showModulePicker(hasModuleArgs, explicitProfile, unattended bool) bool {
+	return !hasModuleArgs && !explicitProfile && !unattended
 }

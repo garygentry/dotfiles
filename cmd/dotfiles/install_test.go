@@ -268,3 +268,25 @@ description: [unclosed`,
 		})
 	}
 }
+
+func TestShowModulePicker(t *testing.T) {
+	tests := []struct {
+		name                                     string
+		hasModuleArgs, explicitProfile, unattend bool
+		want                                     bool
+	}{
+		{"bare install", false, false, false, true},
+		{"module args", true, false, false, false},
+		{"explicit profile", false, true, false, false},
+		{"unattended", false, false, true, false},
+		{"explicit profile and module args", true, true, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := showModulePicker(tt.hasModuleArgs, tt.explicitProfile, tt.unattend); got != tt.want {
+				t.Errorf("showModulePicker(%t, %t, %t) = %t, want %t",
+					tt.hasModuleArgs, tt.explicitProfile, tt.unattend, got, tt.want)
+			}
+		})
+	}
+}
