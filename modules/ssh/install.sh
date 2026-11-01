@@ -44,16 +44,51 @@ case "$_ssh_key_source" in
         ;;
 esac
 
+# Delimiters of the ~/.ssh/config block this module owns (see the splice below).
+_ssh_begin_marker="# >>> dotfiles managed >>>"
+_ssh_end_marker="# <<< dotfiles managed <<<"
+
+# _ssh_previous_mode — the key source this module last rendered into its managed
+# block of ~/.ssh/config, or nothing on a host it hasn't configured. The block
+# records it as "# key_source: <mode>". A block written before that line existed
+# is "agent" if it carries the agent-mode GitHub comment, otherwise "generate".
+_ssh_previous_mode() {
+    [[ -f "${_ssh_dir}/config" ]] || return 0
+    awk -v begin="$_ssh_begin_marker" -v end="$_ssh_end_marker" '
+        { sub(/\r$/, "") }
+        $0 == begin { inb = 1; seen = 1; next }
+        $0 == end   { inb = 0; next }
+        inb && /^# key_source: / { mode = $3; exit }
+        inb && /key_source=agent:/ { legacy = "agent" }
+        END {
+            if (mode != "") print mode
+            else if (seen) print (legacy != "" ? legacy : "generate")
+        }
+    ' "${_ssh_dir}/config"
+}
+
 # 'auto' resolves to a concrete mode before anything else runs, so the rest of
 # the module (key acquisition, GitHub key resolution, the config template) sees
 # a plain agent/generate value and behaves exactly as if it were set explicitly.
+# An agent that is unreachable for one run (a shell opened before the agent was
+# wired, a lost SSH_AUTH_SOCK) must not mint a local key on a host that uses the
+# agent, so the previous mode wins over "no agent right now".
+_ssh_auto_generate=false
 if [[ "$_ssh_key_source" == "auto" ]]; then
-    if ssh-add -l >/dev/null 2>&1; then
-        log_info "key_source=auto: a live SSH agent holds a key -> agent mode"
+    _ssh_agent_rc=0
+    _ssh_agent_keys="$(ssh-add -l 2>/dev/null)" || _ssh_agent_rc=$?
+    _ssh_prev_mode="$(_ssh_previous_mode)"
+    if [[ $_ssh_agent_rc -eq 0 ]]; then
+        log_info "key_source=auto -> agent: ssh-add -l found $(printf '%s\n' "$_ssh_agent_keys" | grep -c .) key(s)"
+        _ssh_key_source="agent"
+    elif [[ "$_ssh_prev_mode" == "agent" ]]; then
+        log_warn "key_source=auto: no SSH agent key now (ssh-add -l exit ${_ssh_agent_rc}), but this host used agent mode last run -> keeping agent mode; NOT generating a local key"
+        log_warn "  Check SSH_AUTH_SOCK in this shell and re-run, or pin modules.ssh.key_source to agent or generate"
         _ssh_key_source="agent"
     else
-        log_info "key_source=auto: no agent key available -> generate mode (existing key reused if present)"
+        log_info "key_source=auto -> generate: no SSH agent key (ssh-add -l exit ${_ssh_agent_rc})${_ssh_prev_mode:+, previous mode ${_ssh_prev_mode}}; an existing key is reused"
         _ssh_key_source="generate"
+        _ssh_auto_generate=true
     fi
 fi
 log_info "SSH key source: ${_ssh_key_source}"
@@ -155,6 +190,10 @@ case "$_ssh_key_source" in
                 chmod 600 "$_ssh_key_file"
                 chmod 644 "${_ssh_key_file}.pub"
                 log_success "SSH key generated at ${_ssh_key_file}"
+                if [[ "$_ssh_auto_generate" == "true" ]]; then
+                    log_warn "key_source=auto generated a NEW passphrase-less key: ${_ssh_key_file} ($(ssh-keygen -lf "${_ssh_key_file}.pub" 2>/dev/null | awk '{print $2}'))"
+                    log_warn "  If this host's keys live in an SSH agent, delete it, pin modules.ssh.key_source: agent, and re-run"
+                fi
             fi
         fi
         ;;
@@ -225,9 +264,6 @@ fi
 # it. The block is appended after existing content, so an earlier (e.g. baked
 # deploy-key) `Host github.com` entry wins under ssh's first-match-per-option rule.
 # ---------------------------------------------------------------------------
-_ssh_begin_marker="# >>> dotfiles managed >>>"
-_ssh_end_marker="# <<< dotfiles managed <<<"
-
 # _ssh_write_managed_block TARGET BODYFILE
 #   Write BODYFILE into TARGET as a single delimited managed block, touching only
 #   what this module owns. The rules — chosen so external content is NEVER lost:

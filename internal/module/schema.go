@@ -63,6 +63,12 @@ type PromptDependency struct {
 	Value string `yaml:"value"` // required answer value
 }
 
+// SettingCondition matches when the module setting Key is one of Values.
+type SettingCondition struct {
+	Key    string   `yaml:"key"`    // module setting, i.e. modules.<module>.<key>
+	Values []string `yaml:"values"` // values that make the prompt moot
+}
+
 // Prompt describes an interactive prompt to present during module installation.
 type Prompt struct {
 	Key        string            `yaml:"key"`
@@ -73,6 +79,9 @@ type Prompt struct {
 	ShowWhen   string            `yaml:"show_when"`    // always, explicit_install, or interactive (default: explicit_install)
 	DependsOn  *PromptDependency `yaml:"depends_on"`   // only show when another prompt equals a value
 	SkipIfFile []string          `yaml:"skip_if_file"` // skip (use default) when any listed path already exists; ~ and ~/.config are expanded
+	// SkipIfSetting skips the prompt (using its default) when a module setting
+	// makes the answer meaningless, e.g. a key type when keys come from an agent.
+	SkipIfSetting *SettingCondition `yaml:"skip_if_setting"`
 }
 
 // ParseModuleYAML reads a module.yml file at the given path and returns the

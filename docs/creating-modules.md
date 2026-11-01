@@ -210,6 +210,18 @@ prompts:
 
 Answers are available as environment variables in scripts: `$DOTFILES_PROMPT_KEY_NAME` (uppercase).
 
+A prompt can say when its answer doesn't matter, so it isn't asked and gets its default:
+
+```yaml
+  - key: ssh_key_type
+    # ...
+    skip_if_file:            # any of these paths already exists
+      - ~/.ssh/id_ed25519
+    skip_if_setting:         # modules.<module>.key_source is one of these values
+      key: key_source
+      values: [agent, none]
+```
+
 #### How an answer is resolved
 
 The engine only asks what nothing has answered yet. For each prompt it uses the first of:
@@ -220,8 +232,8 @@ The engine only asks what nothing has answered yet. For each prompt it uses the 
 2. **A saved answer.** Every answer a user actually gives is saved per machine in
    `~/.dotfiles/.state/answers/answers.json` (engine-owned; don't hand-edit it). Defaults are
    never saved, so a later change to `default:` still reaches machines that never chose.
-3. **Ask.** Only on an interactive run, and only when `depends_on`, `skip_if_file` and
-   `show_when` let the prompt be shown.
+3. **Ask.** Only on an interactive run, and only when `depends_on`, `skip_if_file`,
+   `skip_if_setting` and `show_when` let the prompt be shown.
 4. **The `default:`.** Used when nobody can be asked (`--unattended`, or stdin is not a
    terminal).
 

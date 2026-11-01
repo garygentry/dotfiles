@@ -3,9 +3,13 @@
 {{- $agent := eq (index .Env "DOTFILES_SSH_KEY_SOURCE") "agent" }}
 {{- $keyType := or (index .Env "DOTFILES_SSH_KEY_TYPE") "ed25519" }}
 
+# key_source: {{ index .Env "DOTFILES_SSH_KEY_SOURCE" }}
+
 Host *
+{{- if not $agent }}
     # Add keys to the SSH agent automatically
     AddKeysToAgent yes
+{{- end }}
 {{- if eq .OS "darwin" }}
 
     # Use the macOS Keychain on macOS

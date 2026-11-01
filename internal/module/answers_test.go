@@ -296,3 +296,46 @@ func TestInteractiveFlagOnUpToDateModule(t *testing.T) {
 		})
 	}
 }
+
+func TestSkipIfSettingMakesPromptMoot(t *testing.T) {
+	sshMod := func() *Module {
+		return &Module{Name: "ssh", Prompts: []Prompt{{
+			Key: "ssh_key_type", Message: "SSH key type", Default: "ed25519", Type: "choice",
+			Options: []string{"ed25519", "rsa"}, ShowWhen: "explicit_install",
+			SkipIfSetting: &SettingCondition{Key: "key_source", Values: []string{"agent", "none"}},
+		}}}
+	}
+	for _, tc := range []struct {
+		name     string
+		settings map[string]any
+		wantAsk  bool
+	}{
+		{"agent skips", map[string]any{"key_source": "agent"}, false},
+		{"none skips", map[string]any{"key_source": "none"}, false},
+		{"generate asks", map[string]any{"key_source": "generate"}, true},
+		{"unset asks", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ui := &recordingUI{answers: []string{"rsa"}}
+			cfg := interactiveCfg(t, ui)
+			cfg.ExplicitModules = map[string]bool{"ssh": true}
+			if tc.settings != nil {
+				cfg.Config.Modules["ssh"] = tc.settings
+			}
+			answers, err := handlePrompts(cfg, sshMod())
+			if err != nil {
+				t.Fatalf("handlePrompts: %v", err)
+			}
+			if asked := len(ui.asked) == 1; asked != tc.wantAsk {
+				t.Errorf("asked = %v, want asked=%t", ui.asked, tc.wantAsk)
+			}
+			want := "ed25519"
+			if tc.wantAsk {
+				want = "rsa"
+			}
+			if answers["ssh_key_type"] != want {
+				t.Errorf("ssh_key_type = %q, want %q", answers["ssh_key_type"], want)
+			}
+		})
+	}
+}
