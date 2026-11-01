@@ -140,7 +140,14 @@ tags:                      # Categorization
   - shell
 timeout: 10m               # Script timeout (default: 5m)
                           # Accepts: "10s", "5m", "1h", etc.
+notes:                     # Post-install notes
+  - "Run 'exec zsh' to start using the new shell"
 ```
+
+Install prints a module's `notes` after it installs for the first time on a machine, and again
+whenever their text changes. Other runs print a single line naming the modules with notes;
+`dotfiles notes <module>` prints them at any time. Keep notes to what the user must do or know
+after installing. Longer explanations belong in the module's README.
 
 ### Files
 

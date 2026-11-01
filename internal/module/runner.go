@@ -3,6 +3,8 @@ package module
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -117,7 +119,10 @@ type RunResult struct {
 	Skipped  bool
 	Error    error
 	Duration time.Duration
-	Notes    []string // Post-install notes from module definition
+	Notes    []string // Post-install notes to show: on first install, or when they changed
+	// NotesHidden is set when the module has notes this run did not show,
+	// because this machine has already seen them (`dotfiles notes` prints them).
+	NotesHidden bool
 }
 
 // Run is the main entry point for executing an ordered set of modules.
@@ -363,6 +368,7 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	if existingState != nil {
 		modState.Checksum = existingState.Checksum
 		modState.ConfigHash = existingState.ConfigHash
+		modState.NotesHash = existingState.NotesHash
 	}
 
 	// Step 1: Handle prompts (unless --interactive already asked them above).
@@ -452,6 +458,17 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 	}
 
 	// Step 8: Record success in state store with operations and checksums.
+	// Notes are shown once per machine, and again only when their text changes.
+	// State written before notes were tracked has no hash; an installed module
+	// then counts as having shown them, so the upgrade doesn't replay every note.
+	// (modState carries the previous hash, seeded above, through a failed run.)
+	notes, notesHidden := mod.Notes, false
+	prevHash, currentHash := modState.NotesHash, NotesHash(mod.Notes)
+	legacySeen := prevHash == "" && existingState != nil && existingState.Status == "installed"
+	if legacySeen || (prevHash != "" && prevHash == currentHash) {
+		notes, notesHidden = nil, len(mod.Notes) > 0
+	}
+	modState.NotesHash = currentHash
 	recordStateWithChecksums(cfg, modState, mod, "installed", nil)
 
 	// Step 9: Print final result.
@@ -465,8 +482,19 @@ func runModule(cfg *RunConfig, mod *Module) RunResult {
 		Module:   mod,
 		Success:  true,
 		Duration: time.Since(start),
-		Notes:    mod.Notes,
+		Notes:    notes,
+
+		NotesHidden: notesHidden,
 	}
+}
+
+// NotesHash identifies a module's notes text; empty when it has none.
+func NotesHash(notes []string) string {
+	if len(notes) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.Join(notes, "\x00")))
+	return hex.EncodeToString(sum[:])
 }
 
 // shouldShowPrompt determines whether a prompt should be shown interactively

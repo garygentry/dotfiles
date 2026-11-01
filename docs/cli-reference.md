@@ -239,6 +239,22 @@ inserted (before Status) tagging each module as `built-in`, `override`, or `cust
 - `not installed` - Module has not been installed
 - `failed` - Last installation attempt failed
 
+### dotfiles notes
+
+Print modules' post-install notes.
+
+```bash
+dotfiles notes [module]...
+```
+
+With no arguments, prints the notes of every module that has them. `dotfiles install` shows a
+module's notes only on its first install on a machine and when the notes change; on other
+runs it prints one line naming the modules with notes, and this command shows them.
+
+```bash
+dotfiles notes mise yazi
+```
+
 ### dotfiles status
 
 Show status of installed modules with detailed information.

@@ -433,21 +433,30 @@ resolution, module execution, and summary output.`,
 		u.Info(fmt.Sprintf("Completed in %s: %d succeeded, %d failed, %d skipped",
 			elapsed, succeeded, failed, skipped))
 
-		// Display post-run notes from modules that ran successfully.
-		var allNotes []string
+		// Display post-run notes from modules that ran successfully: each module's
+		// notes on its first install here (or when they change), else one pointer.
+		var allNotes, hiddenNotes []string
 		for _, r := range results {
-			if r.Success && !r.Skipped && len(r.Notes) > 0 {
-				for _, note := range r.Notes {
-					allNotes = append(allNotes, fmt.Sprintf("[%s] %s", r.Module.Name, note))
-				}
+			if !r.Success || r.Skipped {
+				continue
+			}
+			for _, note := range r.Notes {
+				allNotes = append(allNotes, fmt.Sprintf("[%s] %s", r.Module.Name, note))
+			}
+			if r.NotesHidden {
+				hiddenNotes = append(hiddenNotes, r.Module.Name)
 			}
 		}
 		if len(allNotes) > 0 {
 			u.Info("")
-			u.Warn("Post-install notes:")
+			u.Info("Post-install notes:")
 			for _, note := range allNotes {
-				u.Warn("  " + note)
+				u.Info("  " + note)
 			}
+		}
+		if len(hiddenNotes) > 0 {
+			u.Info(fmt.Sprintf("%d module(s) have notes shown at first install (%s); read them with: dotfiles notes <module>",
+				len(hiddenNotes), strings.Join(hiddenNotes, ", ")))
 		}
 
 		// Phase 6: Prune — remove modules absent from the profile. ONLY on a CLEAN

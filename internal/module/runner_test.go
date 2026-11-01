@@ -1771,3 +1771,54 @@ func TestRunScriptSurfacesDecisionsAndWarnings(t *testing.T) {
 		t.Errorf("warns = %q, want %q", ui.warns, want)
 	}
 }
+
+// Notes show on a module's first install on a machine and when their text
+// changes; other runs hide them and flag NotesHidden (`dotfiles notes`).
+func TestRunNotesShownOncePerMachine(t *testing.T) {
+	cfg := newTestRunConfig(t)
+	cfg.Force = true // re-run the module every time
+	mod := &Module{Name: "noted", Dir: t.TempDir(), Notes: []string{"first"}}
+	run := func() RunResult {
+		t.Helper()
+		r := Run(cfg, &ExecutionPlan{Modules: []*Module{mod}})[0]
+		if !r.Success {
+			t.Fatalf("run failed: %v", r.Error)
+		}
+		return r
+	}
+	check := func(step string, r RunResult, wantShown, wantHidden bool) {
+		t.Helper()
+		if shown := len(r.Notes) > 0; shown != wantShown || r.NotesHidden != wantHidden {
+			t.Errorf("%s: notes=%v hidden=%t, want shown=%t hidden=%t", step, r.Notes, r.NotesHidden, wantShown, wantHidden)
+		}
+	}
+
+	check("first install", run(), true, false)
+	check("re-run", run(), false, true)
+	mod.Notes = []string{"changed"}
+	check("notes changed", run(), true, false)
+	check("re-run after change", run(), false, true)
+
+	// State from before notes were tracked: installed, no hash → already seen.
+	ms, _ := cfg.State.Get("noted")
+	ms.NotesHash = ""
+	if err := cfg.State.Set(ms); err != nil {
+		t.Fatal(err)
+	}
+	check("legacy state", run(), false, true)
+
+	// A failed run keeps the hash, so the next success doesn't replay the notes.
+	ms, _ = cfg.State.Get("noted")
+	ms.Status = "failed"
+	if err := cfg.State.Set(ms); err != nil {
+		t.Fatal(err)
+	}
+	check("after a failure", run(), false, true)
+
+	// A module that never had notes is never flagged.
+	plain := &Module{Name: "plain", Dir: t.TempDir()}
+	r := Run(cfg, &ExecutionPlan{Modules: []*Module{plain}})[0]
+	if r.NotesHidden || len(r.Notes) != 0 {
+		t.Errorf("plain module: notes=%v hidden=%t", r.Notes, r.NotesHidden)
+	}
+}
