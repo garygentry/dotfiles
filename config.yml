@@ -33,3 +33,7 @@ modules:
     # Value for `git config --global init.defaultBranch`, applied by the git
     # module. Defaults to 'main'.
     default_branch: main
+    # Value for `git config --global credential.helper` (replaces any existing
+    # helpers), e.g. "cache --timeout=900" or "osxkeychain". Unset leaves the
+    # host's helper as it is.
+    # credential_helper: cache --timeout=900

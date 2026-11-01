@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The git module no longer forces a credential helper** (#61). Every install ran
+  `git config --global credential.helper "cache --timeout=900"` (Ubuntu, Arch) or `osxkeychain`
+  (macOS). It couldn't be turned off, so a host that wires its own helper had to shadow it. The
+  helper is now the opt-in setting `modules.git.credential_helper`; unset, the host's helper is
+  left as it is. A helper an earlier install set stays until you remove it
+  (`git config --global --unset-all credential.helper`) or configure a value.
 - **`bootstrap.sh --dry-run` is dry** (#58). It used to pass `--dry-run` only to the final
   `dotfiles install`. Its own prep still ran: reinstalling Go, resetting and cleaning the engine
   checkout, pulling the overlay, writing `~/.zshenv`, and rebuilding `bin/dotfiles`. Each step now
