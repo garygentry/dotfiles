@@ -439,11 +439,11 @@ parse_args() {
 run_content_auth() {
     [ -n "$CONTENT_AUTH_CMD" ] || return 0
     if [ "$DRY_RUN" -eq 1 ]; then
-        would "run the content auth hook: ${CONTENT_AUTH_CMD}"
+        would "run the configured content auth hook (--content-auth-cmd)"
         return 0
     fi
     info "Running content auth hook before fetch..."
-    bash -c "$CONTENT_AUTH_CMD" || fatal "content auth hook failed: ${CONTENT_AUTH_CMD}"
+    bash -c "$CONTENT_AUTH_CMD" || fatal "content auth hook (--content-auth-cmd) failed"
     ok "Content auth hook complete"
 }
 
