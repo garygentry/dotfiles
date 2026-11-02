@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // SystemInfo holds detected information about the host system.
@@ -159,11 +161,9 @@ func detectSudo() bool {
 }
 
 // detectInteractive returns true when standard input is connected to a
-// terminal (character device).
+// terminal. It asks the kernel rather than checking for a character device,
+// because /dev/null is one too: cron, systemd and `ssh host cmd </dev/null` must
+// count as non-interactive.
 func detectInteractive() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }

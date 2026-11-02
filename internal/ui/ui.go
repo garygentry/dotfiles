@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/garygentry/dotfiles/internal/module"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 // Catppuccin Mocha color palette as ANSI RGB escape sequences.
@@ -86,13 +87,10 @@ func NewWithWriter(writer io.Writer, verbose bool, isTTY bool) *UI {
 	}
 }
 
-// isTerminal checks whether the given file is connected to a terminal.
+// isTerminal checks whether the given file is connected to a terminal. A
+// character-device check isn't enough: /dev/null is one too.
 func isTerminal(f *os.File) bool {
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // --- Log methods ---
