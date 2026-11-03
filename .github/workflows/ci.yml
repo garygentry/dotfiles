@@ -52,9 +52,13 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # zsh_startup_probe_test.sh skips itself without zsh.
+      # zsh_startup_probe_test.sh skips itself without zsh. The runner's group-writable
+      # completion dirs make compinit prompt on the terminal, which hangs the probe's
+      # fallback path, so fix their permissions first.
       - name: Install zsh
-        run: sudo apt-get update && sudo apt-get install -y zsh
+        run: |
+          sudo apt-get update && sudo apt-get install -y zsh
+          zsh -fc 'autoload -Uz compaudit; compaudit' | xargs -r sudo chmod g-w,o-w
 
       - name: Run bootstrap tests
         run: make test-bootstrap
