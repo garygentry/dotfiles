@@ -13,6 +13,4 @@ tags:
   - terminal
   - ai
 notes:
-  - "Installs the upstream release binary to ~/.local/bin via herdr.dev/install.sh (SHA-256 verified, sudo-free); Homebrew on macOS when brew is present."
-  - "Updates are owned by herdr itself ('herdr update'); this module only installs when the binary is missing."
-  - "Ships no config.toml. Deploy one from a content overlay as type copy (herdr rewrites config.toml at runtime: onboarding, settings UI, 'herdr config reset-keys')."
+  - "Ships no config.toml. Deploy one from a content overlay as type copy; herdr rewrites it at runtime. See modules/herdr/README.md."
