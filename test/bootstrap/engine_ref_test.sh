@@ -15,6 +15,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 export DOTFILES_BOOTSTRAP_LIB=1
 # shellcheck source=/dev/null
@@ -56,38 +58,42 @@ export DOTFILES_REPO="${BARE}"
 # head_of DIR → the resolved HEAD sha of a checkout
 head_of() { git -C "$1" rev-parse HEAD 2>/dev/null || echo MISSING; }
 
-# run ensure_repo for REF into DIR, in a subshell (fatal calls exit); returns rc
-run_ensure() {
-  local dir="$1" ref="$2"
-  ( DOTFILES_DIR="$dir" DOTFILES_REF="$ref" ensure_repo ) >/dev/null 2>&1
-}
+# run ensure_repo for REF into DIR with errexit on (fatal calls exit); status in ERREXIT_RC,
+# output in ensure.log. Never call it from a condition: see lib.sh.
+ensure_case() { DOTFILES_DIR="$1" DOTFILES_REF="$2" ensure_repo; }
+run_ensure() { run_errexit ensure_case "$1" "$2" > "${TMPROOT}/ensure.log" 2>&1; }
 
 # --- T1: fresh clone at a NON-TIP SHA (the case the old code silently botched)
 D1="${TMPROOT}/d1"
-run_ensure "$D1" "$C2" && [ "$(head_of "$D1")" = "$C2" ] \
+run_ensure "$D1" "$C2"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D1")" = "$C2" ] \
   && pass "T1 fresh clone at non-tip SHA lands exactly on it" \
   || fail "T1 fresh SHA: got $(head_of "$D1") want $C2"
 
 # --- T2: update an existing checkout to a DIFFERENT (older) SHA --------------
-run_ensure "$D1" "$C1" && [ "$(head_of "$D1")" = "$C1" ] \
+run_ensure "$D1" "$C1"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D1")" = "$C1" ] \
   && pass "T2 update to older SHA moves HEAD back to it" \
   || fail "T2 update SHA: got $(head_of "$D1") want $C1"
 
 # --- T3: fresh clone at a TAG ----------------------------------------------
 D3="${TMPROOT}/d3"
-run_ensure "$D3" "v1" && [ "$(head_of "$D3")" = "$C2" ] \
+run_ensure "$D3" "v1"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D3")" = "$C2" ] \
   && pass "T3 fresh clone at tag resolves to the tagged commit" \
   || fail "T3 tag: got $(head_of "$D3") want $C2"
 
 # --- T4: fresh clone at a BRANCH tip (regression guard) ---------------------
 D4="${TMPROOT}/d4"
-run_ensure "$D4" "feature" && [ "$(head_of "$D4")" = "$FEAT" ] \
+run_ensure "$D4" "feature"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D4")" = "$FEAT" ] \
   && pass "T4 fresh clone at branch resolves to branch tip" \
   || fail "T4 branch: got $(head_of "$D4") want $FEAT"
 
 # --- T5: default 'main' still tracks the branch tip -------------------------
 D5="${TMPROOT}/d5"
-run_ensure "$D5" "main" && [ "$(head_of "$D5")" = "$C3" ] \
+run_ensure "$D5" "main"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D5")" = "$C3" ] \
   && pass "T5 ref=main lands on main tip" \
   || fail "T5 main: got $(head_of "$D5") want $C3"
 
@@ -98,8 +104,10 @@ run_ensure "$D5" "main" && [ "$(head_of "$D5")" = "$C3" ] \
 # leftover checkout is a don't-care because the loud non-zero exit prevents any
 # build. The old code, by contrast, would clone the default branch and SUCCEED.)
 D6="${TMPROOT}/d6"
-if run_ensure "$D6" "0000000000000000000000000000000000000000"; then
-  fail "T6 bad ref: ensure_repo returned 0 (should fatal loud, aborting before build)"
+run_ensure "$D6" "0000000000000000000000000000000000000000"
+if [ "$ERREXIT_RC" -eq 0 ] || ! grep -qF "Could not fetch ref" "${TMPROOT}/ensure.log"; then
+  fail "T6 bad ref: rc=${ERREXIT_RC}, should fatal loud on the fetch, aborting before build"
+  cat "${TMPROOT}/ensure.log" >&2
 else
   pass "T6 bad ref fails loud (non-zero) — main() aborts before build_and_run"
 fi
@@ -107,8 +115,10 @@ fi
 # --- T7: update path preserves the reset semantics on a dirty tree ----------
 # (dirty tracked file is discarded by reset --hard FETCH_HEAD; a recovery patch
 #  is written). Proves the FETCH_HEAD reset still converges from a dirty state.
+mkdir -p "$D1"   # T1 may have failed; report T7, don't stop before the summary
 echo LOCAL_EDIT > "${D1}/f"
-run_ensure "$D1" "$C2" && [ "$(head_of "$D1")" = "$C2" ] \
+run_ensure "$D1" "$C2"
+[ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D1")" = "$C2" ] \
   && [ "$(cat "${D1}/f")" = "two" ] \
   && pass "T7 dirty tree reset to ref via FETCH_HEAD (edit discarded)" \
   || fail "T7 dirty update: HEAD $(head_of "$D1") / f='$(cat "${D1}/f" 2>/dev/null)'"

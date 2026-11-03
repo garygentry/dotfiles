@@ -10,6 +10,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 PASS=0
 FAIL=0
@@ -30,24 +32,27 @@ run_case() {
     local home="${TMPROOT}/${name}"
     mkdir -p "$home"
     if [[ -n "$existing" ]]; then HOME="$home" git config --global --add credential.helper "$existing"; fi
-    (
-        set -euo pipefail
-        export HOME="$home" DOTFILES_HOME="$home" PATH="${TMPROOT}/bin:${PATH}"
-        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git" DOTFILES_OS="$os" DOTFILES_ARCH="amd64"
-        unset DOTFILES_DRY_RUN GIT_CONFIG_GLOBAL 2>/dev/null || true
-        if [[ "$setting" != "__UNSET__" ]]; then
-            export DOTFILES_SETTING_CREDENTIAL_HELPER="$setting"
-        else
-            unset DOTFILES_SETTING_CREDENTIAL_HELPER 2>/dev/null || true
-        fi
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/lib/helpers.sh"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/git/os/${os}.sh"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/git/install.sh"
-    ) > "${TMPROOT}/${name}.log" 2>&1 || { touch "${TMPROOT}/install-failed"; fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+    run_errexit install_case > "${TMPROOT}/${name}.log" 2>&1
+    [ "$ERREXIT_RC" -eq 0 ] || { touch "${TMPROOT}/install-failed"; fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
     HOME="$home" git config --global --get-all credential.helper || true
+}
+
+# Runs in run_errexit, and sees run_case's locals.
+install_case() {
+    export HOME="$home" DOTFILES_HOME="$home" PATH="${TMPROOT}/bin:${PATH}"
+    export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git" DOTFILES_OS="$os" DOTFILES_ARCH="amd64"
+    unset DOTFILES_DRY_RUN GIT_CONFIG_GLOBAL 2>/dev/null || true
+    if [[ "$setting" != "__UNSET__" ]]; then
+        export DOTFILES_SETTING_CREDENTIAL_HELPER="$setting"
+    else
+        unset DOTFILES_SETTING_CREDENTIAL_HELPER 2>/dev/null || true
+    fi
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/lib/helpers.sh"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/git/os/${os}.sh"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/git/install.sh"
 }
 
 expect() {
