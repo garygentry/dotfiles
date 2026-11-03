@@ -13,6 +13,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 PASS=0
 FAIL=0
@@ -30,43 +32,46 @@ BRANCH_FILE="${TMPROOT}/recorded_branch"
 run_case() {
     local default_branch="${1-__UNSET__}"
     rm -f "${BRANCH_FILE}"
-    (
-        set -euo pipefail
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/lib/helpers.sh"
-
-        # Stub git: record the default branch, swallow every other config call.
-        git() {
-            if [[ "${1:-}" == "config" && "${3:-}" == "init.defaultBranch" ]]; then
-                printf '%s' "${4:-}" > "${BRANCH_FILE}"
-            fi
-            return 0
-        }
-
-        # Minimal runner environment. HOME/DOTFILES_HOME point at the sandbox so
-        # nothing touches the real system even if a real command slipped through.
-        export DOTFILES_HOME="${TMPROOT}/home-${RANDOM}"
-        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git"
-        export DOTFILES_OS="ubuntu"
-        export DOTFILES_ARCH="amd64"
-        unset DOTFILES_DRY_RUN 2>/dev/null || true
-        if [[ "${default_branch}" != "__UNSET__" ]]; then
-            export DOTFILES_SETTING_DEFAULT_BRANCH="${default_branch}"
-        else
-            unset DOTFILES_SETTING_DEFAULT_BRANCH 2>/dev/null || true
-        fi
-
-        # A fake `delta` makes install_delta report "already installed" and
-        # return early, so it never runs pkg_install / curl.
-        mkdir -p "${TMPROOT}/bin"
-        printf '#!/usr/bin/env bash\nexit 0\n' > "${TMPROOT}/bin/delta"
-        chmod +x "${TMPROOT}/bin/delta"
-        export PATH="${TMPROOT}/bin:${PATH}"
-
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/git/install.sh"
-    ) >/dev/null 2>&1 || touch "${TMPROOT}/install-failed"
+    run_errexit install_case >/dev/null 2>&1
+    [ "$ERREXIT_RC" -eq 0 ] || touch "${TMPROOT}/install-failed"
     cat "${BRANCH_FILE}" 2>/dev/null || true
+}
+
+# Runs in run_errexit, and sees run_case's locals.
+install_case() {
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/lib/helpers.sh"
+
+    # Stub git: record the default branch, swallow every other config call.
+    git() {
+        if [[ "${1:-}" == "config" && "${3:-}" == "init.defaultBranch" ]]; then
+            printf '%s' "${4:-}" > "${BRANCH_FILE}"
+        fi
+        return 0
+    }
+
+    # Minimal runner environment. HOME/DOTFILES_HOME point at the sandbox so
+    # nothing touches the real system even if a real command slipped through.
+    export DOTFILES_HOME="${TMPROOT}/home-${RANDOM}"
+    export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git"
+    export DOTFILES_OS="ubuntu"
+    export DOTFILES_ARCH="amd64"
+    unset DOTFILES_DRY_RUN 2>/dev/null || true
+    if [[ "${default_branch}" != "__UNSET__" ]]; then
+        export DOTFILES_SETTING_DEFAULT_BRANCH="${default_branch}"
+    else
+        unset DOTFILES_SETTING_DEFAULT_BRANCH 2>/dev/null || true
+    fi
+
+    # A fake `delta` makes install_delta report "already installed" and
+    # return early, so it never runs pkg_install / curl.
+    mkdir -p "${TMPROOT}/bin"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${TMPROOT}/bin/delta"
+    chmod +x "${TMPROOT}/bin/delta"
+    export PATH="${TMPROOT}/bin:${PATH}"
+
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/git/install.sh"
 }
 
 # --- Case 1: unset default_branch -> historical default 'main' -------------

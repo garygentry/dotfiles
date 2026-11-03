@@ -11,6 +11,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 export DOTFILES_BOOTSTRAP_LIB=1
 # shellcheck source=/dev/null
@@ -24,33 +26,26 @@ pass() { printf 'PASS: %s\n' "$*"; PASS=$((PASS + 1)); }
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "${TMPROOT}"' EXIT
 
-# run_case <function>: run a case in a subshell with errexit on, the way bootstrap.sh
-# runs. Nothing here may call it (or expect_ok/expect_fails) from an if, &&, || or !,
-# because bash then ignores set -e all the way down, even a set -e inside (#83).
-run_case() {
-    set +e
-    ( set -e; "$1" ) 2>"${TMPROOT}/case.err"
-    CASE_RC=$?
-    set -e
-}
+# Case output goes to case.log, printed only on failure. Never call these from a
+# condition: see lib.sh.
 expect_ok() {
-    run_case "$2"
-    if [ "${CASE_RC}" -eq 0 ]; then
+    run_errexit "$2" > "${TMPROOT}/case.log" 2>&1
+    if [ "${ERREXIT_RC}" -eq 0 ]; then
         pass "$1"
     else
-        fail "$1"
-        cat "${TMPROOT}/case.err" >&2
+        fail "$1 (rc=${ERREXIT_RC})"
+        cat "${TMPROOT}/case.log" >&2
     fi
 }
 # expect_fails <desc> <function> <message>: the failure must be the expected one, since
 # under errexit any failing command would also make the case exit non-zero.
 expect_fails() {
-    run_case "$2"
-    if [ "${CASE_RC}" -ne 0 ] && grep -qF -- "$3" "${TMPROOT}/case.err"; then
+    run_errexit "$2" > "${TMPROOT}/case.log" 2>&1
+    if [ "${ERREXIT_RC}" -ne 0 ] && grep -qF -- "$3" "${TMPROOT}/case.log"; then
         pass "$1"
     else
-        fail "$1 (rc=${CASE_RC})"
-        cat "${TMPROOT}/case.err" >&2
+        fail "$1 (rc=${ERREXIT_RC})"
+        cat "${TMPROOT}/case.log" >&2
     fi
 }
 
@@ -105,7 +100,7 @@ case_2() {
     CONTENT_PATH="${TMPROOT}/does-not-exist"
     acquire_content
 }
-expect_fails "nonexistent path rejected" case_2 "is not a directory"
+expect_fails "nonexistent path rejected" case_2 "--content-path ${TMPROOT}/does-not-exist is not a directory"
 
 # --- Case 3: git repo cloned into the destination --------------------------
 REMOTE="${TMPROOT}/remote.git"
@@ -200,7 +195,7 @@ case_10() {
     CONTENT_ACQUIRED=1
     persist_content_dir >/dev/null
     persist_content_dir >/dev/null
-    n="$(grep -cF 'DOTFILES_CONTENT_DIR=' "${HOME}/.zshenv")"
+    n="$(grep -cF 'DOTFILES_CONTENT_DIR=' "${HOME}/.zshenv" || true)"
     [ "${n}" -eq 1 ] || { echo "count=${n}"; exit 1; }
 }
 expect_ok "persistence appends ~/.zshenv exactly once" case_10

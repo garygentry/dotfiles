@@ -12,6 +12,8 @@ unset XDG_CONFIG_HOME GIT_CONFIG_GLOBAL DOTFILES_SETTING_SIGNING_KEY
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 PASS=0
 FAIL=0
@@ -46,19 +48,22 @@ block() {
 run_case() {
     local name="$1" sign="$2" signing_key="${3-}" home="${TMPROOT}/$1"
     mkdir -p "$home"
-    (
-        set -euo pipefail
-        export HOME="$home" DOTFILES_HOME="$home" PATH="${TMPROOT}/bin:${PATH}"
-        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git" DOTFILES_OS="ubuntu" DOTFILES_ARCH="amd64"
-        export DOTFILES_SETTING_SIGN_COMMITS="$sign" DOTFILES_SETTING_SIGNING_KEY="$signing_key"
-        unset DOTFILES_DRY_RUN 2>/dev/null || true
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/lib/helpers.sh"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/git/os/ubuntu.sh"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/git/install.sh"
-    ) > "${TMPROOT}/${name}.log" 2>&1 || { fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+    run_errexit install_case > "${TMPROOT}/${name}.log" 2>&1
+    [ "$ERREXIT_RC" -eq 0 ] || { fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+}
+
+# Runs in run_errexit, and sees run_case's locals.
+install_case() {
+    export HOME="$home" DOTFILES_HOME="$home" PATH="${TMPROOT}/bin:${PATH}"
+    export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/git" DOTFILES_OS="ubuntu" DOTFILES_ARCH="amd64"
+    export DOTFILES_SETTING_SIGN_COMMITS="$sign" DOTFILES_SETTING_SIGNING_KEY="$signing_key"
+    unset DOTFILES_DRY_RUN 2>/dev/null || true
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/lib/helpers.sh"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/git/os/ubuntu.sh"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/git/install.sh"
 }
 git_get() { HOME="${TMPROOT}/$1" git config --global --get "$2" || true; }
 expect_config() {

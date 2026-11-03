@@ -11,6 +11,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=test/bootstrap/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 PASS=0
 FAIL=0
@@ -34,19 +36,22 @@ run_case() {
     printf '#!/usr/bin/env bash\n[ %s -eq 0 ] && echo "256 SHA256:fake agent-key (ED25519)"\nexit %s\n' \
         "$agent_rc" "$agent_rc" > "${TMPROOT}/bin-${name}/ssh-add"
     chmod +x "${TMPROOT}/bin-${name}/ssh-add"
-    (
-        set -euo pipefail
-        export PATH="${TMPROOT}/bin-${name}:${PATH}"
-        export HOME="$home" DOTFILES_HOME="$home"
-        export DOTFILES_DIR="$REPO_ROOT" DOTFILES_BIN="${TMPROOT}/dotfiles"
-        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/ssh" DOTFILES_MODULE_NAME="ssh"
-        export DOTFILES_SETTING_KEY_SOURCE="auto" DOTFILES_DRY_RUN="false"
-        export DOTFILES_USER_EMAIL="test@example.invalid"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/lib/helpers.sh"
-        # shellcheck source=/dev/null
-        source "${REPO_ROOT}/modules/ssh/install.sh"
-    ) > "${TMPROOT}/${name}.log" 2>&1 || { fail "${name}: install.sh failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+    run_errexit install_case > "${TMPROOT}/${name}.log" 2>&1
+    [ "$ERREXIT_RC" -eq 0 ] || { fail "${name}: install.sh failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+}
+
+# Runs in run_errexit, and sees run_case's locals.
+install_case() {
+    export PATH="${TMPROOT}/bin-${name}:${PATH}"
+    export HOME="$home" DOTFILES_HOME="$home"
+    export DOTFILES_DIR="$REPO_ROOT" DOTFILES_BIN="${TMPROOT}/dotfiles"
+    export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/ssh" DOTFILES_MODULE_NAME="ssh"
+    export DOTFILES_SETTING_KEY_SOURCE="auto" DOTFILES_DRY_RUN="false"
+    export DOTFILES_USER_EMAIL="test@example.invalid"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/lib/helpers.sh"
+    # shellcheck source=/dev/null
+    source "${REPO_ROOT}/modules/ssh/install.sh"
 }
 
 expect_mode() {
