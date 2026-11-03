@@ -120,6 +120,8 @@ DOTFILES_DIR_UNDER_TEST="$CLEAN5"
 check_main "T5 dry run exits 0" repo-fresh --dry-run --content-repo "$BARE"
 check "T5 no overlay cloned" test ! -e "${TMPROOT}/repo-fresh/.config/dotfiles"
 check "T5 says it would clone the overlay" logs repo-fresh "would clone ${BARE} to"
+check "T5 says the preview needs the overlay" logs repo-fresh "the content repo is not cloned at"
+check "T5 install preview did not run" test ! -e "${TMPROOT}/repo-fresh.stub"
 
 # T6: --content-repo already cloned, behind its remote — it stays where it is.
 CLEAN6="${TMPROOT}/repo-old/.dotfiles"
@@ -129,6 +131,7 @@ git_q clone -q "$BARE" "$OVERLAY6" && git_q -C "$OVERLAY6" reset -q --hard "$C1"
 DOTFILES_DIR_UNDER_TEST="$CLEAN6"
 check_main "T6 dry run exits 0" repo-old --dry-run --content-repo "$BARE"
 check "T6 overlay HEAD unchanged" test "$(git -C "$OVERLAY6" rev-parse HEAD)" = "$C1"
+check "T6 overlay not fetched" test ! -e "${OVERLAY6}/.git/FETCH_HEAD"
 check "T6 says it would fetch the overlay" logs repo-old "would fetch ${OVERLAY6}"
 
 # T7: DOTFILES_CONTENT_DIR already set, behind its upstream — it stays where it is.
@@ -141,6 +144,7 @@ PRESET_CONTENT_DIR="$OVERLAY7"
 check_main "T7 dry run exits 0" preset --dry-run
 PRESET_CONTENT_DIR=""
 check "T7 overlay HEAD unchanged" test "$(git -C "$OVERLAY7" rev-parse HEAD)" = "$C1"
+check "T7 overlay not fetched" test ! -e "${OVERLAY7}/.git/FETCH_HEAD"
 check "T7 says it would fast-forward the overlay" logs preset "would fast-forward the content overlay at ${OVERLAY7}"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

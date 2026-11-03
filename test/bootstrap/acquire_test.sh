@@ -122,9 +122,15 @@ case_4() {
     reset_content_vars
     CONTENT_REPO="${REMOTE}"
     CONTENT_DIR_DEST="${DEST}"
+    # A new commit on the remote: only a real update reaches it.
+    seed="${TMPROOT}/seed4"
+    git_quiet clone -q "${REMOTE}" "${seed}"
+    echo "user: {name: updated}" > "${seed}/config.yml"
+    git_quiet -C "${seed}" commit -qam "update"
+    git_quiet -C "${seed}" push -q origin main
     acquire_content
-    [ -d "${DEST}/.git" ] || exit 1
-    [ -f "${DEST}/config.yml" ] || exit 1
+    [ "$(git -C "${DEST}" rev-parse HEAD)" = "$(git -C "${REMOTE}" rev-parse main)" ] || exit 1
+    grep -qF "updated" "${DEST}/config.yml" || exit 1
 }
 expect_ok "idempotent re-run updates existing clone" case_4
 

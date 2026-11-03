@@ -32,8 +32,8 @@ BRANCH_FILE="${TMPROOT}/recorded_branch"
 run_case() {
     local default_branch="${1-__UNSET__}"
     rm -f "${BRANCH_FILE}"
-    run_errexit install_case >/dev/null 2>&1
-    [ "$ERREXIT_RC" -eq 0 ] || touch "${TMPROOT}/install-failed"
+    run_errexit install_case > "${TMPROOT}/install.log" 2>&1
+    [ "$ERREXIT_RC" -eq 0 ] || { touch "${TMPROOT}/install-failed"; sed 's/^/    /' "${TMPROOT}/install.log" >&2; }
     cat "${BRANCH_FILE}" 2>/dev/null || true
 }
 

@@ -115,6 +115,7 @@ fi
 # --- T7: update path preserves the reset semantics on a dirty tree ----------
 # (dirty tracked file is discarded by reset --hard FETCH_HEAD; a recovery patch
 #  is written). Proves the FETCH_HEAD reset still converges from a dirty state.
+mkdir -p "$D1"   # T1 may have failed; report T7, don't stop before the summary
 echo LOCAL_EDIT > "${D1}/f"
 run_ensure "$D1" "$C2"
 [ "$ERREXIT_RC" -eq 0 ] && [ "$(head_of "$D1")" = "$C2" ] \
