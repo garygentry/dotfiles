@@ -21,10 +21,10 @@ jobs:
 
       - name: Lint shell scripts
         run: |
-          # Lint all shell scripts in modules and lib directories
-          find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=warning || true
+          # Lint the shell scripts in modules, lib and test/bootstrap
+          find modules lib test/bootstrap -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=warning || true
           # Exit with error if any errors found (not warnings)
-          find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=error
+          find modules lib test/bootstrap -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=error
 
   unit-tests:
     needs: lint-shell
@@ -42,11 +42,25 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+  bootstrap-tests:
+    needs: lint-shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # zsh_startup_probe_test.sh skips itself without zsh.
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
       - name: Run bootstrap tests
         run: make test-bootstrap
 
   integration-tests:
-    needs: unit-tests
+    needs: [unit-tests, bootstrap-tests]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

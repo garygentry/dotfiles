@@ -7,8 +7,11 @@ test:
 	go test ./...
 
 # Hermetic shell tests of module and bootstrap scripts. Runs every script, then fails if any did.
+# Clears the caller's settings, which the scripts would otherwise pick up, and could write to.
 test-bootstrap:
-	@fail=0; for t in test/bootstrap/*_test.sh; do \
+	@unset XDG_CONFIG_HOME GIT_CONFIG_GLOBAL; \
+	for v in $$(env | sed -n 's/^\(DOTFILES_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$$v"; done; \
+	fail=0; for t in test/bootstrap/*_test.sh; do \
 		echo "== $$t"; bash "$$t" </dev/null || { echo "FAILED: $$t"; fail=1; }; \
 	done; exit $$fail
 
@@ -48,8 +51,8 @@ lint:
 
 lint-shell:
 	@echo "Linting shell scripts with shellcheck..."
-	@find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=warning || true
+	@find modules lib test/bootstrap -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=warning || true
 	@echo "Checking for errors (will fail on errors)..."
-	@find modules lib -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=error
+	@find modules lib test/bootstrap -name "*.sh" -type f -print0 | xargs -0 shellcheck --severity=error
 
 lint-all: lint lint-shell

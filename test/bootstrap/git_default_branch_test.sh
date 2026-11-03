@@ -65,7 +65,7 @@ run_case() {
 
         # shellcheck source=/dev/null
         source "${REPO_ROOT}/modules/git/install.sh"
-    ) >/dev/null 2>&1 || true
+    ) >/dev/null 2>&1 || touch "${TMPROOT}/install-failed"
     cat "${BRANCH_FILE}" 2>/dev/null || true
 }
 
@@ -83,6 +83,9 @@ want="trunk"
 got="$(run_case develop)"
 want="develop"
 [ "${got}" = "${want}" ] && pass "custom branch (develop)" || fail "develop: got '${got}' want '${want}'"
+
+# run_case runs in $(...), where a fail() count is lost, so its failures leave a file.
+[ ! -e "${TMPROOT}/install-failed" ] || fail "an install failed"
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" -eq 0 ]

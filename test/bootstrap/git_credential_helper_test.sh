@@ -46,7 +46,7 @@ run_case() {
         source "${REPO_ROOT}/modules/git/os/${os}.sh"
         # shellcheck source=/dev/null
         source "${REPO_ROOT}/modules/git/install.sh"
-    ) > "${TMPROOT}/${name}.log" 2>&1 || { fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
+    ) > "${TMPROOT}/${name}.log" 2>&1 || { touch "${TMPROOT}/install-failed"; fail "${name}: install failed"; sed 's/^/    /' "${TMPROOT}/${name}.log" >&2; }
     HOME="$home" git config --global --get-all credential.helper || true
 }
 
@@ -65,6 +65,9 @@ mkdir -p "${TMPROOT}/multi"
 HOME="${TMPROOT}/multi" git config --global --add credential.helper a
 expect "configured value replaces every existing helper" \
     "$(run_case multi ubuntu "osxkeychain" "b")" "osxkeychain"
+
+# run_case runs in $(...), where a fail() count is lost, so its failures leave a file.
+[[ ! -e "${TMPROOT}/install-failed" ]] || fail "an install failed (see above)"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

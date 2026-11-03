@@ -55,9 +55,9 @@ Install scripts use helpers from `lib/helpers.sh`:
 ## Testing
 
 - Unit tests: table-driven, `t.TempDir()` for isolation, no external frameworks
-- Bootstrap tests: hermetic shell scripts in `test/bootstrap/` that source module scripts against a sandbox HOME; add new ones as `*_test.sh` and they run automatically
+- Bootstrap tests: hermetic shell scripts in `test/bootstrap/` for `bootstrap.sh` and module scripts; new `*_test.sh` files run automatically
 - Integration tests: Docker containers for Ubuntu and Arch, test full install/uninstall flows
-- CI runs: shellcheck → unit tests (with `-race`) → go vet → bootstrap tests → integration tests
+- CI runs: shellcheck → unit tests (with `-race`) + go vet, and bootstrap tests → integration tests
 
 ## Gotchas
 
