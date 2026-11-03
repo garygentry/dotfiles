@@ -174,3 +174,24 @@ func TestModuleRoots(t *testing.T) {
 		t.Errorf("root order wrong: %v (engine must be first, content last)", roots)
 	}
 }
+
+// Notes print on a module's first install, so they stay short: what the user must
+// do or know. Longer explanations belong in the module's README.
+func TestShippedModuleNotesAreShort(t *testing.T) {
+	const maxNoteLen = 200
+	mods, err := Discover(filepath.Join("..", "..", "modules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mods) == 0 {
+		t.Fatal("found no shipped modules")
+	}
+	for _, m := range mods {
+		for _, note := range m.Notes {
+			if len(note) > maxNoteLen {
+				t.Errorf("%s: note is %d characters (max %d), move the detail to its README: %q",
+					m.Name, len(note), maxNoteLen, note)
+			}
+		}
+	}
+}
