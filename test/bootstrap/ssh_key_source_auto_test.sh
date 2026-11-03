@@ -100,5 +100,63 @@ if [[ -f "${TMPROOT}/first/.ssh/id_ed25519" ]]; then pass "first: key generated"
 expect_log first "generated a NEW passphrase-less key: ${TMPROOT}/first/.ssh/id_ed25519 (SHA256:"
 if grep -q 'AddKeysToAgent yes' "${TMPROOT}/first/.ssh/config"; then pass "first: generate-mode config keeps AddKeysToAgent"; else fail "first: AddKeysToAgent missing in generate mode"; fi
 
+# run_verify <name> <key_source> — runs verify.sh against the case's HOME; returns its
+# status. A child bash keeps errexit on even when the caller tests the result with `if`.
+run_verify() {
+    local name="$1" source="$2" home="${TMPROOT}/$1"
+    (
+        export HOME="$home" DOTFILES_HOME="$home"
+        export DOTFILES_DIR="$REPO_ROOT" DOTFILES_BIN="${TMPROOT}/dotfiles"
+        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/ssh" DOTFILES_MODULE_NAME="ssh"
+        export DOTFILES_SETTING_KEY_SOURCE="$source" DOTFILES_DRY_RUN="false"
+        bash -euo pipefail -c 'source "$1"; source "$2"' _ \
+            "${REPO_ROOT}/lib/helpers.sh" "${REPO_ROOT}/modules/ssh/verify.sh"
+    ) > "${TMPROOT}/${name}.verify.log" 2>&1
+}
+expect_verify_ok() {
+    if run_verify "$1" "$2"; then
+        pass "$1: verify passes with key_source=$2"
+    else
+        fail "$1: verify failed with key_source=$2"
+        sed 's/^/    /' "${TMPROOT}/$1.verify.log" >&2
+    fi
+}
+expect_verify_fails() {
+    if run_verify "$1" "$2"; then fail "$1: verify passed with key_source=$2"; else pass "$1: verify fails with key_source=$2"; fi
+}
+
+# 5. Only an RSA or ECDSA key, no agent -> install reuses it and verify accepts it.
+for type in rsa ecdsa; do
+    name="${type}_only"
+    mkdir -p "${TMPROOT}/${name}/.ssh"
+    ssh-keygen -q -t "$type" -N "" -f "${TMPROOT}/${name}/.ssh/id_${type}"
+    run_case "$name" 2
+    expect_mode "$name" generate
+    expect_no_key "$name"
+    expect_verify_ok "$name" auto
+    expect_verify_ok "$name" generate
+done
+
+# 6. The key is gone -> verify fails. No GitHub block, so only the local key check can.
+export DOTFILES_SETTING_GITHUB_HOST=false
+run_case gone 2
+rm -f "${TMPROOT}/gone/.ssh/id_ed25519"
+expect_verify_fails gone auto
+
+# 7. The key the config names is gone but another exists -> verify fails, so the runner
+# re-runs the module, and that run points the config at the other key.
+run_case dangling 2
+rm -f "${TMPROOT}/dangling/.ssh/id_ed25519"
+ssh-keygen -q -t rsa -b 2048 -N "" -f "${TMPROOT}/dangling/.ssh/id_rsa"
+expect_verify_fails dangling auto
+run_case dangling 2
+expect_verify_ok dangling auto
+
+# 8. A "# key_source:" comment outside the managed block is ignored.
+run_case outside 2 '# key_source: none'
+rm -f "${TMPROOT}/outside/.ssh/id_ed25519"
+expect_verify_fails outside auto
+unset DOTFILES_SETTING_GITHUB_HOST
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
