@@ -4,6 +4,8 @@ import (
 	"os"
 	"runtime"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestDetectReturnsNonNil(t *testing.T) {
@@ -242,4 +244,67 @@ func TestParseOSReleaseIDMissing(t *testing.T) {
 	if got != "" {
 		t.Errorf("parseOSReleaseID() = %q; want empty string for missing file", got)
 	}
+}
+
+func TestDetectInteractive(t *testing.T) {
+	orig := os.Stdin
+	t.Cleanup(func() { os.Stdin = orig })
+
+	// /dev/null is a character device, but not a terminal.
+	t.Run("dev null", func(t *testing.T) {
+		devNull, err := os.Open(os.DevNull)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer devNull.Close()
+		os.Stdin = devNull
+		if detectInteractive() {
+			t.Error("detectInteractive() = true, want false")
+		}
+	})
+
+	t.Run("pipe", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		defer w.Close()
+		os.Stdin = r
+		if detectInteractive() {
+			t.Error("detectInteractive() = true, want false")
+		}
+
+		// The descriptor is shared with the parent process, so the check must not
+		// change its mode. os.Pipe returns non-blocking descriptors.
+		conn, err := r.SyscallConn()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var flags int
+		var flagsErr error
+		if err := conn.Control(func(fd uintptr) {
+			flags, flagsErr = unix.FcntlInt(fd, unix.F_GETFL, 0)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if flagsErr != nil {
+			t.Fatal(flagsErr)
+		}
+		if flags&unix.O_NONBLOCK == 0 {
+			t.Error("detectInteractive() cleared O_NONBLOCK on stdin")
+		}
+	})
+
+	t.Run("pty", func(t *testing.T) {
+		ptmx, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+		if err != nil {
+			t.Skipf("no pty available: %v", err)
+		}
+		defer ptmx.Close()
+		os.Stdin = ptmx
+		if !detectInteractive() {
+			t.Error("detectInteractive() = false, want true")
+		}
+	})
 }
