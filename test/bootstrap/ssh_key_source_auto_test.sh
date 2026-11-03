@@ -100,5 +100,44 @@ if [[ -f "${TMPROOT}/first/.ssh/id_ed25519" ]]; then pass "first: key generated"
 expect_log first "generated a NEW passphrase-less key: ${TMPROOT}/first/.ssh/id_ed25519 (SHA256:"
 if grep -q 'AddKeysToAgent yes' "${TMPROOT}/first/.ssh/config"; then pass "first: generate-mode config keeps AddKeysToAgent"; else fail "first: AddKeysToAgent missing in generate mode"; fi
 
+# run_verify <name> <key_source> — runs verify.sh against the case's HOME; returns its status.
+run_verify() {
+    local name="$1" source="$2" home="${TMPROOT}/$1"
+    (
+        set -euo pipefail
+        export HOME="$home" DOTFILES_HOME="$home"
+        export DOTFILES_DIR="$REPO_ROOT" DOTFILES_BIN="${TMPROOT}/dotfiles"
+        export DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/ssh" DOTFILES_MODULE_NAME="ssh"
+        export DOTFILES_SETTING_KEY_SOURCE="$source" DOTFILES_DRY_RUN="false"
+        # shellcheck source=/dev/null
+        source "${REPO_ROOT}/lib/helpers.sh"
+        # shellcheck source=/dev/null
+        source "${REPO_ROOT}/modules/ssh/verify.sh"
+    ) > "${TMPROOT}/${name}.verify.log" 2>&1
+}
+
+# 5. Only an RSA key, no agent -> install reuses it and verify accepts it, for auto and generate.
+mkdir -p "${TMPROOT}/rsa_only/.ssh"
+ssh-keygen -q -t rsa -b 2048 -N "" -f "${TMPROOT}/rsa_only/.ssh/id_rsa"
+run_case rsa_only 2
+expect_mode rsa_only generate
+expect_no_key rsa_only
+for source in auto generate; do
+    if run_verify rsa_only "$source"; then
+        pass "rsa_only: verify passes with key_source=${source}"
+    else
+        fail "rsa_only: verify failed with key_source=${source}"
+        sed 's/^/    /' "${TMPROOT}/rsa_only.verify.log" >&2
+    fi
+done
+
+# 6. The key is gone -> verify still fails.
+rm -f "${TMPROOT}/rsa_only/.ssh/id_rsa"
+if run_verify rsa_only auto; then
+    fail "no_key: verify passed with no local key"
+else
+    pass "no_key: verify fails with no local key"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -14,6 +14,13 @@ set -euo pipefail
 _ssh_dir="${DOTFILES_HOME}/.ssh"
 _ssh_key_source="${DOTFILES_SETTING_KEY_SOURCE:-generate}"
 _ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
+# An existing key wins over the requested type, as in install.sh (same order).
+for _ssh_candidate in ed25519 rsa ecdsa; do
+    if [[ -f "${_ssh_dir}/id_${_ssh_candidate}" ]]; then
+        _ssh_key_type="$_ssh_candidate"
+        break
+    fi
+done
 _ssh_key_file="${_ssh_dir}/id_${_ssh_key_type}"
 _ssh_errors=0
 

@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ssh verify accepts the key install reused.** Install reuses an existing `id_rsa` or `id_ecdsa`,
+  but verify only looked for the prompted key type (default `id_ed25519`). A host with only one of
+  those keys failed verification and retried on every run. `key_source: auto` hosts started hitting
+  this when verify began checking the mode auto resolved to; explicit `generate` already did.
 - **A `/dev/null` stdin no longer counts as interactive** (#72). `dotfiles install </dev/null`
   (cron, systemd, `ssh host cmd </dev/null`) was treated as interactive because `/dev/null` is a
   character device, so the unattended fallback didn't trigger and `--interactive`'s guard passed.
