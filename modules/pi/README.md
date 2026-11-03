@@ -14,7 +14,7 @@ Run `pi` once interactively to authenticate. Auth and trust state are local to t
 
 ## When the install can't complete
 
-If npm is missing or the global install fails (no registry, or offline), `install.sh` warns and doesn't stop (ADR 0025 D6). `verify.sh` runs next and is the gate: if no `pi` is present, the module is recorded as failed and `dotfiles install` exits non-zero. Other modules still install.
+If npm is missing or the global install fails (no registry, or offline), `install.sh` warns and doesn't stop (ADR 0025 D6). `verify.sh` runs next and is the gate: if `pi` is missing or off its pin, the module is recorded as failed and `dotfiles install` exits non-zero. Other modules still install.
 
 After npm succeeds, `install.sh` fails if:
 

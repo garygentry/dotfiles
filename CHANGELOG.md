@@ -33,10 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **git signs with the key the ssh module reused** (#80). Signing setup only looked for
-  `id_ed25519`, so a host with only `id_rsa` or `id_ecdsa` skipped it, and commits stayed unsigned
-  even with `modules.git.sign_commits: true`. Such hosts now get `gpg.format` and `user.signingkey`
-  on the next run. `modules.git.signing_key` still wins.
+- **git signs with the key the ssh config names** (#80). Signing setup only looked for `id_ed25519`,
+  so a host whose ssh module reused `id_rsa` or `id_ecdsa` skipped it, and commits stayed unsigned
+  even with `modules.git.sign_commits: true`. The default is now the `Host *` `IdentityFile` in the
+  managed block. `modules.git.signing_key` still wins. Signing is no longer set up when the `.pub`
+  is missing, which made commits fail. With `sign_commits` off, an existing `user.signingkey` is
+  left as it is.
 - **ssh `auto` recognizes an old agent block with no GitHub section** (#79). A managed block from
   before the `# key_source:` line, on a `github_host: false` host, read as `generate`, so a run with
   no reachable agent could create a local key on an agent host.

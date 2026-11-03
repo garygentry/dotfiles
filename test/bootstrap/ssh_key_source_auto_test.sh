@@ -108,6 +108,21 @@ Host *
 # <<< dotfiles managed <<<'
 expect_mode was_generate_legacy generate
 
+# 3d. An old block with the agent comment stays agent, even with a hand-added key elsewhere.
+run_case was_agent_extra 2 '# >>> dotfiles managed >>>
+Host work
+    IdentityFile ~/.ssh/deploy
+Host github.com
+    # key_source=agent: keys are provided by the SSH agent (e.g. 1Password).
+# <<< dotfiles managed <<<'
+expect_mode was_agent_extra agent
+expect_no_key was_agent_extra
+
+# 3e. An empty block says nothing about agent use, so it isn't treated as agent mode.
+run_case was_empty 2 '# >>> dotfiles managed >>>
+# <<< dotfiles managed <<<'
+expect_mode was_empty generate
+
 # 4. First install, no agent -> generate, with a loud warning naming the key.
 run_case first 2
 expect_mode first generate

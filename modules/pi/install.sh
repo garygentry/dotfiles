@@ -65,9 +65,9 @@ fi
 
 # npm must be runnable (the nodejs dependency provides it). Its absence is an
 # environmental miss, not an operator-config error, so warn and leave the verdict to
-# verify.sh: with no pi present, it fails the module, and the next run retries.
+# verify.sh: with no pi, or one off its pin, it fails the module, and the next run retries.
 if ! command -v npm >/dev/null 2>&1; then
-    log_warn "pi: npm not found (the 'nodejs' module provides it; install nodejs, then re-run 'dotfiles install pi'). Verify will fail this module if pi is missing."
+    log_warn "pi: npm not found (the 'nodejs' module provides it; install nodejs, then re-run 'dotfiles install pi'). Verify will fail this module if pi is missing or off its pin."
     return 0 2>/dev/null || exit 0
 fi
 

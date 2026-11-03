@@ -4,16 +4,19 @@
 # Read user settings from environment (set by the Go runner from config.yml)
 _git_user_name="${DOTFILES_USER_NAME:-}"
 _git_user_email="${DOTFILES_USER_EMAIL:-}"
-_git_ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
-# The ssh module reuses an existing key over the requested type, in this order, so a
-# host with only id_rsa signs with id_rsa.
-for _git_candidate in ed25519 rsa ecdsa; do
-    if [[ -f "${DOTFILES_HOME}/.ssh/id_${_git_candidate}" ]]; then
-        _git_ssh_key_type="$_git_candidate"
-        break
-    fi
-done
-_git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_${_git_ssh_key_type}"
+# The default signing key is the one the ssh module uses: the Host * IdentityFile in its
+# managed block of ~/.ssh/config. An agent host, or one the module leaves alone, names none.
+_git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_ed25519"
+if [[ -f "${DOTFILES_HOME}/.ssh/config" ]]; then
+    _git_ssh_identity="$(awk '
+        { sub(/\r$/, "") }
+        $0 == "# <<< dotfiles managed <<<" { inb = 0 }
+        inb && /^[[:space:]]*Host[[:space:]]/ { inhost = ($2 == "*") }
+        inb && inhost && /^[[:space:]]*IdentityFile[[:space:]]/ { print $2; exit }
+        $0 == "# >>> dotfiles managed >>>" { inb = 1 }
+    ' "${DOTFILES_HOME}/.ssh/config")"
+    [[ -z "$_git_ssh_identity" ]] || _git_ssh_key_file="${_git_ssh_identity/#\~/$DOTFILES_HOME}"
+fi
 # modules.git.signing_key (DOTFILES_SETTING_SIGNING_KEY): the PRIVATE key path to sign
 # commits with (its .pub becomes user.signingkey). Default: the host's SSH identity key above.
 # Set it to keep signing on a dedicated key rather than an identity key that is also used to
@@ -72,10 +75,14 @@ else
     log_info "Leaving git credential.helper as it is (modules.git.credential_helper not set)"
 fi
 
-# Configure SSH signing
-if [[ -f "$_git_ssh_key_file" ]]; then
+# Configure SSH signing. user.signingkey names the .pub, and git can't sign or commit
+# with signing on if that file is missing, so both must exist.
+if [[ -f "$_git_ssh_key_file" && -f "${_git_ssh_key_file}.pub" ]]; then
     if is_dry_run; then
         log_info "[dry-run] Would configure git SSH signing with ${_git_ssh_key_file}.pub"
+    elif [[ "$_git_sign_commits" != "true" ]] && [[ -n "$(git config --global --get user.signingkey || true)" ]]; then
+        # Signing wasn't asked for, so don't replace a key the host already has (it may be GPG).
+        log_info "Leaving the existing git user.signingkey as it is (modules.git.sign_commits not set)"
     else
         # Set up SSH-signing capability (format + key) so commits can be signed
         # on demand, but only force-enable signing when explicitly opted in.
@@ -89,12 +96,10 @@ if [[ -f "$_git_ssh_key_file" ]]; then
             log_success "Configured git SSH signing capability with ${_git_ssh_key_file}.pub (auto-sign off; enable via modules.git.sign_commits)"
         fi
     fi
+elif [[ "$_git_sign_commits" == "true" ]]; then
+    log_warn "No SSH key and .pub at ${_git_ssh_key_file}, so signing isn't configured although modules.git.sign_commits is on. If an earlier run set it up, commits will fail until the key is back or modules.git.signing_key names another."
 else
-    if [[ "$_git_sign_commits" == "true" ]]; then
-        log_warn "SSH key not found at ${_git_ssh_key_file}, so commits won't be signed even though modules.git.sign_commits is on"
-    else
-        log_warn "SSH key not found at ${_git_ssh_key_file}, skipping signing configuration"
-    fi
+    log_warn "No SSH key and .pub at ${_git_ssh_key_file}, skipping signing configuration"
 fi
 
 # Configure useful defaults
