@@ -82,8 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Module notes are short again; the detail moved to READMEs** (#73). The mise, yazi, lazygit, pi
   and herdr modules used `notes:` as documentation, so a first install printed pages of it. Each
   now has a `README.md`, and its notes hold only what you must do or know. A test keeps every
-  shipped note to 200 characters. These modules re-run once on each host and re-show their
-  shortened notes once.
+  shipped note to 200 characters. These modules re-run once on each host. A host that has
+  recorded their notes re-shows the shortened ones once; others print the one-line pointer.
 
 - **`lazygit` module is sudo-free** (v2.0.0). It no longer runs `pkg_install` (apt has no lazygit
   on Ubuntu 22.04) or `sudo install` into `/usr/local/bin`. With `modules.lazygit.tools` set it

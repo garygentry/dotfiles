@@ -14,8 +14,15 @@ Run `pi` once interactively to authenticate. Auth and trust state are local to t
 
 ## When the install can't complete
 
-A missing npm or a failed global install (no registry, or offline) degrades to a warning and success, so a locked-down host still completes `dotfiles install` (ADR 0025 D6). `verify.sh` is the gate that `pi` is actually present.
+If npm is missing or the global install fails (no registry, or offline), `install.sh` warns and doesn't stop (ADR 0025 D6). `verify.sh` runs next and is the gate: if no `pi` is present, the module is recorded as failed and `dotfiles install` exits non-zero. Other modules still install.
 
-Two cases are hard failures: a resolved version that's off the pin, and a WSL `/mnt` provenance miss.
+After npm succeeds, `install.sh` fails if:
 
-The `nodejs` dependency pins npm's global prefix to `~/.local` and enforces pi's `engines.node` floor (`modules.nodejs.min_version`). This module checks pi's own `engines.node` again and fails if it isn't met.
+- `pi` isn't on `PATH` (a WSL `/mnt` path doesn't count)
+- `pi` isn't runnable
+- its version is off the pin
+- node is below pi's own `engines.node`, when both versions are readable
+
+`verify.sh` also fails if `pi` doesn't resolve in a login shell. A miss in a non-login shell is only a warning.
+
+The `nodejs` dependency pins npm's global prefix to `~/.local` and enforces a node floor through `modules.nodejs.min_version`.

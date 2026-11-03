@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // writeModule creates <root>/<name>/module.yml with the given body and returns
@@ -188,9 +189,9 @@ func TestShippedModuleNotesAreShort(t *testing.T) {
 	}
 	for _, m := range mods {
 		for _, note := range m.Notes {
-			if len(note) > maxNoteLen {
+			if n := utf8.RuneCountInString(note); n > maxNoteLen {
 				t.Errorf("%s: note is %d characters (max %d), move the detail to its README: %q",
-					m.Name, len(note), maxNoteLen, note)
+					m.Name, n, maxNoteLen, note)
 			}
 		}
 	}
