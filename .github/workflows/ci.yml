@@ -56,21 +56,6 @@ jobs:
       - name: Install zsh
         run: sudo apt-get update && sudo apt-get install -y zsh
 
-      - name: TEMP zsh debug
-        run: |
-          H=$(mktemp -d); printf 'PS1="> "\n' > $H/.zshrc
-          (HOME=$H timeout 8 script -qec 'zsh -xi -c exit </dev/null >/tmp/z.log 2>&1' /dev/null </dev/null >/dev/null 2>&1; echo direct_rc=$?)
-          tail -5 /tmp/z.log
-          (HOME=$H timeout 10 script -qec 'timeout 8 zsh -xi -c exit </dev/null >/tmp/z2.log 2>&1' /dev/null </dev/null >/dev/null 2>&1; echo nested_timeout_rc=$?)
-          tail -5 /tmp/z2.log
-          (HOME=$H timeout 10 script -qec 'timeout --foreground 8 zsh -xi -c exit </dev/null >/tmp/z3.log 2>&1' /dev/null </dev/null >/dev/null 2>&1; echo foreground_rc=$?)
-          tail -5 /tmp/z3.log
-          HOME=$H timeout 12 script -qec 'zsh -f -c "zsh -i -c exit </dev/null >/dev/null 2>&1" & sleep 4; ps -eo pid,ppid,pgid,tpgid,stat,wchan:20,args | grep -E "[z]sh|[t]imeout"; wait' /dev/null </dev/null 2>&1 | tail -12
-          H2=$(mktemp -d); printf 'PS1="> "\n' > $H2/.zshrc
-          (HOME=$H2 timeout 12 script -qec 'timeout 8 zsh -f -c "zsh -i -c exit </dev/null >/dev/null 2>&1; echo inner_done" ' /dev/null </dev/null 2>&1 | tail -2; echo wrapped_rc=$?)
-          sudo apt-get install -y -qq strace >/dev/null 2>&1; HOME=$H timeout 10 script -qec 'timeout 6 strace -f -o /tmp/st zsh -i -c exit </dev/null >/dev/null 2>&1' /dev/null </dev/null >/dev/null 2>&1; tail -12 /tmp/st | cut -c1-120
-        continue-on-error: true
-
       - name: Run bootstrap tests
         run: make test-bootstrap
 
