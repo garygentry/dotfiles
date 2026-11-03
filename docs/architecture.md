@@ -621,7 +621,7 @@ Currently sequential, but architecture supports parallel execution:
 ### CI Pipeline
 
 ```yaml
-Unit Tests (always)
+Unit Tests + Bootstrap Tests (always)
     ↓
 Integration Tests (matrix: ubuntu, arch)
     ↓

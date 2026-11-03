@@ -11,8 +11,9 @@ The engine is intentionally **generic and unopinionated**, with an optional **co
 ```bash
 make build                    # Build binary to bin/dotfiles
 make test                     # Unit tests (go test ./...)
+make test-bootstrap           # Hermetic shell tests (test/bootstrap/*_test.sh)
 make test-integration         # Docker-based integration tests (Ubuntu + Arch)
-make test-all                 # Unit + integration
+make test-all                 # Unit + bootstrap + integration
 make lint                     # go vet
 make lint-shell               # shellcheck on modules/ and lib/
 make lint-all                 # go vet + shellcheck
@@ -54,8 +55,9 @@ Install scripts use helpers from `lib/helpers.sh`:
 ## Testing
 
 - Unit tests: table-driven, `t.TempDir()` for isolation, no external frameworks
+- Bootstrap tests: hermetic shell scripts in `test/bootstrap/` for `bootstrap.sh` and module scripts; new `*_test.sh` files run automatically
 - Integration tests: Docker containers for Ubuntu and Arch, test full install/uninstall flows
-- CI runs: shellcheck → go vet → unit tests (with `-race`) → integration tests
+- CI runs: shellcheck → unit tests (with `-race`) + go vet, and bootstrap tests → integration tests
 
 ## Gotchas
 

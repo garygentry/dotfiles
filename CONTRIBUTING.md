@@ -183,6 +183,9 @@ fi
 # Unit tests
 go test ./...
 
+# Bootstrap tests (hermetic shell tests in test/bootstrap/; new *_test.sh files run automatically)
+make test-bootstrap
+
 # Integration tests
 make test-integration-ubuntu
 make test-integration-arch

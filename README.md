@@ -344,6 +344,9 @@ make build
 # Run unit tests
 make test
 
+# Run bootstrap tests (hermetic shell tests)
+make test-bootstrap
+
 # Run integration tests
 make test-integration
 
