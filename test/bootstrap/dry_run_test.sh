@@ -58,10 +58,21 @@ run_main() {
     ) > "${TMPROOT}/${name}.log" 2>&1
 }
 logs() { grep -qF -- "$2" "${TMPROOT}/$1.log"; }
+# check_main <desc> <name> <args...>: run_main with errexit on, the way a real run has it.
+# Going through check() would not do: bash ignores set -e under its `if`, even the one in
+# bootstrap.sh, so a failing command in main would go unnoticed (#83).
+check_main() {
+    local desc="$1" rc; shift
+    set +e
+    run_main "$@"
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ]; then pass "$desc"; else fail "$desc"; tail -n 5 "${TMPROOT}/$1.log" >&2; fi
+}
 
 # T1: fresh host — nothing is cloned; the preview says why it can't run.
 DOTFILES_DIR_UNDER_TEST="${TMPROOT}/fresh/.dotfiles"
-check "T1 dry run exits 0 on a fresh host" run_main fresh --dry-run
+check_main "T1 dry run exits 0 on a fresh host" fresh --dry-run
 check "T1 no engine checkout created" test ! -e "$DOTFILES_DIR_UNDER_TEST"
 check "T1 says it would clone" logs fresh "would clone ${BARE}"
 check "T1 says the preview needs prep" logs fresh "No install preview"
@@ -70,7 +81,7 @@ check "T1 says the preview needs prep" logs fresh "No install preview"
 OLD="${TMPROOT}/old/.dotfiles"
 git_q clone -q "$BARE" "$OLD" && git_q -C "$OLD" reset -q --hard "$C1"
 DOTFILES_DIR_UNDER_TEST="$OLD"
-check "T2 dry run exits 0" run_main old --dry-run
+check_main "T2 dry run exits 0" old --dry-run
 check "T2 HEAD unchanged" test "$(git -C "$OLD" rev-parse HEAD)" = "$C1"
 check "T2 says it would reset" logs old "would reset ${OLD} from ${C1:0:7}"
 check "T2 no bin/dotfiles written" test ! -e "${OLD}/bin/dotfiles"
@@ -80,7 +91,7 @@ DIRTY="${TMPROOT}/dirty/.dotfiles"
 git_q clone -q "$BARE" "$DIRTY"
 echo edited > "${DIRTY}/f"; echo stray > "${DIRTY}/stray"
 DOTFILES_DIR_UNDER_TEST="$DIRTY"
-check "T3 dry run exits 0" run_main dirty --dry-run
+check_main "T3 dry run exits 0" dirty --dry-run
 check "T3 local edit kept" grep -qx edited "${DIRTY}/f"
 check "T3 untracked file kept" test -e "${DIRTY}/stray"
 check "T3 no .backups patch written" test ! -e "${DIRTY}/.backups"
@@ -92,7 +103,7 @@ CLEAN="${TMPROOT}/clean/.dotfiles"
 git_q clone -q "$BARE" "$CLEAN"
 mkdir -p "${TMPROOT}/content"
 DOTFILES_DIR_UNDER_TEST="$CLEAN"
-check "T4 dry run exits 0" run_main clean --dry-run --content-path "${TMPROOT}/content" --profile x
+check_main "T4 dry run exits 0" clean --dry-run --content-path "${TMPROOT}/content" --profile x
 check "T4 install ran with --dry-run" grep -qx -- "install --dry-run --profile x" "${TMPROOT}/clean.stub"
 check "T4 no bin/dotfiles written" test ! -e "${CLEAN}/bin/dotfiles"
 check "T4 ~/.zshenv not written" test ! -e "${TMPROOT}/clean/.zshenv"
