@@ -13,23 +13,36 @@ set -euo pipefail
 
 _ssh_dir="${DOTFILES_HOME}/.ssh"
 _ssh_key_source="${DOTFILES_SETTING_KEY_SOURCE:-generate}"
-_ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
-# An existing key wins over the requested type, as in install.sh (same order).
-for _ssh_candidate in ed25519 rsa ecdsa; do
-    if [[ -f "${_ssh_dir}/id_${_ssh_candidate}" ]]; then
-        _ssh_key_type="$_ssh_candidate"
-        break
-    fi
-done
-_ssh_key_file="${_ssh_dir}/id_${_ssh_key_type}"
 _ssh_errors=0
+
+# The managed block of ~/.ssh/config is what install.sh last rendered. Content
+# outside it belongs to the user, so nothing below reads from there.
+_ssh_managed_block=""
+if [[ -f "${_ssh_dir}/config" ]]; then
+    _ssh_managed_block="$(awk '
+        { sub(/\r$/, "") }
+        $0 == "# <<< dotfiles managed <<<" { inb = 0 }
+        inb { print }
+        $0 == "# >>> dotfiles managed >>>" { inb = 1 }
+    ' "${_ssh_dir}/config")"
+fi
 
 # auto resolves at install time; verify what it resolved to, as recorded in the
 # managed block ("# key_source: <mode>"). Without a record only the config is checked.
-if [[ "$_ssh_key_source" == "auto" ]] && [[ -f "${_ssh_dir}/config" ]]; then
-    _ssh_recorded="$(awk '{ sub(/\r$/, "") } /^# key_source: / { print $3; exit }' "${_ssh_dir}/config")"
+if [[ "$_ssh_key_source" == "auto" ]]; then
+    _ssh_recorded="$(awk '/^# key_source: / { print $3; exit }' <<<"$_ssh_managed_block")"
     _ssh_key_source="${_ssh_recorded:-auto}"
 fi
+
+# The local key is the one ssh will use: the Host * IdentityFile install.sh rendered.
+# It can differ from the prompted type, because install.sh reuses an existing key.
+# A block with none (not rendered yet, or from agent mode) falls back to that type.
+_ssh_identity="$(awk '
+    /^[[:space:]]*Host[[:space:]]/ { inhost = ($2 == "*") }
+    inhost && /^[[:space:]]*IdentityFile[[:space:]]/ { print $2; exit }
+' <<<"$_ssh_managed_block")"
+_ssh_key_file="${_ssh_dir}/id_${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
+[[ -z "$_ssh_identity" ]] || _ssh_key_file="${_ssh_identity/#\~/$DOTFILES_HOME}"
 
 if [[ "$_ssh_key_source" == "none" ]]; then
     log_success "SSH key_source=none: nothing to verify"
