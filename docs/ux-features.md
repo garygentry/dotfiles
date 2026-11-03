@@ -203,7 +203,7 @@ Recognized patterns:
 
 ### Automatic Detection
 
-When stdin is not a terminal (e.g., piped input), the CLI automatically uses plain text output:
+When stdout is not a terminal, the CLI uses plain text output. When stdin is not a terminal (piped input, `/dev/null`), `dotfiles install` uses prompt defaults, as if `--unattended` were set:
 
 ```bash
 # Piped execution

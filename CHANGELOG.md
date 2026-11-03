@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A `/dev/null` stdin no longer counts as interactive** (#72). `dotfiles install </dev/null`
   (cron, systemd, `ssh host cmd </dev/null`) was treated as interactive because `/dev/null` is a
   character device, so the unattended fallback didn't trigger and `--interactive`'s guard passed.
-  It now checks for a real terminal. Output redirected to `/dev/null` also takes the non-TTY path.
+  It now checks for a real terminal, so such a run uses prompt defaults.
 - **The git module no longer forces a credential helper** (#61). Every install ran
   `git config --global credential.helper "cache --timeout=900"` (Ubuntu, Arch) or `osxkeychain`
   (macOS). It couldn't be turned off, so a host that wires its own helper had to shadow it. The

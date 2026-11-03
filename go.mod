@@ -9,7 +9,6 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/sys v0.33.0
-	golang.org/x/term v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"runtime"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestDetectReturnsNonNil(t *testing.T) {
@@ -245,49 +247,64 @@ func TestParseOSReleaseIDMissing(t *testing.T) {
 }
 
 func TestDetectInteractive(t *testing.T) {
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer devNull.Close()
-
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer r.Close()
-	defer w.Close()
-
-	cases := []struct {
-		name  string
-		stdin *os.File
-		want  bool
-	}{
-		// A character device, but not a terminal.
-		{"dev null", devNull, false},
-		{"pipe", r, false},
-	}
-
-	// A pty is the positive case. ptmx is a terminal without needing a controlling tty.
-	if ptmx, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err == nil {
-		defer ptmx.Close()
-		cases = append(cases, struct {
-			name  string
-			stdin *os.File
-			want  bool
-		}{"pty", ptmx, true})
-	} else {
-		t.Logf("no /dev/ptmx, skipping the pty case: %v", err)
-	}
-
 	orig := os.Stdin
 	t.Cleanup(func() { os.Stdin = orig })
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			os.Stdin = tc.stdin
-			if got := detectInteractive(); got != tc.want {
-				t.Errorf("detectInteractive() = %v, want %v", got, tc.want)
-			}
-		})
-	}
+
+	// /dev/null is a character device, but not a terminal.
+	t.Run("dev null", func(t *testing.T) {
+		devNull, err := os.Open(os.DevNull)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer devNull.Close()
+		os.Stdin = devNull
+		if detectInteractive() {
+			t.Error("detectInteractive() = true, want false")
+		}
+	})
+
+	t.Run("pipe", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		defer w.Close()
+		os.Stdin = r
+		if detectInteractive() {
+			t.Error("detectInteractive() = true, want false")
+		}
+
+		// The descriptor is shared with the parent process, so the check must not
+		// change its mode. os.Pipe returns non-blocking descriptors.
+		conn, err := r.SyscallConn()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var flags int
+		var flagsErr error
+		if err := conn.Control(func(fd uintptr) {
+			flags, flagsErr = unix.FcntlInt(fd, unix.F_GETFL, 0)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if flagsErr != nil {
+			t.Fatal(flagsErr)
+		}
+		if flags&unix.O_NONBLOCK == 0 {
+			t.Error("detectInteractive() cleared O_NONBLOCK on stdin")
+		}
+	})
+
+	t.Run("pty", func(t *testing.T) {
+		ptmx, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+		if err != nil {
+			t.Skipf("no pty available: %v", err)
+		}
+		defer ptmx.Close()
+		os.Stdin = ptmx
+		if !detectInteractive() {
+			t.Error("detectInteractive() = false, want true")
+		}
+	})
 }

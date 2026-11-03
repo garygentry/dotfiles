@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/term"
+	"github.com/charmbracelet/x/term"
 )
 
 // SystemInfo holds detected information about the host system.
@@ -165,5 +165,15 @@ func detectSudo() bool {
 // because /dev/null is one too: cron, systemd and `ssh host cmd </dev/null` must
 // count as non-interactive.
 func detectInteractive() bool {
-	return term.IsTerminal(int(os.Stdin.Fd()))
+	// SyscallConn rather than Fd: Fd would clear O_NONBLOCK on a descriptor shared
+	// with the parent process.
+	conn, err := os.Stdin.SyscallConn()
+	if err != nil {
+		return false
+	}
+	var isTerm bool
+	if err := conn.Control(func(fd uintptr) { isTerm = term.IsTerminal(fd) }); err != nil {
+		return false
+	}
+	return isTerm
 }

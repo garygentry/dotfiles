@@ -193,6 +193,17 @@ assert_output_contains "--help shows 'Available Commands' or command info" "dotf
 INSTALL_HELP=$("$DOTFILES_BIN" install --help 2>&1)
 assert_output_contains "install help shows --prompt-dependencies" "prompt-dependencies" "$INSTALL_HELP"
 
+# --- A /dev/null stdin is non-interactive (cron, systemd, ssh host cmd </dev/null) ---
+echo ""
+echo "--- Test: /dev/null stdin ---"
+OUTPUT=$("$DOTFILES_BIN" install --dry-run </dev/null 2>&1) || true
+assert_output_contains "/dev/null stdin falls back to prompt defaults" "Non-interactive stdin detected" "$OUTPUT"
+if OUTPUT=$("$DOTFILES_BIN" install --dry-run --interactive </dev/null 2>&1); then
+    fail "--interactive with /dev/null stdin should fail"
+else
+    assert_output_contains "--interactive with /dev/null stdin is refused" "needs an interactive terminal" "$OUTPUT"
+fi
+
 # --- Migration + repo-cleanliness fixtures (asserted after the full install) ---
 # 1. Simulate an OLD-MODEL deployment: ~/.zshrc as a symlink straight into the
 #    repo. The new model manages ~/.zshrc as a rendered template; a correct
