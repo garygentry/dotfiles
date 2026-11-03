@@ -51,7 +51,8 @@ _ssh_end_marker="# <<< dotfiles managed <<<"
 # _ssh_previous_mode — the key source this module last rendered into its managed
 # block of ~/.ssh/config, or nothing on a host it hasn't configured. The block
 # records it as "# key_source: <mode>". A block written before that line existed
-# is "agent" if it carries the agent-mode GitHub comment, otherwise "generate".
+# is "generate" if it names an IdentityFile, which that mode always renders under
+# Host *, otherwise "agent".
 _ssh_previous_mode() {
     [[ -f "${_ssh_dir}/config" ]] || return 0
     awk -v begin="$_ssh_begin_marker" -v end="$_ssh_end_marker" '
@@ -59,10 +60,10 @@ _ssh_previous_mode() {
         $0 == begin { inb = 1; seen = 1; next }
         $0 == end   { inb = 0; next }
         inb && /^# key_source: / { mode = $3; exit }
-        inb && /key_source=agent:/ { legacy = "agent" }
+        inb && /^[[:space:]]*IdentityFile[[:space:]]/ { identity = 1 }
         END {
             if (mode != "") print mode
-            else if (seen) print (legacy != "" ? legacy : "generate")
+            else if (seen) print (identity ? "generate" : "agent")
         }
     ' "${_ssh_dir}/config"
 }

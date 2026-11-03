@@ -5,6 +5,14 @@
 _git_user_name="${DOTFILES_USER_NAME:-}"
 _git_user_email="${DOTFILES_USER_EMAIL:-}"
 _git_ssh_key_type="${DOTFILES_PROMPT_SSH_KEY_TYPE:-ed25519}"
+# The ssh module reuses an existing key over the requested type, in this order, so a
+# host with only id_rsa signs with id_rsa.
+for _git_candidate in ed25519 rsa ecdsa; do
+    if [[ -f "${DOTFILES_HOME}/.ssh/id_${_git_candidate}" ]]; then
+        _git_ssh_key_type="$_git_candidate"
+        break
+    fi
+done
 _git_ssh_key_file="${DOTFILES_HOME}/.ssh/id_${_git_ssh_key_type}"
 # modules.git.signing_key (DOTFILES_SETTING_SIGNING_KEY): the PRIVATE key path to sign
 # commits with (its .pub becomes user.signingkey). Default: the host's SSH identity key above.
@@ -82,7 +90,11 @@ if [[ -f "$_git_ssh_key_file" ]]; then
         fi
     fi
 else
-    log_warn "SSH key not found at ${_git_ssh_key_file}, skipping signing configuration"
+    if [[ "$_git_sign_commits" == "true" ]]; then
+        log_warn "SSH key not found at ${_git_ssh_key_file}, so commits won't be signed even though modules.git.sign_commits is on"
+    else
+        log_warn "SSH key not found at ${_git_ssh_key_file}, skipping signing configuration"
+    fi
 fi
 
 # Configure useful defaults

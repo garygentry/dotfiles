@@ -93,6 +93,21 @@ run_case was_agent_legacy 2 "$legacy_agent_block"
 expect_mode was_agent_legacy agent
 expect_no_key was_agent_legacy
 
+# 3b. Same, with github_host: false, where the old block has no GitHub comment to go by.
+run_case was_agent_no_github 2 '# >>> dotfiles managed >>>
+Host *
+    ServerAliveInterval 60
+# <<< dotfiles managed <<<'
+expect_mode was_agent_no_github agent
+expect_no_key was_agent_no_github
+
+# 3c. An old block from generate mode names a key, so it stays generate.
+run_case was_generate_legacy 2 '# >>> dotfiles managed >>>
+Host *
+    IdentityFile ~/.ssh/id_ed25519
+# <<< dotfiles managed <<<'
+expect_mode was_generate_legacy generate
+
 # 4. First install, no agent -> generate, with a loud warning naming the key.
 run_case first 2
 expect_mode first generate

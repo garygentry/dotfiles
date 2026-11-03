@@ -63,24 +63,21 @@ if is_dry_run; then
     return 0 2>/dev/null || exit 0
 fi
 
-# npm must be runnable (the nodejs dependency provides it). Its ABSENCE is an
-# environmental miss, not an operator-config error: DEFER (warn + succeed) exactly as
-# pi-config defers when python3 is absent — the nodejs module installs npm, so a host
-# where it hasn't run yet re-runs `dotfiles install pi` later. verify.sh is the gate
-# that a pi is actually present. (The estate's amber-on-environmental posture; ADR 0025.)
+# npm must be runnable (the nodejs dependency provides it). Its absence is an
+# environmental miss, not an operator-config error, so warn and leave the verdict to
+# verify.sh: with no pi present, it fails the module, and the next run retries.
 if ! command -v npm >/dev/null 2>&1; then
-    log_warn "pi: npm not found — deferring (the 'nodejs' module provides it; install nodejs, then re-run 'dotfiles install pi')"
+    log_warn "pi: npm not found (the 'nodejs' module provides it; install nodejs, then re-run 'dotfiles install pi'). Verify will fail this module if pi is missing."
     return 0 2>/dev/null || exit 0
 fi
 
 log_info "Installing ${_pi_spec} (sudo-free npm global)..."
 if ! npm install -g --ignore-scripts "$_pi_spec"; then
     # A failed global install is almost always environmental (no registry/network on a
-    # locked-down fleet host) — DEGRADE to a warning so the rest of `dotfiles install`
-    # completes green, and re-runs when connectivity returns; verify.sh stays the gate.
-    # (A genuinely bad BOM pin also lands here, but that self-surfaces at verify — a
-    # red at install on every offline host is the worse failure mode.)
-    log_warn "pi: 'npm install -g ${_pi_spec}' failed — deferring (no npm registry/network? a fleet host still installs; re-run when reachable, or check the pin if it persists)"
+    # locked-down fleet host), but a bad pin lands here too. Warn and leave the verdict
+    # to verify.sh: a host with no pi or the wrong version fails the module, other modules
+    # still install, and the next run retries.
+    log_warn "pi: 'npm install -g ${_pi_spec}' failed (no npm registry/network?). Verify will fail this module if pi is missing or off its pin; re-run when reachable, or check the pin if it persists."
     return 0 2>/dev/null || exit 0
 fi
 
