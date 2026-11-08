@@ -93,26 +93,39 @@ fi
 # for its line editor even when stdin is /dev/null, and waits there for input. On
 # a hand install that looked like a hang until the user pressed Ctrl-D once per
 # run, and on the runner's silent pre-skip verify (30s limit) it got the module
-# killed and reinstalled. setsid detaches it. Where there is no setsid (macOS),
-# fall back to `zsh -i -c exit`: it under-measures slightly, but never reads the
-# tty. The whole probe is also capped (timeout, when available) well inside that
-# 30s, so a slow warm-up (cloning plugins) can't fail verify either.
+# killed and reinstalled. compinit can also ask about insecure completion
+# directories on that terminal, with the probe's output hidden. Detaching avoids
+# both: setsid where it exists, perl's setsid on macOS, which has no setsid command.
+# With neither there is no safe way to run the probe, so it is skipped. The whole
+# probe is also capped (timeout, or perl's alarm) well inside that 30s, so a slow
+# warm-up (cloning plugins) can't fail verify either.
 _zsh_budget="${DOTFILES_SETTING_STARTUP_BUDGET_MS:-}"
 if [[ -n "$_zsh_budget" && ! "$_zsh_budget" =~ ^[0-9]+$ ]]; then
     log_warn "modules.zsh.startup_budget_ms must be a whole number of milliseconds (got '${_zsh_budget}'); ignoring it"
     _zsh_budget=""
 fi
-if command -v zsh &>/dev/null && [[ -f "${DOTFILES_HOME}/.zshrc" ]] && ! is_dry_run; then
-    if command -v setsid &>/dev/null; then
-        _zsh_probe=(setsid -w zsh -i)
-    else
-        _zsh_probe=(zsh -i -c exit)
-    fi
+_zsh_has_perl=false
+if command -v perl &>/dev/null && perl -MPOSIX -e 1 &>/dev/null; then
+    _zsh_has_perl=true
+fi
+_zsh_probe=()
+if command -v setsid &>/dev/null; then
+    _zsh_probe=(setsid -w zsh -i)
+elif [[ "$_zsh_has_perl" == "true" ]]; then
+    # shellcheck disable=SC2016  # @ARGV is perl's, not a shell expansion
+    _zsh_probe=(perl -MPOSIX -e 'POSIX::setsid() > 0 or exit 125; exec @ARGV or exit 127' zsh -i)
+fi
+if command -v zsh &>/dev/null && [[ -f "${DOTFILES_HOME}/.zshrc" ]] && ! is_dry_run && [[ ${#_zsh_probe[@]} -eq 0 ]]; then
+    log_info "Skipping the zsh startup time check: neither setsid nor perl is available to detach it from the terminal"
+elif command -v zsh &>/dev/null && [[ -f "${DOTFILES_HOME}/.zshrc" ]] && ! is_dry_run; then
     _zsh_timeout=()
     if command -v timeout &>/dev/null; then
         _zsh_timeout=(timeout 20)
     elif command -v gtimeout &>/dev/null; then
         _zsh_timeout=(gtimeout 20)
+    elif [[ "$_zsh_has_perl" == "true" ]]; then
+        # shellcheck disable=SC2016  # @ARGV is perl's, not a shell expansion
+        _zsh_timeout=(perl -e 'alarm 20; exec @ARGV or exit 127')
     fi
     # shellcheck disable=SC2016  # the single-quoted body is zsh code, expanded by zsh
     _zsh_median="$(HOME="${DOTFILES_HOME}" ${_zsh_timeout[@]+"${_zsh_timeout[@]}"} zsh -f -c '
