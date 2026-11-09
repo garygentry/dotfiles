@@ -99,9 +99,9 @@ fi
 #
 # The whole probe is detached once, so the detach isn't timed, and capped well
 # inside that 30s, so a slow warm-up (cloning plugins) can't fail verify either.
-# setsid + timeout where both exist. Otherwise perl does both (macOS has neither),
-# killing the session's process group so no shell outlives the cap. Setsid alone
-# runs uncapped. With no way to detach, the probe is skipped.
+# setsid + timeout where both exist, otherwise perl does both (macOS has neither).
+# The cap sends SIGTERM to the whole process group, so a plugin clone can clean up
+# after itself. With no way to detach and cap, the probe is skipped.
 _zsh_budget="${DOTFILES_SETTING_STARTUP_BUDGET_MS:-}"
 if [[ -n "$_zsh_budget" && ! "$_zsh_budget" =~ ^[0-9]+$ ]]; then
     log_warn "modules.zsh.startup_budget_ms must be a whole number of milliseconds (got '${_zsh_budget}'); ignoring it"
@@ -117,15 +117,13 @@ if command -v zsh &>/dev/null && [[ -f "${DOTFILES_HOME}/.zshrc" ]] && ! is_dry_
     fi
     _zsh_wrap=()
     if command -v setsid &>/dev/null && [[ -n "$_zsh_timeout" ]]; then
-        _zsh_wrap=(setsid -w "$_zsh_timeout" -s KILL "$_zsh_cap")
+        _zsh_wrap=(setsid -w "$_zsh_timeout" "$_zsh_cap")
     elif command -v perl &>/dev/null && perl -MPOSIX -e 1 &>/dev/null; then
         # shellcheck disable=SC2016  # the single-quoted body is perl code
-        _zsh_wrap=(perl -MPOSIX -e 'my $cap = shift @ARGV; POSIX::setsid() > 0 or exit 125; defined(my $p = fork) or exit 125; if (!$p) { exec @ARGV; exit 127 } $SIG{ALRM} = sub { kill "KILL", -$$ }; alarm $cap; waitpid $p, 0; exit($? >> 8)' "$_zsh_cap")
-    elif command -v setsid &>/dev/null; then
-        _zsh_wrap=(setsid -w)
+        _zsh_wrap=(perl -MPOSIX -e 'my $cap = shift @ARGV; POSIX::setsid() > 0 or exit 125; defined(my $p = fork) or exit 125; if (!$p) { exec @ARGV; exit 127 } $SIG{ALRM} = sub { $SIG{TERM} = "IGNORE"; kill "TERM", -$$; exit 124 }; alarm $cap; waitpid $p, 0; exit($? >> 8)' "$_zsh_cap")
     fi
     if [[ ${#_zsh_wrap[@]} -eq 0 ]]; then
-        log_info "Skipping the zsh startup time check: it needs setsid, or perl with its POSIX module, to detach from the terminal"
+        log_info "Skipping the zsh startup time check: it needs setsid and timeout, or perl with its POSIX module, to detach from the terminal and cap the run"
     else
         # shellcheck disable=SC2016  # the single-quoted body is zsh code, expanded by zsh
         _zsh_median="$(HOME="${DOTFILES_HOME}" "${_zsh_wrap[@]}" zsh -f -c '

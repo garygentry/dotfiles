@@ -21,7 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-for _tool in zsh script setsid timeout; do
+for _tool in zsh script setsid timeout pgrep pkill; do
     if ! command -v "$_tool" &>/dev/null; then
         printf 'SKIP: %s not found\n' "$_tool"
         exit 0
@@ -74,6 +74,9 @@ make_path "$NODETACH" setsid perl
 # Like a stock Mac: no setsid and no timeout, so perl both detaches and caps.
 MACLIKE="${TMPROOT}/maclike-bin"
 make_path "$MACLIKE" setsid timeout gtimeout
+# setsid but nothing to cap the probe with.
+NOCAP="${TMPROOT}/nocap-bin"
+make_path "$NOCAP" timeout gtimeout perl
 TIMEOUT_BIN="$(command -v timeout)"
 
 # The terminal's input stays open and silent. With `</dev/null`, script passes EOF
@@ -86,7 +89,7 @@ SLOW_HOME="${TMPROOT}/slow-home"
 cp -R "${SANDBOX}" "${SLOW_HOME}"
 printf 'sleep 47\n' > "${SLOW_HOME}/.zshrc"
 
-# run_case <name> <PATH> [expected output]
+# run_case <name> <PATH> [expected output] [HOME] [time limit]. Sets CASE_ELAPSED.
 run_case() {
     local name="$1" path="$2" expected="${3:-Zsh interactive startup:}" case_home="${4:-${SANDBOX}}" limit="${5:-15}"
     local out rc start elapsed
@@ -98,6 +101,7 @@ run_case() {
         DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/zsh" DOTFILES_DRY_RUN=false \
         "$TIMEOUT_BIN" "$limit" script -qec "bash -c \"${inner}\"" /dev/null <&3 2>&1)" || rc=$?
     elapsed=$((SECONDS - start))
+    CASE_ELAPSED=$elapsed
 
     if [[ $rc -eq 124 ]]; then
         fail "${name}: verify hung (killed after ${limit}s)"
@@ -119,6 +123,9 @@ run_case() {
 # run_cap_case <name> <PATH>: the cap fires, and no shell outlives it.
 run_cap_case() {
     run_case "$1" "$2" "Could not measure zsh startup time" "${SLOW_HOME}" 30
+    if (( CASE_ELAPSED < 18 || CASE_ELAPSED > 24 )); then
+        fail "$1: expected the cap at about 20s, took ${CASE_ELAPSED}s"
+    fi
     sleep 1
     if pgrep -f '^sleep 47$' >/dev/null; then
         fail "$1: a probe shell outlived the cap"
@@ -130,6 +137,7 @@ run_cap_case() {
 
 run_case "setsid" "$PATH"
 run_case "no setsid or perl (skipped)" "${NODETACH}" "Skipping the zsh startup time check"
+run_case "setsid, no timeout or perl (skipped)" "${NOCAP}" "Skipping the zsh startup time check"
 run_cap_case "setsid + timeout cap" "$PATH"
 if perl -MPOSIX -e 1 &>/dev/null; then
     run_case "no setsid (perl detach)" "${NOSETSID}"
