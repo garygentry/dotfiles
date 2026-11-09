@@ -19,7 +19,7 @@ trap 'rm -rf "${TMPROOT}"' EXIT
 run_install() {
     log_info() { :; }
     log_success() { :; }
-    pkg_install() { printf '%s\n' "$*" > "${TMPROOT}/asked"; }
+    pkg_install() { printf '%s\n' "$*" >> "${TMPROOT}/asked"; }
     # shellcheck source=modules/python/install.sh
     source "${REPO_ROOT}/modules/python/install.sh"
 }
