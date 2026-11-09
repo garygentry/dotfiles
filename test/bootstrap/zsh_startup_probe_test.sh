@@ -12,7 +12,8 @@
 # probe is skipped. Each case is capped by `timeout`, so a regression fails
 # instead of hanging.
 #
-# Linux only (needs util-linux script + setsid, and zsh).
+# Linux only (needs util-linux script + setsid, and zsh). The perl cases are skipped
+# where perl has no POSIX module. Two cases wait out the 20s cap on a stuck .zshrc.
 #
 #   test/bootstrap/zsh_startup_probe_test.sh
 set -euo pipefail
@@ -20,7 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-for _tool in zsh script setsid timeout perl; do
+for _tool in zsh script setsid timeout; do
     if ! command -v "$_tool" &>/dev/null; then
         printf 'SKIP: %s not found\n' "$_tool"
         exit 0
@@ -80,20 +81,26 @@ TIMEOUT_BIN="$(command -v timeout)"
 mkfifo "${TMPROOT}/tty-input"
 exec 3<>"${TMPROOT}/tty-input"
 
+# A second sandbox whose .zshrc outlasts the probe's cap.
+SLOW_HOME="${TMPROOT}/slow-home"
+cp -R "${SANDBOX}" "${SLOW_HOME}"
+printf 'sleep 47\n' > "${SLOW_HOME}/.zshrc"
+
 # run_case <name> <PATH> [expected output]
 run_case() {
-    local name="$1" path="$2" expected="${3:-Zsh interactive startup:}" out rc start elapsed
+    local name="$1" path="$2" expected="${3:-Zsh interactive startup:}" case_home="${4:-${SANDBOX}}" limit="${5:-15}"
+    local out rc start elapsed
     local inner
     inner="set -euo pipefail; source '${REPO_ROOT}/lib/helpers.sh'; source '${REPO_ROOT}/modules/zsh/verify.sh'"
     start=$SECONDS
     rc=0
-    out="$(PATH="$path" DOTFILES_HOME="${SANDBOX}" HOME="${SANDBOX}" \
+    out="$(PATH="$path" DOTFILES_HOME="${case_home}" HOME="${case_home}" \
         DOTFILES_MODULE_DIR="${REPO_ROOT}/modules/zsh" DOTFILES_DRY_RUN=false \
-        "$TIMEOUT_BIN" 15 script -qec "bash -c \"${inner}\"" /dev/null <&3 2>&1)" || rc=$?
+        "$TIMEOUT_BIN" "$limit" script -qec "bash -c \"${inner}\"" /dev/null <&3 2>&1)" || rc=$?
     elapsed=$((SECONDS - start))
 
     if [[ $rc -eq 124 ]]; then
-        fail "${name}: verify hung (killed after 15s)"
+        fail "${name}: verify hung (killed after ${limit}s)"
         return
     fi
     if [[ $rc -ne 0 ]]; then
@@ -109,10 +116,28 @@ run_case() {
     fi
 }
 
+# run_cap_case <name> <PATH>: the cap fires, and no shell outlives it.
+run_cap_case() {
+    run_case "$1" "$2" "Could not measure zsh startup time" "${SLOW_HOME}" 30
+    sleep 1
+    if pgrep -f '^sleep 47$' >/dev/null; then
+        fail "$1: a probe shell outlived the cap"
+        pkill -f '^sleep 47$' || true
+    else
+        pass "$1: nothing left running"
+    fi
+}
+
 run_case "setsid" "$PATH"
-run_case "no setsid (perl detach)" "${NOSETSID}"
-run_case "no setsid or timeout (macOS)" "${MACLIKE}"
 run_case "no setsid or perl (skipped)" "${NODETACH}" "Skipping the zsh startup time check"
+run_cap_case "setsid + timeout cap" "$PATH"
+if perl -MPOSIX -e 1 &>/dev/null; then
+    run_case "no setsid (perl detach)" "${NOSETSID}"
+    run_case "no setsid or timeout (macOS)" "${MACLIKE}"
+    run_cap_case "perl cap (macOS)" "${MACLIKE}"
+else
+    printf 'SKIP: perl cases (no perl with POSIX)\n'
+fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
