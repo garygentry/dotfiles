@@ -161,17 +161,18 @@ path=(
     "${HOME}/bin"
     "/usr/local/bin"
     "${DOTFILES_DIR:-$HOME/.dotfiles}/bin"
+    $path
     # Standard system dirs, listed explicitly so they are present even when
     # /etc/profile is not sourced (e.g. zsh as root on Proxmox, where the
-    # sbin dirs hold the admin commands). typeset -U above dedupes, so the
-    # /usr/local/bin repeat above keeps its original leading position.
+    # sbin dirs hold the admin commands). They go AFTER the inherited $path:
+    # typeset -U keeps the first copy of each entry, so listing them first
+    # moved /usr/bin ahead of /opt/homebrew/bin and ran the system python3
+    # instead of Homebrew's. Here they only fill in what is missing.
     "/usr/local/sbin"
-    "/usr/local/bin"
     "/usr/sbin"
     "/usr/bin"
     "/sbin"
     "/bin"
-    $path
 )
 
 # mise (optional; see the mise module). Shims first, matching the ~/.zshenv block,
