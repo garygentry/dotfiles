@@ -29,9 +29,10 @@ else
 fi
 
 # prompt_confirm reads only from a terminal, so each case runs under script(1)
-# for a pty, with the reply typed on its stdin.
-if ! command -v script >/dev/null 2>&1; then
-    printf 'SKIP: script not found\n'
+# for a pty, with the reply typed on its stdin. That needs util-linux script
+# (-c CMD); macOS's BSD script takes different arguments, so it skips there.
+if ! script --version 2>/dev/null | grep -q util-linux; then
+    printf 'SKIP: reply cases (needs util-linux script)\n'
     printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
     [[ $FAIL -eq 0 ]]
     exit
