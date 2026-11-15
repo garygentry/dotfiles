@@ -709,7 +709,9 @@ prompt_confirm() {
     printf '%s [%s]: ' "$message" "$hint" >&2
     read -r reply
 
-    case "${reply,,}" in
+    # tr, not ${reply,,}: macOS runs scripts with /bin/bash 3.2, which has no case
+    # conversion and fails the whole script with "bad substitution".
+    case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
         y|yes) return 0 ;;
         n|no)  return 1 ;;
         "")
